@@ -137,7 +137,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 0/9 | Planned | - |
+| 1. Foundation & Data | 0/11 | Planned | - |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
