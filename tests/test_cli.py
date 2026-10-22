@@ -10,7 +10,7 @@ from f1si import paths
 from f1si.cli import main
 from f1si.data import _db, asof, schema
 from f1si.data.loader import load_races
-from f1si.data.sources import NormalizedRace, RaceRef, SourceError
+from f1si.data.sources import NormalizedRace, RaceRef
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.rng import make_rng
 
@@ -64,11 +64,68 @@ class _BrokenSource(SyntheticSource):
         return NormalizedRace(ref=race.ref, tables=tables)
 
 
-def test_invalid_source_data_writes_nothing(tmp_path: Path) -> None:
+def test_invalid_source_data_is_reported_as_a_failed_race_and_writes_nothing(
+    tmp_path: Path,
+) -> None:
     db = paths.db_path(tmp_path)
-    with pytest.raises(SourceError, match="invalid data from synthetic"):
-        load_races(_BrokenSource(rng=make_rng(1)), db, (2023,), now=NOW, echo=lambda _l: None)
+    report = load_races(_BrokenSource(rng=make_rng(1)), db, (2023,), now=NOW, echo=lambda _l: None)
+    assert report.loaded == []
+    assert len(report.failed) == 2
+    assert all("invalid data from synthetic" in f.reason for f in report.failed)
     assert not db.exists() or _db.completed_race_ids(db) == set()
+
+
+def test_load_seasons_selects_seasons(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert (
+        main(["--data-dir", str(tmp_path), "load", "--source", "synthetic", "--seasons", "2023"])
+        == 0
+    )
+    out = capsys.readouterr().out
+    assert len([line for line in out.splitlines() if " ok " in line]) == 2
+    assert "Done: 2 loaded, 0 skipped, 0 failed." in out
+    assert _db.completed_race_ids(paths.db_path(tmp_path)) == {"2023-01", "2023-02"}
+
+
+def test_second_load_skips_cached_races(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    args = ["--data-dir", str(tmp_path), "load", "--source", "synthetic"]
+    assert main(args) == 0
+    capsys.readouterr()
+    assert main(args) == 0
+    out = capsys.readouterr().out
+    assert out.count("skipped (cached)") == 4
+    assert "Done: 0 loaded, 4 skipped, 0 failed." in out
+
+
+def test_load_only_one_race_by_slug(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert (
+        main(["--data-dir", str(tmp_path), "load", "--source", "synthetic", "--only", "alpha-2023"])
+        == 0
+    )
+    assert "Done: 1 loaded, 0 skipped, 0 failed." in capsys.readouterr().out
+    assert _db.completed_race_ids(paths.db_path(tmp_path)) == {"2023-01"}
+
+
+def test_load_only_unknown_race_exits_2_with_failure_list(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = main(
+        ["--data-dir", str(tmp_path), "load", "--source", "synthetic", "--only", "nope-2023"]
+    )
+    assert code == 2
+    out = capsys.readouterr().out
+    assert "Failed races:" in out
+    assert "not found" in out
+
+
+def test_load_unknown_season_explains_the_era_problem(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = main(["--data-dir", str(tmp_path), "load", "--source", "synthetic", "--seasons", "2030"])
+    assert code == 1
+    err = capsys.readouterr().err
+    assert "regulation era" in err
+    assert "2030" in err
+    assert "eras.py" in err
 
 
 def test_catalog_columns_and_order(synthetic_db: Path) -> None:

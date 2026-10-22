@@ -17,6 +17,7 @@ from f1si.data.errors import F1siDataError
 from f1si.data.loader import load_races
 from f1si.data.sources import SourceError
 from f1si.data.sources.synthetic_source import SyntheticSource
+from f1si.eras import ERAS, UnknownEraError
 from f1si.rng import DEFAULT_SEED, make_rng
 
 
@@ -43,19 +44,39 @@ def build_parser() -> argparse.ArgumentParser:
     load.add_argument(
         "--seed", type=int, default=DEFAULT_SEED, help=f"random seed (default {DEFAULT_SEED})"
     )
+    load.add_argument(
+        "--seasons",
+        nargs="+",
+        type=int,
+        default=None,
+        metavar="YEAR",
+        help="seasons to load (default: the source's default seasons)",
+    )
+    load.add_argument(
+        "--only",
+        nargs="+",
+        default=None,
+        metavar="RACE",
+        help="load only these races, by slug (for example alpha-2023) or race id (2023-01)",
+    )
 
     sub.add_parser("races", help="list cached races and their regulation era")
     return parser
 
 
-def _cmd_load(data_dir: Path, seed: int) -> int:
+def _cmd_load(
+    data_dir: Path, seed: int, seasons: Sequence[int] | None, only: Sequence[str] | None
+) -> int:
     source = SyntheticSource(rng=make_rng(seed))
     db = paths.db_path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
-    report = load_races(source, db, source.default_seasons, now=datetime.now(UTC), echo=print)
-    print(
-        f"Done: {len(report.loaded)} loaded, {len(report.skipped)} skipped, "
-        f"{len(report.failed)} failed. Cache: {data_dir}"
+    report = load_races(
+        source,
+        db,
+        source.default_seasons if seasons is None else seasons,
+        now=datetime.now(UTC),
+        echo=print,
+        only=only,
     )
     return report.exit_code
 
@@ -88,8 +109,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
         if args.command == "load":
-            return _cmd_load(data_dir, args.seed)
+            return _cmd_load(data_dir, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
+    except UnknownEraError as err:
+        if args.debug:
+            raise
+        first = min(era.first_season for era in ERAS)
+        last = max(era.last_season for era in ERAS)
+        print(
+            f"Season {err.season} has no regulation era defined "
+            f"(supported seasons: {first}-{last}, see f1si/eras.py)",
+            file=sys.stderr,
+        )
+        return 1
     except (F1siDataError, SourceError) as err:
         if args.debug:
             raise

@@ -34,6 +34,13 @@ ERAS: Final[tuple[Era, ...]] = (GROUND_EFFECT, REG_2026)
 class UnknownEraError(ValueError):
     """Raised when a season does not belong to any defined era."""
 
+    def __init__(self, season: int) -> None:
+        super().__init__(
+            f"No regulation era is defined for season {season}; "
+            "add one to f1si/eras.py and log it in DECISIONS.md"
+        )
+        self.season = season
+
 
 def era_for_season(season: int) -> Era:
     """Return the era a season belongs to.
@@ -44,7 +51,4 @@ def era_for_season(season: int) -> Era:
     for era in ERAS:
         if era.contains(season):
             return era
-    raise UnknownEraError(
-        f"No regulation era is defined for season {season}; "
-        "add one to f1si/eras.py and log it in DECISIONS.md"
-    )
+    raise UnknownEraError(season)
