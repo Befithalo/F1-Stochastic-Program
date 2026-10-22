@@ -1,0 +1,58 @@
+# Weekly real-data check for Bahrain 2023 (D-10).
+#
+# Why this cannot block the main build: it runs only on a weekly schedule and by hand, never on
+# push or pull request, and it is not a required status check. A failing run turns only this
+# workflow's own run red; the CI workflow and pushes are unaffected. There is deliberately no
+# error-masking option on the job: a real failure should show as a failure here.
+#
+# Notes for the owner:
+# - GitHub emails the repository owner about failed scheduled runs.
+# - GitHub disables scheduled workflows in public repositories after 60 days without repository
+#   activity; re-enable it from the Actions tab if that happens.
+# - OpenF1 access from GitHub's shared runners is unverified. If the API refuses them, this run
+#   fails and the local `uv run pytest -m network -v tests/real` remains the reference check.
+# - Only the HTTP responses (data/http-cache) are cached, with actions/cache. Nothing is uploaded
+#   as an artifact, so no raw or derived data leaves GitHub's cache.
+name: Real data (non-blocking)
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bahrain-2023:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.1
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - uses: actions/cache@v6
+        with:
+          path: data/http-cache
+          key: real-data-http-cache-bahrain-2023
+          restore-keys: |
+            real-data-http-cache-
+      - run: uv sync --locked
+      - name: Run the network tests
+        id: network
+        run: uv run pytest -m network -v
+      - name: Write the result to the run summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Real-data check (Bahrain 2023)"
+            echo ""
+            echo "Result: ${{ steps.network.outcome }}"
+            echo ""
+            echo "This workflow is not a required check; a failure here never blocks pushes or the CI workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
