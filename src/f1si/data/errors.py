@@ -1,5 +1,6 @@
 """Errors the data layer raises. Messages say what to do next."""
 
+import difflib
 from collections.abc import Collection
 from pathlib import Path
 
@@ -37,3 +38,36 @@ class MixedSourceError(F1siDataError):
         self.path = str(path)
         self.found = tuple(sorted(found))
         self.source_name = source_name
+
+
+class UnknownRaceError(F1siDataError):
+    """A race id or slug is not in the cache (or its load did not finish)."""
+
+    def __init__(self, name: str, known: Collection[str] = ()) -> None:
+        close = difflib.get_close_matches(name, sorted(known), n=3, cutoff=0.6)
+        hint = f" Did you mean: {', '.join(close)}?" if close else ""
+        super().__init__(f"Unknown race {name!r}.{hint} Run: uv run f1si races")
+        self.name = name
+        self.close_matches = tuple(close)
+
+
+class OutOfSampleLockedError(F1siDataError):
+    """A 2026 (out-of-sample) race was requested through a door that keeps it locked (DAT-05)."""
+
+    def __init__(self, race_id: str) -> None:
+        super().__init__(
+            f"{race_id} is in the out-of-sample 2026 era and is locked (DAT-05). "
+            "Only the holdout evaluation (Phase 8) may open it, through f1si.data.out_of_sample."
+        )
+        self.race_id = race_id
+
+
+class LapOutOfRangeError(F1siDataError):
+    """A lap number beyond the last lap of the race was requested."""
+
+    def __init__(self, lap: int, slug: str) -> None:
+        super().__init__(
+            f"Lap {lap} is beyond the last lap of {slug}; use RACE_END for the whole race"
+        )
+        self.lap = lap
+        self.slug = slug
