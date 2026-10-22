@@ -1,0 +1,24 @@
+# Environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+
+# Local data and generated output (raw data is never committed or republished)
+data/
+reports/
+*.duckdb
+*.duckdb.wal
+
+# Build output
+dist/
+build/
+
+# Windows folder metadata (matches at any depth, including "F1 Docs/")
+desktop.ini
