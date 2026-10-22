@@ -68,7 +68,7 @@
 
 - [ ] **UI-01**: A one-page Streamlit view shows strategy table, finishing-position fan chart, regime gauge, tire panel, reason line and risk dial
 - [ ] **UI-02**: README documents real measured results, hidden-variable assumptions and data licensing/credits
-- [ ] **UI-03**: After each phase, a plain-language explanation of what was built is produced
+- [x] **UI-03**: After each phase, a plain-language explanation of what was built is produced
 
 ## v2 Requirements (later milestones)
 
@@ -101,7 +101,7 @@
 | DAT-03 | Phase 1 | Complete |
 | DAT-04 | Phase 1 | Complete |
 | DAT-05 | Phase 1 | Complete |
-| UI-03 | Phase 1 (recurs every phase) | Pending |
+| UI-03 | Phase 1 (recurs every phase) | Complete |
 | INT-01 | Phase 2 | Pending |
 | INT-02 | Phase 2 | Pending |
 | INT-03 | Phase 2 | Pending |
