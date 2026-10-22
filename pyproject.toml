@@ -37,6 +37,8 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Planning docs and design docs are prose, not code: ruff 0.17 would reformat their code blocks
+extend-exclude = [".planning", "F1 Docs"]
 
 [tool.ruff.lint]
 # NPY002 bans legacy np.random calls: explicit Generators only (FND-03)
