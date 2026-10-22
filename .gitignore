@@ -11,8 +11,8 @@ coverage.xml
 htmlcov/
 
 # Local data and generated output (raw data is never committed or republished)
-data/
-reports/
+/data/
+/reports/
 *.duckdb
 *.duckdb.wal
 
