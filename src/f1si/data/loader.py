@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from f1si.data import _db, schema
-from f1si.data.sources import RaceRef, RaceSource, SourceError
+from f1si.data import _db, derive, schema
+from f1si.data.sources import NormalizedRace, RaceRef, RaceSource, SourceError
 from f1si.eras import era_for_season
 
 
@@ -67,6 +67,23 @@ def _race_row(source: RaceSource, ref: RaceRef, now: datetime) -> pd.DataFrame:
     )
 
 
+def _build_tables(ref: RaceRef, race: NormalizedRace) -> dict[str, pd.DataFrame]:
+    """Normalize the source tables, fill `laps.track_status` and derive `lap_cutoffs`."""
+    tables = {
+        name: schema.normalize(name, race.tables[name])
+        for name in schema.PER_RACE_TABLES
+        if not schema.TABLES[name].derived
+    }
+    laps = tables["laps"].copy()
+    laps["track_status"] = derive.annotate_lap_track_status(laps, tables["track_status"])
+    tables["laps"] = schema.normalize("laps", laps)
+    tables["lap_cutoffs"] = derive.derive_lap_cutoffs(ref.race_id, tables["laps"])
+    return {
+        name: schema.normalize(name, schema.add_visibility(name, tables[name]))
+        for name in schema.PER_RACE_TABLES
+    }
+
+
 def load_races(
     source: RaceSource,
     db_path: Path,
@@ -94,10 +111,7 @@ def load_races(
         problems = schema.validate_race(race)
         if problems:
             raise SourceError(f"invalid data from {source.name}: " + "; ".join(problems))
-        tables = {
-            name: schema.normalize(name, schema.add_visibility(name, race.tables[name]))
-            for name in schema.PER_RACE_TABLES
-        }
+        tables = _build_tables(ref, race)
         _db.write_race(db_path, _race_row(source, ref, now), tables)
         report.loaded.append(ref.race_id)
         era = era_for_season(ref.season)

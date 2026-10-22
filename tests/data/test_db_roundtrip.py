@@ -21,6 +21,18 @@ _HOLD_LOCK = (
 )
 
 
+_MINI_COUNTS = {
+    "races": 1,
+    "entries": 2,
+    "laps": 6,
+    "track_status": 2,
+    "race_control": 1,
+    "weather": 2,
+    "lap_cutoffs": 4,
+    "results": 2,
+}
+
+
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
     path = tmp_path / "f1si.duckdb"
@@ -33,15 +45,16 @@ def _count(db: Path, table: str) -> int:
 
 
 def test_round_trip_returns_what_was_written(db: Path) -> None:
-    for name, written in [
-        ("races", mini_race_row()),
-        ("entries", mini_entries()),
-        ("laps", mini_laps()),
-    ]:
+    written = {"races": mini_race_row(), **mini_tables()}
+    for name in schema.TABLES:
         got = _db.read_table(db, name)
-        want = schema.normalize(name, written)
+        want = schema.normalize(name, schema.add_visibility(name, written[name]))
         pd.testing.assert_frame_equal(got, want)
     assert set(_db.read_all_tables(db)) == set(schema.TABLES)
+
+
+def test_every_schema_table_is_covered_by_the_mini_race() -> None:
+    assert set(mini_tables()) | {"races"} == set(schema.TABLES)
 
 
 def test_na_is_stored_as_sql_null(db: Path) -> None:
@@ -62,7 +75,7 @@ def test_writing_twice_is_idempotent(db: Path) -> None:
     before = {t: _count(db, t) for t in schema.TABLES}
     _db.write_race(db, mini_race_row(), mini_tables())
     assert {t: _count(db, t) for t in schema.TABLES} == before
-    assert before == {"races": 1, "entries": 2, "laps": 6}
+    assert before == _MINI_COUNTS
 
 
 def test_failed_write_leaves_no_rows_for_that_race(tmp_path: Path) -> None:
@@ -80,7 +93,7 @@ def test_failed_rewrite_keeps_the_previous_complete_race(db: Path) -> None:
     bad["laps"] = bad["laps"].drop(columns=["lap_time_s"])
     with pytest.raises(KeyError):
         _db.write_race(db, mini_race_row(), bad)
-    assert {t: _count(db, t) for t in schema.TABLES} == {"races": 1, "entries": 2, "laps": 6}
+    assert {t: _count(db, t) for t in schema.TABLES} == _MINI_COUNTS
 
 
 def test_write_race_rejects_missing_or_unknown_tables(tmp_path: Path) -> None:
@@ -149,7 +162,7 @@ def test_write_tables_replaces_whole_tables(tmp_path: Path) -> None:
     path = tmp_path / "f1si.duckdb"
     _db.write_tables(path, {"races": mini_race_row(), **mini_tables()})
     _db.write_tables(path, {"entries": mini_entries().iloc[:1]})
-    assert {t: _count(path, t) for t in schema.TABLES} == {"races": 1, "entries": 1, "laps": 6}
+    assert {t: _count(path, t) for t in schema.TABLES} == {**_MINI_COUNTS, "entries": 1}
 
 
 @pytest.fixture
@@ -181,3 +194,57 @@ def test_lock_held_by_another_process_raises_cache_busy(
         _db.read_df(db, "SELECT 1")
     with pytest.raises(CacheBusyError):
         _db.write_race(db, mini_race_row(), mini_tables())
+
+
+def test_loader_written_cache_has_cutoffs_and_track_status(synthetic_db: Path) -> None:
+    n_cutoffs = _db.read_df(
+        synthetic_db, "SELECT count(*) AS n FROM lap_cutoffs WHERE race_id = ?", ["2023-01"]
+    )["n"].iloc[0]
+    assert n_cutoffs == 13  # 12 laps plus lap 0
+    missing = _db.read_df(
+        synthetic_db,
+        "SELECT count(*) AS n FROM laps WHERE track_status IS NULL "
+        "AND lap_start_s IS NOT NULL AND lap_end_s IS NOT NULL",
+    )["n"].iloc[0]
+    assert missing == 0
+    alpha = _db.read_table(synthetic_db, "laps", race_id="2023-01")
+    statuses = set(alpha["track_status"].dropna())
+    assert "1" in statuses
+    assert any("6" in s and "7" in s for s in statuses)
+
+
+def test_leader_has_lap_n_and_everyone_else_lap_n_minus_1_at_the_cutoff(
+    synthetic_db: Path,
+) -> None:
+    laps = _db.read_table(synthetic_db, "laps", race_id="2023-01")
+    cutoffs = _db.read_table(synthetic_db, "lap_cutoffs", race_id="2023-01")
+    assert cutoffs["cutoff_s"].iloc[0] == 0.0
+    assert cutoffs["cutoff_s"].is_monotonic_increasing
+    ends = laps.pivot(index="driver_number", columns="lap_number", values="lap_end_s")
+    for n in range(1, int(cutoffs["lap"].max()) + 1):
+        cutoff = float(cutoffs.loc[cutoffs["lap"] == n, "cutoff_s"].iloc[0])
+        at_n = ends[n].astype(float)
+        assert int((at_n == cutoff).sum()) == 1  # exactly one leader completed lap n
+        others = at_n[at_n != cutoff]
+        assert (others > cutoff).all()  # nobody else has completed lap n yet
+        if n >= 2:
+            previous = ends[n - 1].astype(float)
+            assert (previous <= cutoff).all()  # everyone has completed lap n - 1
+
+
+def test_every_car_stays_within_one_lap_of_the_leader_in_synthetic_data(
+    synthetic_db: Path,
+) -> None:
+    laps = _db.read_table(synthetic_db, "laps")
+    cutoffs = _db.read_table(synthetic_db, "lap_cutoffs")
+    for race_id, race_laps in laps.groupby("race_id"):
+        c = cutoffs[cutoffs["race_id"] == race_id].set_index("lap")["cutoff_s"].astype(float)
+        for _, row in race_laps.iterrows():
+            n = int(row["lap_number"])
+            if n >= 2 and pd.notna(row["lap_end_s"]):
+                # the lap before this one ended no later than the leader's lap-n completion
+                prev = race_laps[
+                    (race_laps["driver_number"] == row["driver_number"])
+                    & (race_laps["lap_number"] == n - 1)
+                ]["lap_end_s"].iloc[0]
+                assert float(prev) <= float(c[n])

@@ -7,7 +7,16 @@ import pytest
 
 from f1si.data import schema
 from f1si.data.sources import NormalizedRace
-from tests.data.mini_race import mini_entries, mini_laps, mini_race, mini_race_row, mini_ref
+from tests.data.mini_race import (
+    mini_entries,
+    mini_laps,
+    mini_race,
+    mini_race_row,
+    mini_ref,
+    mini_results,
+    mini_track_status,
+    mini_weather,
+)
 
 
 def _with_tables(**overrides: pd.DataFrame | None) -> NormalizedRace:
@@ -24,9 +33,27 @@ def test_mini_race_is_valid() -> None:
     assert schema.validate_race(mini_race()) == []
 
 
-def test_tables_are_exactly_the_skeleton_tables() -> None:
-    assert list(schema.TABLES) == ["races", "entries", "laps"]
-    assert schema.PER_RACE_TABLES == ("entries", "laps")
+def test_tables_are_exactly_the_phase_1_tables() -> None:
+    assert list(schema.TABLES) == [
+        "races",
+        "entries",
+        "laps",
+        "track_status",
+        "race_control",
+        "weather",
+        "lap_cutoffs",
+        "results",
+    ]
+    assert schema.PER_RACE_TABLES == (
+        "entries",
+        "laps",
+        "track_status",
+        "race_control",
+        "weather",
+        "lap_cutoffs",
+        "results",
+    )
+    assert [n for n, spec in schema.TABLES.items() if spec.derived] == ["lap_cutoffs"]
     assert set(schema.VIEWS) == {"stints", "pit_stops"}
 
 
@@ -129,3 +156,41 @@ def test_ddl_marks_required_columns_and_has_no_primary_key() -> None:
     assert "lap_end_s DOUBLE," in sql
     assert "PRIMARY KEY" not in sql
     assert sql.startswith("CREATE TABLE IF NOT EXISTS laps")
+
+
+def test_validate_rejects_unknown_track_status_code() -> None:
+    bad = mini_track_status()
+    bad.loc[1, "status"] = "9"
+    problems = schema.validate_race(_with_tables(track_status=bad))
+    assert any("unknown status code" in p for p in problems), problems
+
+
+def test_validate_rejects_duplicate_seq_in_time_tables() -> None:
+    dup = mini_weather()
+    dup.loc[1, "seq"] = 0
+    problems = schema.validate_race(_with_tables(weather=dup))
+    assert any("table 'weather' has 1 duplicate key" in p for p in problems), problems
+
+
+def test_validate_rejects_results_for_unknown_driver() -> None:
+    bad = mini_results()
+    bad.loc[0, "driver_number"] = 99
+    problems = schema.validate_race(_with_tables(results=bad))
+    assert any("table 'results' references driver_number" in p for p in problems), problems
+
+
+def test_derived_table_is_not_required_from_sources() -> None:
+    assert "lap_cutoffs" not in mini_race().tables
+    assert schema.validate_race(mini_race()) == []
+
+
+def test_time_tables_get_visibility_from_their_time_column() -> None:
+    for name, column in [
+        ("track_status", "t_s"),
+        ("race_control", "t_s"),
+        ("weather", "t_s"),
+        ("lap_cutoffs", "cutoff_s"),
+    ]:
+        assert schema.TABLES[name].visibility == "time"
+        assert schema.TABLES[name].time_column == column
+    assert schema.TABLES["results"].visibility == "results"

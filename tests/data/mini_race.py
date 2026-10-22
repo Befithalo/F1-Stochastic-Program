@@ -4,6 +4,7 @@ from datetime import datetime
 
 import pandas as pd
 
+from f1si.data.derive import derive_lap_cutoffs
 from f1si.data.sources import NormalizedRace, RaceRef
 
 RACE_ID = "2023-01"
@@ -100,9 +101,83 @@ def mini_laps() -> pd.DataFrame:
     )
 
 
+def mini_track_status() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "race_id": [RACE_ID, RACE_ID],
+            "seq": [0, 1],
+            "t_s": [0.0, 100.0],
+            "status": ["1", "2"],
+            "message": ["GREEN LIGHT", "YELLOW IN TURN 1"],
+        }
+    )
+
+
+def mini_race_control() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "race_id": [RACE_ID],
+            "seq": [0],
+            "t_s": [-600.0],
+            "category": ["Flag"],
+            "flag": ["GREEN"],
+            "scope": ["Track"],
+            "sector": [None],
+            "driver_number": [None],
+            "lap_number": [None],
+            "message": ["GREEN LIGHT - PIT EXIT OPEN"],
+        }
+    )
+
+
+def mini_weather() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "race_id": [RACE_ID, RACE_ID],
+            "seq": [0, 1],
+            "t_s": [-60.0, 100.0],
+            "air_temp_c": [25.0, 25.5],
+            "track_temp_c": [35.0, 36.0],
+            "humidity_pct": [40.0, 41.0],
+            "pressure_mbar": [1010.0, 1010.0],
+            "rainfall": [False, True],
+            "wind_speed_ms": [1.5, 2.0],
+            "wind_direction_deg": [180.0, 190.0],
+        }
+    )
+
+
+def mini_results() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "race_id": [RACE_ID, RACE_ID],
+            "driver_number": [10, 11],
+            "final_position": [1, None],
+            "classified_position": ["1", "R"],
+            "status": ["Finished", "Retired"],
+            "points": [25.0, 0.0],
+            "laps_completed": [3, 2],
+            "total_time_s": [292.5, None],
+        }
+    )
+
+
+def mini_source_tables() -> dict[str, pd.DataFrame]:
+    """What a source emits: every required table except the derived ones."""
+    return {
+        "entries": mini_entries(),
+        "laps": mini_laps(),
+        "track_status": mini_track_status(),
+        "race_control": mini_race_control(),
+        "weather": mini_weather(),
+        "results": mini_results(),
+    }
+
+
 def mini_tables() -> dict[str, pd.DataFrame]:
-    return {"entries": mini_entries(), "laps": mini_laps()}
+    """What the loader writes: the source tables plus the derived `lap_cutoffs`."""
+    return {**mini_source_tables(), "lap_cutoffs": derive_lap_cutoffs(RACE_ID, mini_laps())}
 
 
 def mini_race() -> NormalizedRace:
-    return NormalizedRace(ref=mini_ref(), tables=mini_tables())
+    return NormalizedRace(ref=mini_ref(), tables=mini_source_tables())

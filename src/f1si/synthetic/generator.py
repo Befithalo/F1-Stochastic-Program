@@ -13,6 +13,14 @@ degradation in seconds per lap on compound `c`, `eps ~ Normal(0, noise_sd)` is i
 starter. A lap's end is its start plus its time; the next lap starts where this one ended and
 lap 1 starts at the race clock's zero (lights out).
 
+Around every virtual-safety-car lap `v` the track status goes "6" (VSC deployed) one second after
+the earliest lap-`v` start, "7" (VSC ending) one second before the latest lap-`v` end and "1"
+(green) twelve seconds later; race control mirrors these messages and adds a pre-race green light
+and the chequered flag. Weather is one sample a minute from five minutes before lights out with
+small Gaussian noise (drawn after all lap noise, so lap times do not depend on it). Results rank
+cars by laps completed (descending) and then by final lap end (ascending); a retired car gets
+no final position.
+
 Every parameter is exposed in `SyntheticTruth`, so later phases can test that their estimators
 recover known wear rates, pace offsets and the fuel effect. Randomness enters only through the
 keyword-only `rng` argument; `generate_dataset` gives each race its own spawned stream, so
@@ -36,6 +44,7 @@ from f1si.data.sources import NormalizedRace, RaceRef
 _FIRST_LAP_BASE_COST_S = 3.0
 _FIRST_LAP_GRID_COST_S = 0.2
 _PIT_LANE_START_COST_S = 5.0
+_POINTS = (25.0, 18.0, 15.0, 12.0, 10.0, 8.0, 6.0, 4.0, 2.0, 1.0)
 
 
 def _default_wear() -> dict[str, float]:
@@ -114,6 +123,113 @@ def _ref(spec: SyntheticRaceSpec) -> RaceRef:
     )
 
 
+def _vsc_events(spec: SyntheticRaceSpec, laps: pd.DataFrame) -> list[tuple[float, str, str]]:
+    """(time, status code, message) triples for every VSC lap, in time order."""
+    events: list[tuple[float, str, str]] = []
+    for v in spec.vsc_laps:
+        on_lap = laps[laps["lap_number"] == v]
+        if on_lap.empty:
+            continue
+        deployed = float(on_lap["lap_start_s"].min()) + 1.0
+        ending = float(on_lap["lap_end_s"].max()) - 1.0
+        events.append((deployed, "6", "VIRTUAL SAFETY CAR DEPLOYED"))
+        events.append((ending, "7", "VIRTUAL SAFETY CAR ENDING"))
+        events.append((ending + 12.0, "1", "TRACK CLEAR"))
+    return sorted(events, key=lambda e: e[0])
+
+
+def _track_status_table(spec: SyntheticRaceSpec, ref: RaceRef, laps: pd.DataFrame) -> pd.DataFrame:
+    rows = [{"race_id": ref.race_id, "seq": 0, "t_s": 0.0, "status": "1", "message": "GREEN LIGHT"}]
+    for seq, (t, code, message) in enumerate(_vsc_events(spec, laps), start=1):
+        rows.append(
+            {"race_id": ref.race_id, "seq": seq, "t_s": t, "status": code, "message": message}
+        )
+    return pd.DataFrame(rows)
+
+
+def _race_control_table(
+    spec: SyntheticRaceSpec,
+    ref: RaceRef,
+    laps: pd.DataFrame,
+    laps_done: Mapping[int, int],
+    final_end: Mapping[int, float],
+) -> pd.DataFrame:
+    def row(seq: int, t: float, category: str, message: str, **extra: Any) -> dict[str, Any]:
+        base: dict[str, Any] = {
+            "race_id": ref.race_id,
+            "seq": seq,
+            "t_s": t,
+            "category": category,
+            "flag": pd.NA,
+            "scope": pd.NA,
+            "sector": pd.NA,
+            "driver_number": pd.NA,
+            "lap_number": pd.NA,
+            "message": message,
+        }
+        base.update(extra)
+        return base
+
+    rows = [row(0, -600.0, "Flag", "GREEN LIGHT - PIT EXIT OPEN", flag="GREEN", scope="Track")]
+    for t, code, message in _vsc_events(spec, laps):
+        if code == "1":
+            continue
+        rows.append(row(len(rows), t, "SafetyCar", message, scope="Track"))
+    finishers = [n for n, done in laps_done.items() if done == spec.n_laps]
+    winner_end = min(final_end[n] for n in finishers) if finishers else max(final_end.values())
+    rows.append(row(len(rows), winner_end, "Flag", "CHEQUERED FLAG", flag="CHEQUERED"))
+    return pd.DataFrame(rows).sort_values("t_s", kind="stable").assign(seq=lambda d: range(len(d)))
+
+
+def _weather_table(race_id: str, last_lap_end_s: float, rng: np.random.Generator) -> pd.DataFrame:
+    times = np.arange(-300.0, last_lap_end_s + 60.0, 60.0)
+    n = len(times)
+    air = 25.0 + rng.normal(0.0, 0.05, size=n)
+    track = 35.0 + rng.normal(0.0, 0.1, size=n)
+    return pd.DataFrame(
+        {
+            "race_id": race_id,
+            "seq": np.arange(n),
+            "t_s": times,
+            "air_temp_c": air,
+            "track_temp_c": track,
+            "humidity_pct": 40.0,
+            "pressure_mbar": 1010.0,
+            "rainfall": False,
+            "wind_speed_ms": 1.5,
+            "wind_direction_deg": 180.0,
+        }
+    )
+
+
+def _results_table(
+    spec: SyntheticRaceSpec,
+    ref: RaceRef,
+    laps_done: Mapping[int, int],
+    final_end: Mapping[int, float],
+) -> pd.DataFrame:
+    order = sorted(laps_done, key=lambda n: (-laps_done[n], final_end[n]))
+    rows: list[dict[str, Any]] = []
+    position = 0
+    for number in order:
+        finished = laps_done[number] == spec.n_laps
+        if finished:
+            position += 1
+        rows.append(
+            {
+                "race_id": ref.race_id,
+                "driver_number": number,
+                "final_position": position if finished else pd.NA,
+                "classified_position": str(position) if finished else "R",
+                "status": "Finished" if finished else "Retired",
+                "points": _POINTS[position - 1] if finished and position <= len(_POINTS) else 0.0,
+                "laps_completed": laps_done[number],
+                "total_time_s": final_end[number] if finished else pd.NA,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> SyntheticRace:
     """Generate one synthetic race with the lap-time model in the module docstring."""
     ref = _ref(spec)
@@ -125,6 +241,8 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
     lap_rows: list[dict[str, Any]] = []
     offsets: dict[int, float] = {}
     pit_laps: dict[int, tuple[int, ...]] = {}
+    laps_done: dict[int, int] = {}
+    final_end: dict[int, float] = {}
 
     for i in range(spec.n_drivers):
         number = 10 + i
@@ -200,10 +318,21 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
                 }
             )
             clock += time_s
+        laps_done[number] = last_lap
+        final_end[number] = clock
 
+    laps_df = pd.DataFrame(lap_rows)
+    # Weather noise is drawn after all lap noise so existing lap times never change.
+    weather_df = _weather_table(ref.race_id, float(laps_df["lap_end_s"].max()), rng)
     tables = {
         "entries": schema.normalize("entries", pd.DataFrame(entry_rows)),
-        "laps": schema.normalize("laps", pd.DataFrame(lap_rows)),
+        "laps": schema.normalize("laps", laps_df),
+        "track_status": schema.normalize("track_status", _track_status_table(spec, ref, laps_df)),
+        "race_control": schema.normalize(
+            "race_control", _race_control_table(spec, ref, laps_df, laps_done, final_end)
+        ),
+        "weather": schema.normalize("weather", weather_df),
+        "results": schema.normalize("results", _results_table(spec, ref, laps_done, final_end)),
     }
     truth = SyntheticTruth(
         base_lap_time_s=spec.base_lap_time_s,
