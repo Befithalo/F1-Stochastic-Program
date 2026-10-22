@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 50
+MIN_ENTRIES = 51
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -107,6 +107,7 @@ def test_cli_source_choice_entry_exists_by_title() -> None:
         "HTTP pacing, caching and retries",
         "OpenF1 lap clock and tyre fields",
         "Pit-lane start rule",
+        "A plain-language explainer for every phase, kept complete by a test",
     ],
 )
 def test_source_decisions_exist_by_title(title: str) -> None:

@@ -538,7 +538,7 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Decision:** `pit_lane_start` is true when the Jolpica grid is 0 and the status, lower-cased and stripped, is none of "Did not start", "Withdrew", "Did not qualify" or "Did not prequalify". `grid_position` is NULL for grid 0. Laps completed is never used.
 **Why:** The earlier draft rule "grid 0 and laps > 0" used a post-race fact and was look-ahead: a pit-lane starter that retires on lap 1 has 0 laps but did start. Whether a car never took the start is settled by lights out.
 **Alternatives rejected:** Grid 0 and laps > 0 (look-ahead). Grid 0 alone (marks non-starters as pit-lane starters).
-**Consequences:** Limitation: the status string is published in the post-race results feed and Jolpica has no separate pre-race signal, so only its "the car never took the start" meaning is used. A non-starter labelled with some other status would be marked as a pit-lane starter with no laps, which stays visible in the cache. Plan 01-10 lists every grid-0 entry with its status as a real-data check. Bahrain 2023 has no grid-0 entries.
+**Consequences:** Limitation: the status string is published in the post-race results feed and Jolpica has no separate pre-race signal, so only its "the car never took the start" meaning is used. A non-starter labelled with some other status would be marked as a pit-lane starter with no laps, which stays visible in the cache. Plan 01-10 checked every grid-0 entry in the full 2023-2026 load: 4 entries in 4 races (three pit-lane starters whose statuses were "Finished", "Collision damage" and "Lapped", and one non-starter, "Withdrew" with 0 laps, correctly marked false), so the rule held on all real cases and the never-started set did not change. Bahrain 2023 has no grid-0 entries.
 **Refs:** D-01, D-03
 
 ## DEC-050 — Stint plot conventions
@@ -551,3 +551,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Dropping slow laps (hides what happened). Ordering panels by finishing position (reads results, which is look-ahead for a replay). `pyplot` (global figure state, needs a backend). A y-range from all laps (flat trend).
 **Consequences:** Laps with no lap time (three pit in-laps on Bahrain 2023, where OpenF1 gives no lap end) are skipped, not drawn, and counted in the command's output line; a lap with a time but no compound is drawn in grey. Stint boundaries come from the visible stint rows only, so an in-lap without a stint row does not move a boundary.
 **Refs:** D-15, D-16, DAT-02
+
+## DEC-051 — A plain-language explainer for every phase, kept complete by a test
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** The owner is new to coding and must be able to explain every module in an interview (BUILD_PLAN risk "Interviewers probe a module you can't explain"). An explainer written once goes stale as files are added.
+**Decision:** Each phase ends with `docs/explained/phase-NN.md` in the public repo with five sections: what was built and why, how the pieces connect, a file-by-file tour, 3-5 interview questions with answers, and good-to-know caveats. `tests/test_docs.py` checks that the headings exist in order, that every Q has an answer, that every `src/f1si` module path appears in the tour, and that the README links the explainer and the decision log. A short plain-language summary is also shown in chat at the end of the phase.
+**Why:** A test that lists the module paths makes a new file without an explanation fail the build instead of being forgotten.
+**Alternatives rejected:** A docs generator from docstrings (reads as reference, not explanation). A checklist with no test (drifts).
+**Consequences:** Adding a module to `src/f1si` requires a paragraph in the current phase explainer, or a new phase explainer plus a change to the test.
+**Refs:** D-17, UI-03
