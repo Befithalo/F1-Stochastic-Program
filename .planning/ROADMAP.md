@@ -28,18 +28,20 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
   3. User can produce a lap-time-by-stint plot for Bahrain 2023 from the cache
   4. Asking the as-of accessor for lap N never returns rows after lap N, and a deliberately leaking test case fails the build
   5. Every cached race shows its regulation era, and 2026 races are flagged out-of-sample; the same seed gives identical random results; DECISIONS.md exists with the first entries
-**Plans:** 9 plans (6 waves; walking skeleton = 01-01 + 01-02, see phases/01-foundation-data/SKELETON.md)
+**Plans:** 11 plans (8 dependency waves, executed one plan at a time on main; walking skeleton = 01-01..01-03, see phases/01-foundation-data/SKELETON.md)
 
 Plans:
 - [ ] 01-01-PLAN.md — Bootstrap: scaffold, CI config, repo hygiene + F1 Docs commit; owner approves dependencies and installs uv (wave 1)
-- [ ] 01-02-PLAN.md — Walking skeleton: synthetic race → DuckDB → `f1si load` / `f1si races` with eras; first push, CI green on both OSes (wave 2)
-- [ ] 01-03-PLAN.md — Complete race record (track status, race control, weather, results, lap cutoffs) and resilient resumable loader (wave 3)
-- [ ] 01-04-PLAN.md — AST import-ban guard, planted leak, CI canary; DECISIONS.md first entries (wave 3)
-- [ ] 01-05-PLAN.md — Rate-limited caching HTTP client, Jolpica client, race-control → track-status mapping (wave 3)
-- [ ] 01-06-PLAN.md — As-of / results / out-of-sample doors, RACE_END, 2026 lock; future-scramble property test and meta-test (wave 4)
-- [ ] 01-07-PLAN.md — OpenF1 source; `f1si load` defaults to OpenF1 + Jolpica; real Bahrain 2023 load (wave 4)
-- [ ] 01-08-PLAN.md — Lap-time-by-stint plot (`f1si plot bahrain-2023`), scramble-registered (wave 5)
-- [ ] 01-09-PLAN.md — Network tests + weekly workflow, full 2023-2026 load, plain-language explainer, final CI green (wave 6)
+- [ ] 01-02-PLAN.md — Walking skeleton part A: toolchain, failing end-to-end test, leaf modules, normalized schema, transactional DuckDB storage, RaceSource protocol (wave 2)
+- [ ] 01-03-PLAN.md — Walking skeleton part B: synthetic generator → loader → `f1si load` / `f1si races` with eras; end-to-end test green; first push, CI green on both OSes (wave 3)
+- [ ] 01-04-PLAN.md — Complete race record (track status, race control, weather, results, lap cutoffs) and resilient resumable loader (wave 4)
+- [ ] 01-05-PLAN.md — AST import-ban guard, planted leak, CI canary; DECISIONS.md first entries (wave 4)
+- [ ] 01-06-PLAN.md — Rate-limited caching HTTP client, Jolpica client, race-control → track-status mapping (wave 4)
+- [ ] 01-07-PLAN.md — As-of / results / out-of-sample doors, RACE_END, 2026 lock; future-scramble property test and meta-test (wave 5)
+- [ ] 01-08-PLAN.md — OpenF1 source and pit-lane start rule; `f1si load` defaults to OpenF1 + Jolpica; real Bahrain 2023 load (wave 5)
+- [ ] 01-09-PLAN.md — Lap-time-by-stint plot (`f1si plot bahrain-2023`) with stint-boundary markers, scramble-registered (wave 6)
+- [ ] 01-10-PLAN.md — Network tests + weekly real-data workflow (not a required check); full 2023-2026 load with every in-sample race accounted for (wave 7)
+- [ ] 01-11-PLAN.md — Plain-language explainer, decision-log final pass, final push with CI green (wave 8)
 
 ### Phase 2: Interfaces, Linear Tire Wear & Free-Track Optimizer
 **Goal**: User can get the fastest free-track 1- or 2-stop plan for a race from fitted, fuel-corrected tire wear, behind interfaces later milestones can plug into
