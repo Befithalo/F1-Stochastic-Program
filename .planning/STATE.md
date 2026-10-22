@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 1 context gathered
-last_updated: "2026-10-22T08:12:04.192Z"
+last_updated: "2026-10-22T08:20:22.526Z"
 last_activity: 2026-10-22
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 11
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 1 (Foundation & Data) — EXECUTING
-Plan: 2 of 11
+Plan: 3 of 11
 Status: Ready to execute
 Last activity: 2026-10-22
 
-Progress: [█░░░░░░░░░] 9%
+Progress: [██░░░░░░░░] 18%
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [█░░░░░░░░░] 9%
 ## Accumulated Context
 
 | Phase 01 P01 | multi-session | 3 tasks | 15 files |
+| Phase 01 P02 | 40min | 3 tasks | 19 files |
 
 ### Decisions
 
@@ -57,6 +58,7 @@ Progress: [█░░░░░░░░░] 9%
 - PyMC vs NumPyro still open (PyMC is the stated stack)
 - [Phase 01-01]: pandas <3 (DEC-012), duckdb <2 (DEC-011), ruff pinned ==0.17.1 matching pre-commit v0.17.1 (D-13) — Keep FastF1 option open; avoid DuckDB 2.0 file incompatibility; hook and dev versions must agree
 - [Phase 01-01]: Dependency names verified against PyPI JSON for all 14 packages — slopcheck unavailable; legitimacy gate before first install
+- [Phase 01-02]: write_race strict (all per-race tables required); lock errors mapped to CacheBusyError by message text; ruff excludes .planning and F1 Docs; .gitignore data dirs anchored to repo root — Completion marker integrity; Windows/Linux lock wording; ruff 0.17 formats markdown; src/f1si/data must be tracked
 
 ### Pending Todos
 
@@ -69,6 +71,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-22T08:11:58.005Z
+Last session: 2026-10-22T08:20:17.049Z
 Stopped at: Phase 1 context gathered
 Resume file: None

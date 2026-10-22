@@ -31,7 +31,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
   4. Asking the as-of accessor for lap N never returns rows after lap N, and a deliberately leaking test case fails the build
   5. Every cached race shows its regulation era, and 2026 races are flagged out-of-sample; the same seed gives identical random results; DECISIONS.md exists with the first entries
 
-**Plans:** 1/11 plans executed
+**Plans:** 2/11 plans executed
 
 Plans:
 **Wave 1**
@@ -40,7 +40,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Walking skeleton part A: toolchain, failing end-to-end test, leaf modules, normalized schema, transactional DuckDB storage, RaceSource protocol (wave 2)
+- [x] 01-02-PLAN.md — Walking skeleton part A: toolchain, failing end-to-end test, leaf modules, normalized schema, transactional DuckDB storage, RaceSource protocol (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 1/11 | In Progress|  |
+| 1. Foundation & Data | 2/11 | In Progress|  |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
