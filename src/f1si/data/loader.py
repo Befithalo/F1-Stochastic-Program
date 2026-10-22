@@ -82,21 +82,47 @@ def _race_row(source: RaceSource, ref: RaceRef, now: datetime) -> pd.DataFrame:
     )
 
 
-def _build_tables(ref: RaceRef, race: NormalizedRace) -> dict[str, pd.DataFrame]:
-    """Normalize the source tables, fill `laps.track_status` and derive `lap_cutoffs`."""
+def _build_tables(ref: RaceRef, race: NormalizedRace) -> tuple[dict[str, pd.DataFrame], list[str]]:
+    """Normalize the source tables, clean the lap clock, fill `laps.track_status`, derive cutoffs.
+
+    Returns the tables to write and human-readable notes about anything that was repaired.
+
+    Raises:
+        SourceError: if too many lap end times had to be dropped for the race to be trusted.
+    """
     tables = {
         name: schema.normalize(name, race.tables[name])
         for name in schema.PER_RACE_TABLES
         if not schema.TABLES[name].derived
     }
-    laps = tables["laps"].copy()
+    laps, dropped = derive.sanitize_lap_ends(tables["laps"])
+    notes: list[str] = []
+    if dropped:
+        before = int(tables["laps"]["lap_end_s"].notna().sum())
+        n_bad = before - int(laps["lap_end_s"].notna().sum())
+        if n_bad > derive.MAX_BAD_END_FRACTION * max(before, 1):
+            raise SourceError(
+                f"{n_bad} of {before} lap end times break the race clock "
+                f"(e.g. {dropped[0]}); the feed looks corrupt"
+            )
+        notes.append(
+            f"dropped {n_bad} lap end time(s) that break the race clock "
+            f"({', '.join(dropped)}); those laps are visible only at the race end"
+        )
+    repaired = derive.cutoff_repairs(laps)
+    if repaired:
+        notes.append(
+            f"lowered the cutoff of lap(s) {', '.join(str(n) for n in repaired[:5])} because "
+            "the leader's own lap end is missing"
+        )
     laps["track_status"] = derive.annotate_lap_track_status(laps, tables["track_status"])
     tables["laps"] = schema.normalize("laps", laps)
     tables["lap_cutoffs"] = derive.derive_lap_cutoffs(ref.race_id, tables["laps"])
-    return {
+    built = {
         name: schema.normalize(name, schema.add_visibility(name, tables[name]))
         for name in schema.PER_RACE_TABLES
     }
+    return built, notes
 
 
 def _select(
@@ -216,7 +242,7 @@ def _load_one(
             problems = schema.validate_race(race)
             if problems:
                 raise SourceError(f"invalid data from {source.name}: " + "; ".join(problems))
-            tables = _build_tables(ref, race)
+            tables, notes = _build_tables(ref, race)
             _db.write_race(db_path, _race_row(source, ref, now), tables)
         except RateLimitedError as err:
             if attempt >= max_attempts:
@@ -239,5 +265,7 @@ def _load_one(
         else:
             era = era_for_season(ref.season)
             echo(f"{prefix} ok  {len(tables['laps']):,} laps  (era {era.name})")
+            for note in notes:
+                echo(f"{prefix} note: {note}")
             return None
     return LoadFailure(ref.race_id, ref.slug, "no attempts were made (max_attempts < 1)")

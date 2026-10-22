@@ -595,3 +595,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** An explicit read transaction (the file lock already gives the guarantee, and a transaction would not stop a writer in another process). A connection pool or a long-lived accessor connection (a Windows file lock would outlive the call, see DEC-010).
 **Consequences:** A `f1si load` started while a snapshot is being built waits or reports a busy cache for the length of that call, which is short. The deterministic scramble grid became about twice as fast.
 **Refs:** D-01, D-02
+
+## DEC-055 — Bad lap end times are dropped and reported before cutoffs are derived
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** Lap cutoffs are the leader's lap-end times followed by a reverse cumulative minimum (DEC-008). That repair is safe for look-ahead because it only moves a cutoff earlier, but one wrong `lap_end_s` (the review used 100 s on lap 10 of one car) pulled the cutoffs of laps 2 to 10 down to it, so every snapshot in that range hid nearly all rows and nothing warned the user (WR-03). The real cache has such a value: 2024 round 4 holds `-1327.2 s` as driver 22's lap 2 end.
+**Decision:** The loader runs `derive.sanitize_lap_ends` before it derives anything. An end is dropped (set to NA) if it is not finite, below 0 or above 6 hours, or if it is outside one longest strictly increasing run of that driver's ends ordered by lap number. A dropped end makes its lap visible only at the race end, as for any lap without an end. The loader prints a `note:` line for each race that needed it, with driver, lap and value. If more than 10% of a race's ends have to be dropped it fails the race as corrupt instead. What the reverse cumulative minimum still repairs can only come from a leader whose own lap end is missing; `derive.cutoff_repairs` lists those laps and the loader reports them in a note.
+**Why:** Dropping the offending value keeps the other 71 of 72 laps of a race instead of losing a whole race for one glitch, and the longest increasing run drops the outlier in either direction (too early or too late) without a tuned threshold. Nothing can become visible earlier than before, so the look-ahead property is untouched.
+**Alternatives rejected:** Rejecting any race with one bad end (it would reject 2024 round 4). A median-based outlier filter (needs a threshold). Failing when the raw leader minimum decreases (that happens legitimately when a leader has a gap, and the repair is safe).
+**Consequences:** `f1si load` shows a note for 2024 round 4 when it is reloaded; the cached copy keeps the glitch until that race is loaded again. Laps whose end was dropped keep their other columns, but have no `visible_at_s`.
+**Refs:** D-01, D-14
