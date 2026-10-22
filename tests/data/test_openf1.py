@@ -393,6 +393,74 @@ def test_lap_one_without_date_start_is_zero_and_missing_duration_uses_next_start
     )
 
 
+def test_lap_without_date_start_continues_from_the_previous_lap_end() -> None:
+    """WR-08: a lap with a duration but no date_start used to get no end, so it stayed hidden."""
+    payloads = Payloads()
+    for row in payloads.laps:
+        if row["driver_number"] == 5 and row["lap_number"] == 2:
+            row["date_start"] = None
+    tables, _, _ = fetch_race(payloads)
+    five = tables["laps"][tables["laps"]["driver_number"] == 5].set_index("lap_number")
+    assert at(five, 2, "lap_start_s") == pytest.approx(at(five, 1, "lap_end_s"))
+    assert at(five, 2, "lap_end_s") == pytest.approx(at(five, 3, "lap_start_s"))
+    assert at(five, 2, "lap_time_s") == pytest.approx(LAP_S + 0.5)
+    assert not tables["laps"]["lap_end_s"].isna().any()
+
+
+def test_two_missing_starts_in_a_row_are_chained() -> None:
+    payloads = Payloads()
+    for row in payloads.laps:
+        if row["driver_number"] == 5 and row["lap_number"] in (2, 3):
+            row["date_start"] = None
+    tables, _, _ = fetch_race(payloads)
+    five = tables["laps"][tables["laps"]["driver_number"] == 5].set_index("lap_number")
+    assert at(five, 3, "lap_end_s") == pytest.approx(at(five, 1, "lap_end_s") + 2 * (LAP_S + 0.5))
+
+
+def test_in_laps_are_the_laps_before_the_openf1_out_laps() -> None:
+    """WR-08: one source for both pit flags, so stops counted from visible laps always agree."""
+    payloads = Payloads()
+    # Jolpica lists a stop for car 4 on lap 2, but OpenF1 shows no out-lap (a data disagreement)
+    payloads.pit_stops.append(
+        {
+            "driverId": driver_id(4),
+            "lap": "2",
+            "stop": "1",
+            "time": "15:06:00",
+            "duration": "21.0",
+        }
+    )
+    # OpenF1 flags an out-lap for car 6 that Jolpica has no stop for (for example a red-flag exit)
+    for row in payloads.laps:
+        if row["driver_number"] == 6 and row["lap_number"] == 3:
+            row["is_pit_out_lap"] = True
+    tables, _, _ = fetch_race(payloads)
+    laps = tables["laps"]
+    four = laps[laps["driver_number"] == 4].set_index("lap_number")
+    six = laps[laps["driver_number"] == 6].set_index("lap_number")
+    assert not bool(four["is_pit_in_lap"].any())
+    assert not bool(four["is_pit_out_lap"].any())
+    assert bool(at(six, 2, "is_pit_in_lap"))
+    assert bool(at(six, 3, "is_pit_out_lap"))
+    assert pd.isna(at(six, 3, "pit_duration_s"))
+    out_laps = laps.loc[laps["is_pit_out_lap"] & (laps["lap_number"] > 1)]
+    in_laps = laps.loc[laps["is_pit_in_lap"]]
+    expected = set(zip(out_laps["driver_number"], out_laps["lap_number"] - 1, strict=True))
+    assert expected == set(zip(in_laps["driver_number"], in_laps["lap_number"], strict=True))
+
+
+def test_a_lap_one_out_lap_is_a_pit_lane_start_not_a_stop() -> None:
+    payloads = Payloads()
+    for row in payloads.laps:
+        if row["driver_number"] == 7 and row["lap_number"] == 1:
+            row["is_pit_out_lap"] = True
+    tables, _, _ = fetch_race(payloads)
+    laps = tables["laps"]
+    seven = laps[laps["driver_number"] == 7]
+    assert bool(seven.loc[seven["lap_number"] == 1, "is_pit_out_lap"].iloc[0])
+    assert not seven["is_pit_in_lap"].any()  # there is no lap 0 to be the in-lap
+
+
 def test_stints_give_tyre_life_and_upper_case_compound() -> None:
     tables, _, _ = fetch_race(Payloads())
     laps = tables["laps"]

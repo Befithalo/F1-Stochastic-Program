@@ -13,10 +13,15 @@ the same folder. Both services are free and rate limited, so every call is paced
 Race clock (all `*_s` columns): t = 0 is the earliest lap-1 `date_start` of any car, which is
 lights out. Then, per driver::
 
-    lap_start_s = date_start - t0            (lap 1 with no date_start: 0.0)
+    lap_start_s = date_start - t0            (lap 1 with no date_start: 0.0; any other lap with
+                                              no date_start: the same driver's previous lap_end_s)
     lap_end_s   = lap_start_s + lap_duration (no duration: the same driver's next lap_start_s)
     lap_time_s  = lap_duration, else lap_end_s - lap_start_s
     tyre_life   = tyre_age_at_start + (lap_number - stint lap_start) + 1
+
+Pit flags come from ONE source: `is_pit_out_lap` is OpenF1's flag and `is_pit_in_lap` is the lap
+before an out-lap (lap > 1), so the stops rebuilt from visible laps and the in-lap flags always
+agree. Jolpica's pit-stop list supplies only the stop duration, placed on the out-lap (DEC-057).
 
 Race-control and weather rows are placed on the same clock, so messages sent before lights out
 have negative `t_s`.
@@ -526,16 +531,16 @@ def _build_laps(
         by_driver.setdefault(lap.driver, []).append(lap)
 
     number_of = {str(r["driver_id"]): int(r["driver_number"]) for r in results.to_dict("records")}
-    pit_in: set[tuple[int, int]] = set()
+    # One source for both flags (WR-08): an out-lap after lap 1 is OpenF1's flag, and the lap
+    # before it is the in-lap. Jolpica's list only supplies durations.
+    out_laps = {(lap.driver, lap.lap) for lap in laps_in if lap.pit_out and lap.lap > 1}
     pit_duration: dict[tuple[int, int], float] = {}
     for stop in pit_stops.to_dict("records"):
         driver = number_of.get(str(stop["driver_id"]))
-        if driver is None:
+        if driver is None or pd.isna(stop["duration_s"]):
             continue
-        stop_lap = int(stop["lap"])
-        pit_in.add((driver, stop_lap))
-        if not pd.isna(stop["duration_s"]):
-            pit_duration[(driver, stop_lap + 1)] = float(stop["duration_s"])
+        # Jolpica records the stop on the in-lap; the duration belongs to the out-lap after it
+        pit_duration[(driver, int(stop["lap"]) + 1)] = float(stop["duration_s"])
 
     stint_by_lap: dict[tuple[int, int], tuple[int, str | None, int]] = {}
     last_lap = {driver: max(lap.lap for lap in laps) for driver, laps in by_driver.items()}
@@ -559,12 +564,18 @@ def _build_laps(
                 starts[lap.lap] = _seconds(lap.start, t0)
             else:
                 starts[lap.lap] = 0.0 if lap.lap == 1 else None
+        ends: dict[int, float | None] = {}
         for lap in ordered:
             start = starts[lap.lap]
+            if start is None:
+                # no date_start: the lap began where the previous one ended (WR-08), so a lap
+                # with a duration is not left without an end time
+                start = ends.get(lap.lap - 1)
             if lap.duration is not None:
                 end = None if start is None else start + lap.duration
             else:
                 end = starts.get(lap.lap + 1)
+            ends[lap.lap] = end
             lap_time = (
                 lap.duration
                 if lap.duration is not None
@@ -582,7 +593,7 @@ def _build_laps(
                     "s1_s": lap.s1,
                     "s2_s": lap.s2,
                     "s3_s": lap.s3,
-                    "is_pit_in_lap": (driver, lap.lap) in pit_in,
+                    "is_pit_in_lap": (driver, lap.lap + 1) in out_laps,
                     "is_pit_out_lap": lap.pit_out,
                     "pit_duration_s": pit_duration.get((driver, lap.lap)),
                     "stint": None if stint_info is None else stint_info[0],
