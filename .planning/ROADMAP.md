@@ -31,7 +31,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
   4. Asking the as-of accessor for lap N never returns rows after lap N, and a deliberately leaking test case fails the build
   5. Every cached race shows its regulation era, and 2026 races are flagged out-of-sample; the same seed gives identical random results; DECISIONS.md exists with the first entries
 
-**Plans:** 5/11 plans executed
+**Plans:** 6/11 plans executed
 
 Plans:
 **Wave 1**
@@ -50,7 +50,7 @@ Plans:
 
 - [x] 01-04-PLAN.md — Complete race record (track status, race control, weather, results, lap cutoffs) and resilient resumable loader (wave 4)
 - [x] 01-05-PLAN.md — AST import-ban guard, planted leak, CI canary; DECISIONS.md first entries (wave 4)
-- [ ] 01-06-PLAN.md — Rate-limited caching HTTP client, Jolpica client, race-control → track-status mapping (wave 4)
+- [x] 01-06-PLAN.md — Rate-limited caching HTTP client, Jolpica client, race-control → track-status mapping (wave 4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 5/11 | In Progress|  |
+| 1. Foundation & Data | 6/11 | In Progress|  |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
