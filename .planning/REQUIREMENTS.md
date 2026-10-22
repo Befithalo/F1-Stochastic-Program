@@ -15,7 +15,7 @@
 ### Data
 
 - [x] **DAT-01**: User can load 2023-2025 race laps, stints, pit stops and results through FastF1/OpenF1 into a local DuckDB cache
-- [ ] **DAT-02**: User can plot lap time by stint for any cached race (first target: Bahrain 2023)
+- [x] **DAT-02**: User can plot lap time by stint for any cached race (first target: Bahrain 2023)
 - [x] **DAT-03**: All backtest and replay code reads data only through one as-of accessor that returns rows up to a given lap
 - [x] **DAT-04**: A test fails the build if any code reads a future row through or around the as-of accessor
 - [x] **DAT-05**: Every race is tagged with its regulation era, and 2026 races are marked out-of-sample
@@ -97,7 +97,7 @@
 | FND-03 | Phase 1 | Complete |
 | FND-04 | Phase 1 | Complete |
 | DAT-01 | Phase 1 | Complete |
-| DAT-02 | Phase 1 | Pending |
+| DAT-02 | Phase 1 | Complete |
 | DAT-03 | Phase 1 | Complete |
 | DAT-04 | Phase 1 | Complete |
 | DAT-05 | Phase 1 | Complete |
