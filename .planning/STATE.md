@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-22T09:07:55.770Z"
+last_updated: "2026-10-22T09:18:42.530Z"
 last_activity: 2026-10-22
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 1 (Foundation & Data) — EXECUTING
-Plan: 8 of 11
+Plan: 9 of 11
 Status: Ready to execute
 Last activity: 2026-10-22
 
-Progress: [██████░░░░] 64%
+Progress: [███████░░░] 73%
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [██████░░░░] 64%
 | Phase 01 P05 | 35min | 2 tasks | 8 files |
 | Phase 01 P06 | 40min | 2 tasks | 6 files |
 | Phase 01 P07 | 60min | 2 tasks | 12 files |
+| Phase 01 P08 | 45min | 2 tasks | 6 files |
 
 ### Decisions
 
@@ -67,6 +68,7 @@ Progress: [██████░░░░] 64%
 - [Phase 01-03]: CLI constructs the source; load_races receives it (deviation from RESEARCH map, per SKELETON) — Keeps loader source-agnostic
 - [Phase 1]: Plan 04: lap_cutoffs precomputed with reverse cumulative minimum; loader collects per-race failures (exit 2), retries rate limits via injected sleep, refuses mixed sources
 - [Phase 01-05]: AST import scan with one POLICY table chosen over import-linter (DEC-002); CLI composes the data source (DEC-015); DECISIONS.md holds DEC-001..DEC-035 — see DECISIONS.md
+- [Phase 01-08]: pit_lane_start = Jolpica grid 0 and not a never-started status; laps completed never used (DEC-049)
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-22T09:07:46.644Z
+Last session: 2026-10-22T09:18:36.684Z
 Stopped at: Completed 01-03-PLAN.md
 Resume file: None
