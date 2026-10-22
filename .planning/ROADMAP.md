@@ -31,7 +31,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
   4. Asking the as-of accessor for lap N never returns rows after lap N, and a deliberately leaking test case fails the build
   5. Every cached race shows its regulation era, and 2026 races are flagged out-of-sample; the same seed gives identical random results; DECISIONS.md exists with the first entries
 
-**Plans:** 2/11 plans executed
+**Plans:** 3/11 plans executed
 
 Plans:
 **Wave 1**
@@ -44,7 +44,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — Walking skeleton part B: synthetic generator → loader → `f1si load` / `f1si races` with eras; end-to-end test green; first push, CI green on both OSes (wave 3)
+- [x] 01-03-PLAN.md — Walking skeleton part B: synthetic generator → loader → `f1si load` / `f1si races` with eras; end-to-end test green; first push, CI green on both OSes (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 2/11 | In Progress|  |
+| 1. Foundation & Data | 3/11 | In Progress|  |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
