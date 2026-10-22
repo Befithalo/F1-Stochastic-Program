@@ -28,7 +28,14 @@ import pandas as pd
 
 from f1si.data import derive, schema
 from f1si.data.errors import CacheBusyError, MixedSourceError
-from f1si.data.sources import NormalizedRace, RaceRef, RaceSource, RateLimitedError, SourceError
+from f1si.data.sources import (
+    CacheDiscarding,
+    NormalizedRace,
+    RaceRef,
+    RaceSource,
+    RateLimitedError,
+    SourceError,
+)
 from f1si.eras import era_for_season
 
 MIN_RATE_LIMIT_WAIT_S = 60.0
@@ -261,6 +268,8 @@ def _load_one(
         except (CacheBusyError, MixedSourceError):
             raise
         except Exception as err:
+            if isinstance(err, SourceError) and isinstance(source, CacheDiscarding):
+                source.discard_cached(ref)  # do not replay the same bad responses next time
             return LoadFailure(ref.race_id, ref.slug, f"{type(err).__name__}: {err}")
         else:
             era = era_for_season(ref.season)

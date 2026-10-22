@@ -41,7 +41,7 @@ identity and the team is used: no status, no laps completed, no position.
 import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Final, Literal
 
@@ -60,7 +60,12 @@ MAX_ENTRIES: Final = 22
 MIN_DRIVERS_WITH_LAP_1: Final = 15
 # A race that started less than this long ago may still be running (assumption A7).
 COMPLETED_MARGIN: Final = timedelta(hours=6)
+# OpenF1 backfills laps, stints and weather after a session and Jolpica results change with
+# post-race penalties, so a race this young (or any race of the current season) is cached for hours
+# instead of forever (WR-05).
+PROVISIONAL_WINDOW: Final = timedelta(days=7)
 FIRST_OPENF1_SEASON: Final = 2023
+_RACE_PATHS: Final = ("/drivers", "/laps", "/stints", "/race_control", "/weather")
 
 
 def _unexpected(path: str, detail: str) -> SourceError:
@@ -160,8 +165,10 @@ class OpenF1Source:
         sleep: Callable[[float], None] = time.sleep,
         openf1: JsonGetter | None = None,
         jolpica: JolpicaClient | None = None,
+        clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         self._echo = echo
+        self._now = clock
         self._openf1: JsonGetter = (
             openf1
             if openf1 is not None
@@ -268,13 +275,14 @@ class OpenF1Source:
         except (KeyError, ValueError):
             raise SourceError(f"{ref.slug}: the race reference has no OpenF1 session_key") from None
         params = {"session_key": session_key}
-        drivers_raw = self._rows("/drivers", params)
-        laps_raw = self._rows("/laps", params)
-        stints_raw = self._rows("/stints", params)
-        control_raw = self._rows("/race_control", params)
-        weather_raw = self._rows("/weather", params)
-        results = self._jolpica.results(ref.season, ref.round)
-        pit_stops = self._jolpica.pit_stops(ref.season, ref.round)
+        fresh = self._freshness(ref)
+        drivers_raw = self._rows("/drivers", params, freshness=fresh)
+        laps_raw = self._rows("/laps", params, freshness=fresh)
+        stints_raw = self._rows("/stints", params, freshness=fresh)
+        control_raw = self._rows("/race_control", params, freshness=fresh)
+        weather_raw = self._rows("/weather", params, freshness=fresh)
+        results = self._jolpica.results(ref.season, ref.round, freshness=fresh)
+        pit_stops = self._jolpica.pit_stops(ref.season, ref.round, freshness=fresh)
 
         laps_in = _parse_laps(laps_raw)
         stints = _parse_stints(stints_raw)
@@ -298,7 +306,11 @@ class OpenF1Source:
         laps = _build_laps(ref, laps_in, stints, results, pit_stops, t0)
         race_control = _build_race_control(ref, control_raw, t0)
         weather = _build_weather(ref, weather_raw, t0)
-        self._check_complete(ref, entries, laps, race_control, weather, results)
+        try:
+            self._check_complete(ref, entries, laps, race_control, weather, results)
+        except SourceError:
+            self.discard_cached(ref)  # the next run must ask the services again (WR-05)
+            raise
 
         leader_ends = (
             laps.dropna(subset=["lap_end_s"]).groupby("lap_number")["lap_end_s"].min().sort_index()
@@ -321,6 +333,24 @@ class OpenF1Source:
         )
 
     # ------------------------------------------------------------------ helpers
+
+    def _freshness(self, ref: RaceRef) -> Literal["forever", "short"]:
+        """`short` for a race that may still change upstream, else `forever` (WR-05)."""
+        now = self._now()
+        started = ref.race_start_utc
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        if ref.season >= now.year or now - started < PROVISIONAL_WINDOW:
+            return "short"
+        return "forever"
+
+    def discard_cached(self, ref: RaceRef) -> None:
+        """Forget every cached HTTP response of one race, so a retry fetches fresh data."""
+        key = ref.source_keys.get("session_key")
+        if key is not None and key.isdigit():
+            for path in _RACE_PATHS:
+                self._openf1.forget(path, {"session_key": int(key)})
+        self._jolpica.forget_race(ref.season, ref.round)
 
     def _rows(
         self,
@@ -353,7 +383,8 @@ class OpenF1Source:
         def incomplete(what: str) -> SourceError:
             return SourceError(
                 f"Incomplete data from OpenF1/Jolpica for {ref.slug}: {what}. "
-                "It will be retried on the next run."
+                "Its saved responses were discarded; run the same command again later "
+                "(finished races are kept)."
             )
 
         if laps.empty:

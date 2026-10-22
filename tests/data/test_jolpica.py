@@ -22,6 +22,10 @@ class FakeGetter:
     def __init__(self, pages: Mapping[tuple[str, int], object]) -> None:
         self.pages = pages
         self.calls: list[tuple[str, Mapping[str, str | int] | None, str]] = []
+        self.forgotten: list[tuple[str, Mapping[str, str | int] | None]] = []
+
+    def forget(self, path: str, params: Mapping[str, str | int] | None = None) -> None:
+        self.forgotten.append((path, params))
 
     def get_json(
         self,

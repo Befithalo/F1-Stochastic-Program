@@ -1,5 +1,7 @@
 """Offline tests for the rate-limited caching HTTP client (fake session, fake clock)."""
 
+import io
+import json
 from collections.abc import Mapping
 from datetime import timedelta
 from pathlib import Path
@@ -7,6 +9,8 @@ from pathlib import Path
 import pytest
 import requests
 import requests_cache
+import urllib3
+from requests.adapters import BaseAdapter, HTTPAdapter
 
 from f1si.data.sources import RateLimitedError, SourceError
 from f1si.data.sources._http import RateLimitedClient
@@ -294,3 +298,122 @@ def test_default_session_is_a_json_cache_at_the_given_path(tmp_path: Path) -> No
         assert session.verify is True
     finally:
         client.close()
+
+
+# ---- forget (WR-05) ----------------------------------------------------------------------------
+
+
+class CannedAdapter(BaseAdapter):
+    """Answers every request with HTTP 200 and a small JSON body, counting the calls."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.hits = 0
+
+    def send(  # type: ignore[no-untyped-def,override]
+        self, request, **kwargs
+    ):
+        self.hits += 1
+        raw = urllib3.HTTPResponse(
+            body=io.BytesIO(json.dumps({"hit": self.hits}).encode()),
+            status=200,
+            headers={"Content-Type": "application/json"},
+            preload_content=False,
+        )
+        return HTTPAdapter().build_response(request, raw)
+
+    def close(self) -> None:
+        return None
+
+
+def test_forget_removes_exactly_one_cached_request(tmp_path: Path) -> None:
+    client = RateLimitedClient(
+        name="X",
+        base_url=BASE,
+        min_interval_s=0,
+        max_per_hour=None,
+        cache_path=tmp_path / "c.sqlite",
+    )
+    adapter = CannedAdapter()
+    try:
+        assert client._owned is not None
+        client._owned.mount("https://", adapter)
+        assert client.get_json("/a", {"session_key": 7, "limit": 100}) == {"hit": 1}
+        assert client.get_json("/b") == {"hit": 2}
+        assert client.get_json("/a", {"limit": 100, "session_key": 7}) == {"hit": 1}  # cached
+        client.forget("/a", {"session_key": 7, "limit": 100})
+        assert client.get_json("/a", {"session_key": 7, "limit": 100}) == {"hit": 3}  # refetched
+        assert client.get_json("/b") == {"hit": 2}  # untouched
+        client.forget("/never-fetched")  # a no-op, not an error
+    finally:
+        client.close()
+
+
+def test_forget_is_a_no_op_for_an_injected_session(tmp_path: Path) -> None:
+    client = make(World(), FakeSession(), tmp_path=tmp_path)
+    client.forget("/a", {"x": 1})
+
+
+# ---- the hourly window survives the process (WR-09) ---------------------------------------------
+
+
+def make_limited(world: World, session: FakeSession, tmp_path: Path) -> RateLimitedClient:
+    return RateLimitedClient(
+        name="Testservice",
+        base_url=BASE,
+        min_interval_s=0.0,
+        max_per_hour=3,
+        cache_path=tmp_path / "svc.sqlite",
+        echo=world.echo,
+        sleep=world.sleep,
+        clock=world.clock,
+        wall_clock=world.clock,
+        session=session,
+    )
+
+
+def test_hourly_window_is_remembered_by_the_next_process(tmp_path: Path) -> None:
+    world = World()
+    first = make_limited(world, FakeSession(*[FakeResponse(payload=1)] * 3), tmp_path)
+    for path in ("/1", "/2", "/3"):
+        world.now += 10.0
+        first.get_json(path)
+    # a brand-new client, as after "run the same command again": its window is not empty
+    second = make_limited(world, FakeSession(FakeResponse(payload=1)), tmp_path)
+    second.get_json("/4")
+    assert any("hourly limit" in m for m in world.messages)
+    assert max(world.sleeps) == pytest.approx(3600.0 - 20.0, abs=1.0)
+
+
+def test_calls_older_than_an_hour_are_forgotten_across_processes(tmp_path: Path) -> None:
+    world = World()
+    first = make_limited(world, FakeSession(*[FakeResponse(payload=1)] * 3), tmp_path)
+    for path in ("/1", "/2", "/3"):
+        first.get_json(path)
+    world.now += 3601.0
+    second = make_limited(world, FakeSession(FakeResponse(payload=1)), tmp_path)
+    second.get_json("/4")
+    assert not any("hourly limit" in m for m in world.messages)
+
+
+def test_cached_responses_are_not_written_to_the_ledger(tmp_path: Path) -> None:
+    world = World()
+    session = FakeSession(*[FakeResponse(payload=1, from_cache=True)] * 5)
+    client = make_limited(world, session, tmp_path)
+    for n in range(5):
+        client.get_json(f"/{n}")
+    assert not (tmp_path / "svc.calls.json").exists()
+
+
+def test_a_corrupt_ledger_is_ignored(tmp_path: Path) -> None:
+    (tmp_path / "svc.calls.json").write_text("{ not json", encoding="utf-8")
+    world = World()
+    client = make_limited(world, FakeSession(FakeResponse(payload=1)), tmp_path)
+    client.get_json("/1")
+    assert json.loads((tmp_path / "svc.calls.json").read_text(encoding="utf-8")) == [world.now]
+
+
+def test_a_client_without_an_hourly_limit_writes_no_ledger(tmp_path: Path) -> None:
+    client = make(World(), FakeSession(FakeResponse(payload=1)), tmp_path=tmp_path)
+    client.get_json("/1")
+    assert list(tmp_path.glob("*.calls.json")) == []

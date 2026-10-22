@@ -7,7 +7,7 @@ downstream. This module imports nothing from the adapters; they import from here
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -46,6 +46,19 @@ class RateLimitedError(SourceError):
     def __init__(self, message: str, *, retry_after_s: float | None = None) -> None:
         super().__init__(message)
         self.retry_after_s = retry_after_s
+
+
+@runtime_checkable
+class CacheDiscarding(Protocol):
+    """An optional hook of sources that keep an HTTP cache.
+
+    The loader calls it for a race that failed validation, so the next run fetches that race again
+    instead of replaying the same bad responses (WR-05).
+    """
+
+    def discard_cached(self, ref: RaceRef) -> None:
+        """Forget the saved responses of one race."""
+        ...
 
 
 class RaceSource(Protocol):

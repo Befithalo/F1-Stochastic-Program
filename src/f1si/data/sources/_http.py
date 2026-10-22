@@ -17,6 +17,13 @@ Pacing applies to real network calls only. A response served from the on-disk ca
 delayed after the fact nor counted toward the hourly window, so re-running a load makes no repeat
 calls and costs no quota.
 
+The hourly window survives the process (WR-09): a client with an hourly limit writes the wall-clock
+time of each real call to a small JSON file next to its cache (`<cache>.calls.json`) and, when it
+starts, seeds its window from the entries younger than an hour. The loader tells users to "run the
+same command again", and several quick re-runs must not add up to more than the service allows.
+The file is plain text (no SQLite, so the import ban on `sqlite3` stays absolute) and best-effort:
+an unreadable or unwritable file is ignored, never fatal.
+
 Retries
 -------
 * HTTP 429 (throttled): wait the number of seconds in the `Retry-After` header when it is numeric
@@ -32,11 +39,17 @@ Responses are cached in SQLite with the JSON serializer, never an object-picklin
 restored from somewhere else (for example a CI cache) could then execute code when loaded. Only HTTP
 200 responses are cached (`allowable_codes=(200,)`), so a throttled or failed response is never
 stored.
-Historical data never expires; schedule responses (`freshness="short"`) expire after 12 hours so a
-new race appears the day after it is run. TLS verification is never disabled.
+Historical data never expires; schedule responses and any response the caller marks
+`freshness="short"` (data of the current season or of a race run less than a week ago, which can
+still be completed or corrected upstream, WR-05) expire after 12 hours so a new race appears the day
+after it is run. `forget` removes one cached request, which the adapters use when a race turned out
+to be incomplete: the stale body must not be replayed by the next run. TLS verification is never
+disabled.
 """
 
+import json
 import math
+import os
 import time
 from collections import deque
 from collections.abc import Callable, Mapping
@@ -105,6 +118,10 @@ class JsonGetter(Protocol):
         """Return the parsed JSON for `path` (starts with `/`), or None for HTTP 404."""
         ...
 
+    def forget(self, path: str, params: Mapping[str, str | int] | None = None) -> None:
+        """Drop the cached response for this request, if any, so the next call asks the server."""
+        ...
+
 
 class RateLimitedClient:
     """Paced, retrying, caching JSON client for one service (see the module docstring)."""
@@ -120,6 +137,7 @@ class RateLimitedClient:
         echo: Callable[[str], None] = print,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], float] = time.time,
         session: HttpSession | None = None,
         timeout_s: float = 30.0,
     ) -> None:
@@ -132,9 +150,14 @@ class RateLimitedClient:
         self._echo = echo
         self._sleep = sleep
         self._clock = clock
+        self._wall_clock = wall_clock
         self._timeout_s = timeout_s
         self._calls: deque[float] = deque()
         self._last_call: float | None = None
+        self._ledger: Path | None = (
+            cache_path.with_suffix(".calls.json") if max_per_hour is not None else None
+        )
+        self._seed_window()
         self._owned: requests_cache.CachedSession | None = None
         if session is None:
             cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -149,6 +172,54 @@ class RateLimitedClient:
             session = self._owned
         assert session is not None
         self._session: HttpSession = session
+
+    def _read_ledger(self) -> list[float]:
+        """Wall-clock times of real calls from the ledger file; [] if absent or unreadable."""
+        if self._ledger is None:
+            return []
+        try:
+            raw = json.loads(self._ledger.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        if not isinstance(raw, list):
+            return []
+        return sorted(float(v) for v in raw if isinstance(v, int | float) and math.isfinite(v))
+
+    def _seed_window(self) -> None:
+        """Start the rolling window with the real calls of earlier processes (WR-09).
+
+        Wall-clock ages are converted to this process's pacing clock: a call made `age` seconds ago
+        sits at `clock() - age`.
+        """
+        wall_now = self._wall_clock()
+        mono_now = self._clock()
+        for stamp in self._read_ledger():
+            age = wall_now - stamp
+            if 0.0 <= age < HOUR_S:
+                self._calls.append(mono_now - age)
+
+    def _record_call(self) -> None:
+        """Add this real call to the ledger file (read-merge-write, atomic replace)."""
+        if self._ledger is None:
+            return
+        wall_now = self._wall_clock()
+        recent = [v for v in self._read_ledger() if 0.0 <= wall_now - v < HOUR_S]
+        recent.append(wall_now)
+        temp = self._ledger.with_name(self._ledger.name + ".tmp")
+        try:
+            self._ledger.parent.mkdir(parents=True, exist_ok=True)
+            temp.write_text(json.dumps(recent), encoding="utf-8")
+            os.replace(temp, self._ledger)
+        except OSError:
+            pass  # best effort: pacing still works inside this process
+
+    def forget(self, path: str, params: Mapping[str, str | int] | None = None) -> None:
+        """Drop the cached response for this request, if any (a no-op for an injected session)."""
+        if self._owned is None:
+            return
+        prepared = requests.Request("GET", self._base_url + path, params=params).prepare()
+        if prepared.url is not None:
+            self._owned.cache.delete(urls=[prepared.url])
 
     def close(self) -> None:
         """Close the cache database when this client created it."""
@@ -235,6 +306,7 @@ class RateLimitedClient:
         if not from_cache:
             self._last_call = sent_at
             self._calls.append(sent_at)
+            self._record_call()
         return response
 
     def _pace(self) -> None:

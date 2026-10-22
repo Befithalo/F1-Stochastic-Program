@@ -628,3 +628,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Requiring a matching Jolpica in-lap (loses real stops, see above). Using Jolpica for both flags (loses stops whose lap row is absent). Leaving the lap end empty (hides the lap until the race end).
 **Consequences:** `is_pit_in_lap` for the 32 Australia 2026 stops moves from the out-lap to the lap before it; that race is locked and out-of-sample, so nothing in Phase 1 reads it. Jolpica pit durations in that race are placed one lap late and stay unused until the 2026 convention is understood. Cached races keep their old flags until reloaded.
 **Refs:** D-01, D-08, DEC-048
+
+## DEC-058 — Recent or incomplete races are not cached forever
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** Every timing and results response was cached with no expiry. The schedule accepts a race six hours after it started, OpenF1 backfills laps, stints and weather after a session, and Jolpica results change with post-race penalties. A partial or provisional HTTP 200 was therefore kept for good, the incompleteness message said "It will be retried on the next run" although the retry replayed the same body, and the CI cache key was a fixed string that `actions/cache` never overwrites (WR-05).
+**Decision:** (1) The OpenF1 and Jolpica calls of a race use the 12-hour `short` expiry when the race is in the current season or started less than 7 days ago; older races of finished seasons stay `forever`. (2) `JsonGetter` gains `forget(path, params)`, which removes one cached request. When a race fails the completeness check, `OpenF1Source` forgets all of its cached responses (five OpenF1 paths, the Jolpica results and every pit-stop page) before it raises, and the message now says the saved responses were discarded. The loader also calls an optional `discard_cached(ref)` hook on a source for any `SourceError` from validation (including DEC-055's corrupt-clock failure), so the next run asks the services again. (3) The weekly real-data workflow keys its cache by run id and restores the newest older entry by prefix.
+**Why:** A provisional body is wrong only for a while, so a short expiry fixes it without re-downloading finished seasons. Forgetting a failed race makes "run the same command again" true.
+**Alternatives rejected:** Never caching races younger than a month (it spends rate limit on every re-run). Clearing the whole cache on a failure (loses the finished races). Leaving the CI key static (the first cached body would be used for ever).
+**Consequences:** The current season's races (2026) are fetched again after 12 hours if they are loaded again. The weekly real-data run still replays cached Bahrain 2023 bodies, so it checks the code more than the live service.
+**Refs:** D-08, D-10, D-14
+
+## DEC-059 — The Jolpica hourly budget survives the process
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** The rolling limit of 450 real calls per hour lived in an in-memory deque. The loader tells the user to run the same command again after a rate limit or a failure, and every re-run started with an empty window, so several quick re-runs could exceed Jolpica's 500 per hour (WR-09).
+**Decision:** A client with an hourly limit records the wall-clock time of each real network call in a JSON file beside its cache (`jolpica.calls.json`), by read, merge, drop entries older than an hour and atomic replace. At start-up it seeds its window from the entries younger than an hour, converting their age to its monotonic pacing clock. Responses served from the cache are not recorded. An unreadable or unwritable file is ignored. The OpenF1 client has no hourly limit and writes no file.
+**Why:** Plain JSON keeps the import ban on `sqlite3` absolute, and a few hundred timestamps need nothing more.
+**Alternatives rejected:** A table in `jolpica.sqlite` (would need an exception to the `sqlite3` ban). Seeding from the `created_at` of cached responses (calls that returned 429 or 5xx, and forgotten races, would not be counted).
+**Consequences:** Two loads running at the same moment can still lose an entry in the file; the loader refuses a busy cache, so this is unlikely. Setting the system clock back can make an entry look younger than it is, which only makes the client wait longer.
+**Refs:** D-08, D-14

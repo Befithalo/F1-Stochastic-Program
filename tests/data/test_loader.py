@@ -228,3 +228,34 @@ def test_invalid_source_data_becomes_a_failure_and_writes_nothing(tmp_path: Path
 def test_summary_line_counts_and_cache_path(tmp_path: Path) -> None:
     _, lines, _ = _run(FakeSource(), tmp_path)
     assert lines[-1] == f"Done: 4 loaded, 0 skipped, 0 failed. Cache: {tmp_path}"
+
+
+class _DiscardingSource(FakeSource):
+    """A source with an HTTP cache: it is told which race to forget (WR-05)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.discarded: list[str] = []
+
+    def discard_cached(self, ref: RaceRef) -> None:
+        self.discarded.append(ref.race_id)
+
+
+def test_loader_discards_the_cached_responses_of_a_race_that_fails_validation(
+    tmp_path: Path,
+) -> None:
+    def invalid(attempt: int) -> None:
+        raise SourceError("invalid data from the service")
+
+    source = _DiscardingSource()
+    source._behaviors["2023-02"] = invalid
+    report, _, _ = _run(source, tmp_path)
+    assert [f.race_id for f in report.failed] == ["2023-02"]
+    assert source.discarded == ["2023-02"]
+
+
+def test_loader_does_not_discard_cached_responses_of_races_that_load(tmp_path: Path) -> None:
+    source = _DiscardingSource()
+    report, _, _ = _run(source, tmp_path)
+    assert report.failed == []
+    assert source.discarded == []

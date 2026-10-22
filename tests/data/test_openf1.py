@@ -35,6 +35,10 @@ class OpenF1Fake:
     def __init__(self, answers: Mapping[str, object]) -> None:
         self.answers = dict(answers)
         self.calls: list[tuple[str, Mapping[str, str | int] | None, str]] = []
+        self.forgotten: list[tuple[str, Mapping[str, str | int] | None]] = []
+
+    def forget(self, path: str, params: Mapping[str, str | int] | None = None) -> None:
+        self.forgotten.append((path, params))
 
     def get_json(
         self,
@@ -52,6 +56,11 @@ class JolpicaFake:
 
     def __init__(self, pages: Mapping[tuple[str, int], object]) -> None:
         self.pages = dict(pages)
+        self.calls: list[tuple[str, Mapping[str, str | int] | None, str]] = []
+        self.forgotten: list[tuple[str, Mapping[str, str | int] | None]] = []
+
+    def forget(self, path: str, params: Mapping[str, str | int] | None = None) -> None:
+        self.forgotten.append((path, params))
 
     def get_json(
         self,
@@ -60,6 +69,7 @@ class JolpicaFake:
         *,
         freshness: str = "forever",
     ) -> object:
+        self.calls.append((path, params, freshness))
         offset = int(params["offset"]) if params and "offset" in params else 0
         return self.pages.get((path, offset))
 
@@ -253,13 +263,19 @@ class Payloads:
             }
         )
 
-    def source(self, echo: Callable[[str], None] | None = None) -> tuple[OpenF1Source, OpenF1Fake]:
+    def source(
+        self,
+        echo: Callable[[str], None] | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ) -> tuple[OpenF1Source, OpenF1Fake]:
         fake = self.openf1()
+        self.jolpica_fake = self.jolpica()
         source = OpenF1Source(
             http_cache_dir=Path("unused"),
             echo=echo or (lambda _msg: None),
             openf1=fake,
-            jolpica=JolpicaClient(self.jolpica()),
+            jolpica=JolpicaClient(self.jolpica_fake),
+            clock=clock or (lambda: NOW),
         )
         return source, fake
 
@@ -750,3 +766,56 @@ def test_row_without_required_key_is_an_unexpected_response() -> None:
     (ref,) = source.list_races(2023, now=NOW)
     with pytest.raises(SourceError, match="Unexpected"):
         source.fetch(ref)
+
+
+# ---------------------------------------------------------------- caching policy (WR-05)
+
+
+def _freshness_used(clock_now: datetime) -> set[str]:
+    payloads = Payloads()
+    source, fake = payloads.source(clock=lambda: clock_now)
+    (ref,) = source.list_races(2023, now=NOW)
+    fake.calls.clear()
+    payloads.jolpica_fake.calls.clear()
+    source.fetch(ref)
+    used = {freshness for _, _, freshness in fake.calls}
+    used |= {freshness for _, _, freshness in payloads.jolpica_fake.calls}
+    assert len(fake.calls) == 5
+    assert payloads.jolpica_fake.calls
+    return used
+
+
+def test_old_races_of_a_finished_season_are_cached_forever() -> None:
+    assert _freshness_used(datetime(2024, 1, 1, tzinfo=UTC)) == {"forever"}
+
+
+def test_a_race_run_less_than_a_week_ago_is_cached_briefly() -> None:
+    assert _freshness_used(datetime(2023, 3, 9, tzinfo=UTC)) == {"short"}
+
+
+def test_any_race_of_the_current_season_is_cached_briefly() -> None:
+    assert _freshness_used(datetime(2023, 12, 1, tzinfo=UTC)) == {"short"}
+
+
+def test_an_incomplete_race_discards_its_saved_responses() -> None:
+    payloads = Payloads()
+    payloads.weather = []
+    source, fake = payloads.source()
+    (ref,) = source.list_races(2023, now=NOW)
+    with pytest.raises(SourceError, match="discarded"):
+        source.fetch(ref)
+    forgotten_paths = {path for path, _ in fake.forgotten}
+    assert forgotten_paths == {"/drivers", "/laps", "/stints", "/race_control", "/weather"}
+    assert all(params == {"session_key": SESSION_KEY} for _, params in fake.forgotten)
+    jolpica_paths = {path for path, _ in payloads.jolpica_fake.forgotten}
+    assert "/2023/5/results.json" in jolpica_paths
+    assert "/2023/5/pitstops.json" in jolpica_paths
+
+
+def test_a_complete_race_discards_nothing() -> None:
+    payloads = Payloads()
+    source, fake = payloads.source()
+    (ref,) = source.list_races(2023, now=NOW)
+    source.fetch(ref)
+    assert fake.forgotten == []
+    assert payloads.jolpica_fake.forgotten == []

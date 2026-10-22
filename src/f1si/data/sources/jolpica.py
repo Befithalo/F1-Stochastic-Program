@@ -32,7 +32,7 @@ from typing import Final
 import pandas as pd
 
 from f1si.data.sources import SourceError
-from f1si.data.sources._http import JsonGetter, RateLimitedClient
+from f1si.data.sources._http import Freshness, JsonGetter, RateLimitedClient
 
 JOLPICA_BASE_URL: Final = "https://api.jolpi.ca/ergast/f1"
 PAGE_LIMIT: Final = 100
@@ -140,14 +140,27 @@ class JolpicaClient:
             )
         return out
 
-    def results(self, season: int, round: int) -> pd.DataFrame:
+    def forget_race(self, season: int, round: int) -> None:
+        """Drop the cached results and pit-stop pages of one race (WR-05)."""
+        self._getter.forget(f"/{season}/{round}/results.json", {"limit": PAGE_LIMIT})
+        for page in range(MAX_PAGES):
+            self._getter.forget(
+                f"/{season}/{round}/pitstops.json",
+                {"limit": PAGE_LIMIT, "offset": page * PAGE_LIMIT},
+            )
+
+    def results(self, season: int, round: int, *, freshness: Freshness = "forever") -> pd.DataFrame:
         """Race classification: one row per driver, columns `RESULT_COLUMNS`.
+
+        `freshness="short"` is for a recent race, whose classification may still change.
 
         `position` is NA for drivers who were not classified (positionText "R", "D", "W", ...).
         `grid` 0 means a pit-lane start and is kept as 0.
         """
         path = f"/{season}/{round}/results.json"
-        races = self._races(path, self._getter.get_json(path, {"limit": PAGE_LIMIT}))
+        races = self._races(
+            path, self._getter.get_json(path, {"limit": PAGE_LIMIT}, freshness=freshness)
+        )
         if not races:
             raise SourceError(f"Jolpica has no results for {season} round {round} yet")
         raw = races[0].get("Results")
@@ -193,13 +206,17 @@ class JolpicaClient:
         frame["total_time_s"] = frame["total_time_s"].astype("float64")
         return frame
 
-    def pit_stops(self, season: int, round: int) -> pd.DataFrame:
+    def pit_stops(
+        self, season: int, round: int, *, freshness: Freshness = "forever"
+    ) -> pd.DataFrame:
         """Every pit stop of the race (all pages), columns `PIT_STOP_COLUMNS`."""
         path = f"/{season}/{round}/pitstops.json"
         rows: list[dict[str, object]] = []
         offset = 0
         for _ in range(MAX_PAGES):
-            payload = self._getter.get_json(path, {"limit": PAGE_LIMIT, "offset": offset})
+            payload = self._getter.get_json(
+                path, {"limit": PAGE_LIMIT, "offset": offset}, freshness=freshness
+            )
             mr = _mapping(_mapping(payload, path, "root").get("MRData"), path, "MRData")
             total = _int(mr.get("total"), path, "MRData.total")
             races = self._races(path, payload)

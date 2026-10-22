@@ -87,7 +87,7 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 - `src/f1si/data/results.py` is the results door for final classification, points and times of in-sample races. Only later scoring code may import it.
 - `src/f1si/data/out_of_sample.py` is the door for the locked 2026 races, reserved for the final holdout evaluation.
 - `src/f1si/data/sources/synthetic_source.py` serves seeded fake races. CI and the demo use it, so no internet is needed.
-- `src/f1si/data/sources/_http.py` is the one network door: a polite web client that spaces its requests (OpenF1 2.1 s apart, Jolpica 0.5 s apart and at most 450 an hour), saves every answer in a safe JSON cache and retries sensibly.
+- `src/f1si/data/sources/_http.py` is the one network door: a polite web client that spaces its requests (OpenF1 2.1 s apart, Jolpica 0.5 s apart and at most 450 an hour, remembered between runs), saves every answer in a safe JSON cache (answers for recent races are kept for hours rather than forever, and a race that came back incomplete has its saved answers thrown away) and retries sensibly.
 - `src/f1si/data/sources/jolpica.py` reads the race calendar, grid, official results and pit stops from Jolpica, and refuses answers that do not have the expected shape.
 - `src/f1si/data/sources/openf1.py` is the real data source: it combines OpenF1 timing with Jolpica facts into schema-valid races on the lights-out clock, and runs completeness checks (for example, 18 to 22 cars).
 - `src/f1si/data/sources/track_status_map.py` rebuilds the track status (green, yellow, safety car, virtual safety car, red flag) from OpenF1's race-control messages, because OpenF1 has no direct feed for it.

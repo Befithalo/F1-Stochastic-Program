@@ -38,9 +38,12 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: data/http-cache
-          key: real-data-http-cache-bahrain-2023
+          # A static key is never overwritten by actions/cache (a cache entry is immutable), so a
+          # bad response would be replayed forever. A key per run saves a fresh entry each week and
+          # restore-keys restores the newest older one (WR-05).
+          key: real-data-http-cache-bahrain-2023-${{ github.run_id }}
           restore-keys: |
-            real-data-http-cache-
+            real-data-http-cache-bahrain-2023-
       - run: uv sync --locked
       - name: Run the network tests
         id: network
