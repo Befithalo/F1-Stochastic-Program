@@ -5,6 +5,7 @@ import sys
 from collections.abc import Iterator
 from pathlib import Path
 
+import duckdb
 import pandas as pd
 import pytest
 
@@ -194,6 +195,27 @@ def test_lock_held_by_another_process_raises_cache_busy(
         _db.read_df(db, "SELECT 1")
     with pytest.raises(CacheBusyError):
         _db.write_race(db, mini_race_row(), mini_tables())
+
+
+@pytest.mark.parametrize(
+    ("message", "busy"),
+    [
+        (
+            'IO Error: Could not set lock on file "x.duckdb": Conflicting lock is held in '
+            "python (PID 12) by user someone.",
+            True,
+        ),
+        ('IO Error: Cannot open file "x.duckdb": it is being used by another process.', True),
+        ("IO Error: File is already open in /usr/bin/python (PID 7)", True),
+        ("IO Error: Corrupt database file: computed checksum of block 12 does not match", False),
+        ("IO Error: Could not read enough bytes from block 3 of file x.duckdb", False),
+        ("IO Error: Cannot open file: No such file or directory", False),
+        ("IO Error: unlocked block", False),
+    ],
+)
+def test_only_real_lock_messages_mean_a_busy_cache(message: str, busy: bool) -> None:
+    """WR-10: 'block' contains 'lock'; a corrupt file must not look like a busy one."""
+    assert _db._is_lock_error(duckdb.IOException(message)) is busy
 
 
 def test_loader_written_cache_has_cutoffs_and_track_status(synthetic_db: Path) -> None:

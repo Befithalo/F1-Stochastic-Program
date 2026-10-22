@@ -25,7 +25,14 @@ import pandas as pd
 from f1si.data import schema
 from f1si.data.errors import CacheBusyError, CacheMissingError
 
-_LOCK_PHRASES = ("lock", "being used by another process", "already open")
+# Specific phrases only. A bare "lock" would also match "block", so a corrupt file ("computed
+# checksum of block ...") or a short read would be reported as a busy cache (WR-10).
+_LOCK_PHRASES = (
+    "could not set lock",
+    "conflicting lock",
+    "being used by another process",
+    "already open",
+)
 
 # Deterministic row order for the views (tables are ordered by their spec key)
 _VIEW_ORDER: Mapping[str, str] = {
