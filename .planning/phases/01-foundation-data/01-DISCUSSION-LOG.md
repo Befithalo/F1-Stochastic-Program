@@ -186,6 +186,19 @@
 
 ---
 
+## Post-research revisions (2026-10-22, during plan-phase)
+
+Research found that F1's live-timing archive returns HTTP 401 without an F1 TV login. This was independently confirmed by curl: 401 for `static/2023/Index.json` and the Bahrain 2023 race stream. OpenF1 and Jolpica both returned 200.
+
+| Question | Options | Selected |
+|----------|---------|----------|
+| Data source (revises D-08, D-10) | OpenF1 + Jolpica / FastF1 3.9.0a0 + F1 TV account / Decide later | OpenF1 + Jolpica |
+| Do earlier races "in full" include final results? (D-04) | Yes / No | Yes |
+| Plot cutoff (D-16) | Race-end cutoff in the as-of door / Final-lap cutoff as written | Race-end cutoff |
+| Commit `F1 Docs/` to the public repo? (new D-18) | Commit / Keep local | Commit |
+
+---
+
 ## Claude's Discretion
 
 - Era tag granularity (suggested one 2022–2025 ground-effect era + 2026 out-of-sample, keep `season`)

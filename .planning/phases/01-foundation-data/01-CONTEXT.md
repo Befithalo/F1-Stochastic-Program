@@ -1,6 +1,7 @@
 # Phase 1: Foundation & Data - Context
 
 **Gathered:** 2026-10-22
+**Revised:** 2026-10-22 after research. D-04, D-08, D-10 and D-16 were revised and D-18 added. Research found that FastF1's data source now requires an F1 TV login; the user chose new options. See `01-RESEARCH.md` §Data Source Decision.
 **Status:** Ready for planning
 
 <domain>
@@ -10,7 +11,7 @@ Phase 1 delivers four things:
 
 - A uv-managed Python 3.12 `src/f1si` package, with ruff, mypy strict and pytest.
 - GitHub Actions CI that runs green on push.
-- One CLI command that fills a local DuckDB cache with Grand Prix race data from FastF1.
+- One CLI command that fills a local DuckDB cache with Grand Prix race data from OpenF1 + Jolpica (D-08, revised).
 - A lap-time-by-stint plot for Bahrain 2023.
 
 It also delivers a single as-of accessor that is the only way to read cached data, plus two CI checks that prove no code can see future rows. Every race carries a regulation-era tag; 2026 races are tagged out-of-sample and locked. All randomness flows through an explicit `np.random.Generator`. `DECISIONS.md` exists with its first entries. A plain-language explainer for the phase is written (UI-03).
@@ -41,6 +42,7 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
   - race R up to the D-01 cutoff.
 
   Later races are invisible. 2026 races are locked unless explicitly unlocked. The unlock mechanism should follow the D-03 principle: a separate door gated by the import ban, not a boolean flag. The exact form is at Claude's discretion and must be logged in DECISIONS.md.
+  - *Revised 2026-10-22:* "earlier races in full" **includes their final results** (finishing positions, status). These are past facts that later models need. The D-03 results door still hides the *current* race's outcome. Log this in DECISIONS.md.
 
 ### What gets cached
 - **D-05: Seasons are 2023, 2024, 2025, plus 2026.** 2026 races are tagged out-of-sample and locked behind the accessor (D-04). Load only 2026 races that have already happened; skip future rounds cleanly. 2022 is not loaded.
@@ -50,11 +52,19 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
   - **weather**, at minimum rainfall and track temperature.
 
   Phase 3 fits the safety-car rate from this data and Phase 8 fits the regime model from it, so nothing needs re-downloading later.
-- **D-08: Data source is FastF1 only.** FastF1 is MIT-licensed and already provides laps, stints, compound, tire age, pit in/out times, results, track status and weather. Design the cache tables so OpenF1 could feed them later (M6 live mode), but do not add OpenF1 now.
+- **D-08 (revised 2026-10-22): Data source is OpenF1 + Jolpica.**
+  - *Original decision:* FastF1 only.
+  - *Why it changed:* since 2026-10-15 F1's live-timing archive returns HTTP 401 without an F1 TV login. Independently confirmed by curl on 2026-10-22: 401 for the 2023 index and the Bahrain 2023 race. FastF1 3.8.x cannot download any season into an empty cache. The only fix is the alpha `fastf1==3.9.0a0` with a paid F1 TV account.
+  - *New decision:* **OpenF1** (free, no key, history from 2023) supplies laps, stints, race control, weather and drivers. **Jolpica** (the Ergast successor) supplies results, grid positions and pit stops.
+  - *Track status (D-07)* is derived from OpenF1 race-control messages using a documented mapping to green/yellow/VSC/SC/red. Log the mapping in DECISIONS.md.
+  - *Design:* put the loader behind a `RaceSource`-style interface whose output contract is the normalized cache tables. An authenticated FastF1 source can be added later as a second implementation without changing anything downstream.
+  - *Rate limits:* respect them. OpenF1 free tier is ≤3 req/s and 30 req/min; Jolpica is 4 req/s burst and 500 req/h, with HTTP 429 when exceeded.
+  - *Terms:* OpenF1 is for personal, non-commercial use, which this project is. Credit it in the README later (Phase 6).
+  - DECISIONS.md must record this change and the reason.
 
 ### CI and test data
 - **D-09: Every push runs on synthetic data.** CI tests use small fake races generated in code with known values. CI makes no network calls and commits no real data, which honors BUILD_PLAN's "don't republish raw data". Build the generator so later phases' synthetic-recovery tests can reuse it.
-- **D-10: A separate real-data workflow runs weekly and on manual trigger.** It downloads Bahrain 2023 through FastF1, ideally with the FastF1 cache saved between runs, and runs the real-data tests. It is not a required check, so FastF1 outages never block the main build. Real-data tests carry a pytest marker (e.g. `network`) and are excluded from the default run.
+- **D-10 (revised 2026-10-22): A separate real-data workflow runs weekly and on manual trigger.** It downloads Bahrain 2023 from **OpenF1 + Jolpica** (not FastF1) and runs the real-data tests. It is not a required check, so outages never block the main build. Whether OpenF1 blocks GitHub's datacenter IPs is unverified; if it does, the job fails without blocking anything and the tests remain runnable locally. Real-data tests carry a pytest marker (e.g. `network`) and are excluded from the default run.
 - **D-11: CI matrix is Linux + Windows, Python 3.12.** The user develops on Windows, and DuckDB file locking and paths behave differently there.
 - **D-12: The repo is `https://github.com/Befithalo/F1-Stochastic-Program`.** It was verified on 2026-10-22: public, empty, no branches. Add it as `origin` and push `main`; the first push triggers CI. Roadmap success criterion 1 requires CI to be green.
 - **D-13: Pre-commit hooks run ruff locally** (`ruff check --fix` + `ruff format`) on every commit. mypy and pytest run in CI.
@@ -71,7 +81,7 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
   - One panel per driver (all 20), lap time vs lap number, colored by tire compound.
   - Lap 1, pit in/out laps and SC/VSC laps stay **visible but faded**, not removed.
   - A `--drivers` option narrows the grid to chosen drivers.
-  - The plot reads data through the as-of accessor at the final lap. It does not get a private path around the guard.
+  - *Revised 2026-10-22:* the plot reads through the as-of accessor using a **race-end cutoff**, an option of the same guarded as-of door that shows every driver's full race. Under D-01 a "final lap" cutoff would hide each non-winner's last lap. It does not get a private path around the guard. Log this in DECISIONS.md.
 - **D-17: UI-03 explainer.** Write `docs/explained/phase-01.md`, committed to the public repo. It covers:
   - what was built and why;
   - how the pieces connect;
@@ -79,11 +89,12 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
   - 3–5 "how would you explain this in an interview" questions with answers.
 
   Also give a short plain-language summary in chat at the end of the phase. The same format repeats for every later phase.
+- **D-18 (added 2026-10-22): commit `F1 Docs/` to the public repo** so the canonical refs resolve for anyone reading it. The user accepted that the BUILD_PLAN byline becomes public. Add `desktop.ini` to `.gitignore` in the same change; do not commit it.
 
 ### Claude's Discretion
 - **Era tag granularity.** Suggested: one `ground_effect_2022_2025` era covering the 2023–2025 races, and a separate `2026` era flagged out-of-sample. Keep the `season` column so per-season breakdowns remain possible. Log the choice in DECISIONS.md.
 - **Exact pre-race facts list** (grid, starting compound, roster). Document it.
-- **DuckDB schema and table names**, and file locations: suggested `data/` for the DuckDB file and FastF1 cache, gitignored.
+- **DuckDB schema and table names**, and file locations: suggested `data/` for the DuckDB file and any raw HTTP response cache, gitignored.
 - **Import-ban mechanism**: an AST-scan test or import-linter.
 - **Seed convention (FND-03).** Suggested:
   - functions take an `rng: np.random.Generator` argument;
@@ -92,7 +103,7 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
   - a test shows the same seed gives identical output.
 - **DECISIONS.md format.** First entries must cover D-01–D-04, D-08, D-09 and the era-tag choice.
 - **Coverage reporting** (advisory, not a gate).
-- **`.gitignore` contents**: at minimum `data/`, FastF1 cache, `desktop.ini`, `.venv/`.
+- **`.gitignore` contents**: at minimum `data/`, any raw HTTP response cache, `reports/` output, `desktop.ini`, `.venv/`.
 
 </decisions>
 
@@ -115,8 +126,13 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
 - `.planning/REQUIREMENTS.md` — FND-01..04, DAT-01..05, UI-03.
 - `.planning/ROADMAP.md` §Phase 1 — five success criteria this phase must satisfy.
 
+### Phase research
+- `.planning/phases/01-foundation-data/01-RESEARCH.md` covers the data source evidence, version pins, the lap-cutoff table pattern, the scramble-harness design, pitfalls and the validation architecture.
+
 ### External
-- FastF1 documentation (https://docs.fastf1.dev): session loading, the `Laps` columns (`Time`, `LapStartTime`, `PitInTime`, `PitOutTime`, `TrackStatus`, `Compound`, `TyreLife`), track status, weather data, built-in caching and rate limits. No local copy.
+- OpenF1 API (https://openf1.org): endpoints `sessions`, `laps`, `stints`, `race_control`, `weather`, `drivers`, `session_result`; free-tier limits and terms. No local copy.
+- Jolpica F1 API (https://github.com/jolpica/jolpica-f1), the Ergast-compatible successor: `/ergast/f1/{year}/{round}/results.json`, `/pitstops.json`, and `docs/rate_limits.md`. No local copy.
+- FastF1 issue #978 (https://github.com/theOehrly/Fast-F1/issues/978) is the evidence for the D-08 revision.
 
 </canonical_refs>
 
@@ -137,7 +153,7 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
 - **uv is not installed.** uv can install Python 3.12 itself. The `python` on PATH is only the Microsoft Store placeholder.
 - **GitHub CLI (`gh`) is not installed.** It isn't needed. Git for Windows' credential manager handles the browser login on first push.
 - **The `GSD_WORKSTREAM=voice` environment variable is set** in the user's shell. It is stale and points GSD tools at a non-existent workstream. Run gsd-sdk with it unset, or have the user remove it.
-- **`F1 Docs/` is untracked in git.** The planner should confirm with the user whether to commit it, so the canonical refs exist in the public repo.
+- **`F1 Docs/` is untracked in git.** Resolved by D-18: commit it.
 
 </code_context>
 
@@ -154,8 +170,8 @@ Not in this phase: Protocols/`RaceState` (Phase 2), fuel correction and wear fit
 ## Deferred Ideas
 
 - **Qualifying sessions as a pace prior.** Revisit in Phase 7 (Bayesian pace model).
-- **2022 season.** Revisit in Phase 7 if more training data is needed for the era effect. FastF1-only.
-- **OpenF1 as a second source or cross-check.** M6 live mode, or earlier if FastF1 data quality issues appear.
+- **2022 season.** Revisit in Phase 7 if more training data is needed for the era effect. Not in OpenF1 (history starts in 2023), so it would need authenticated FastF1.
+- **Authenticated FastF1 as a second source.** For a user with F1 TV, or once FastF1 3.9 is stable. It plugs into the same source interface (see D-08 revised).
 - **Interactive plot (plotly).** The Phase 6 Streamlit view covers interactivity.
 - **Paper notes in DECISIONS.md** (three ideas each from Heilmeier 2020 and RSRL, per BUILD_PLAN next steps). This is a reading task for the user, not code. It can be added to DECISIONS.md any time.
 
