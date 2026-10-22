@@ -1,8 +1,9 @@
 """DELIBERATELY LEAKY through the public door; only the scramble test can catch these.
 
-Each function uses nothing but `f1si.data.asof`, so the import ban sees nothing wrong. They
-misuse the door: asking for a later lap, asking for the whole race, asking for the history of
-the next race (which contains the current race in full).
+Each function uses nothing but `f1si.data.asof`, so the import ban sees no storage access (it
+only objects to the driver-only names `AsOfAccessor` and `RACE_END`, because this file is not a
+replay driver). They misuse the door: asking for a later lap, asking for the whole race, asking
+for the history of the next race (which contains the current race in full).
 """
 
 from pathlib import Path

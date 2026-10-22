@@ -29,13 +29,10 @@ class OutOfSampleAccessor:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
 
-    def _info(self, race_id: str) -> RaceInfo:
-        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
-
-        info = _snapshot.race_info(self._db_path, race_id)
+    @staticmethod
+    def _check(info: RaceInfo) -> None:
         if not info.out_of_sample:
-            raise ValueError(f"{race_id} is in-sample; use f1si.data.asof.AsOfAccessor")
-        return info
+            raise ValueError(f"{info.race_id} is in-sample; use f1si.data.asof.AsOfAccessor")
 
     def snapshot(self, at: AsOf) -> RaceSnapshot:
         """Rows of an out-of-sample race visible at `at` (same cutoff rule as the as-of door).
@@ -47,7 +44,7 @@ class OutOfSampleAccessor:
         """
         from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
 
-        return _snapshot.build_snapshot(self._db_path, at, self._info(at.race_id))
+        return _snapshot.guarded_snapshot(self._db_path, at, self._check)
 
     def final_classification(self, race_id: str) -> pd.DataFrame:
         """Final results of an out-of-sample race, ordered by final_position, with driver_code.
@@ -56,7 +53,9 @@ class OutOfSampleAccessor:
             UnknownRaceError: unknown race id.
             ValueError: the race is in-sample.
         """
-        from f1si.data import _db  # local import: not a module attribute (CR-01)
+        from f1si.data import _db, _snapshot  # local import: not a module attribute (CR-01)
 
-        info = self._info(race_id)
-        return _db.read_df(self._db_path, _RESULTS_SQL, [info.race_id])
+        with _db.connect_reader(self._db_path) as con:  # one connection: one consistent load
+            info = _snapshot.race_info(self._db_path, race_id, con=con)
+            self._check(info)
+            return _db.read_df(self._db_path, _RESULTS_SQL, [info.race_id], con=con)

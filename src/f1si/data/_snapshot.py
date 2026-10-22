@@ -31,7 +31,7 @@ from the current or later races. A race is earlier iff season < s or (season = s
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -157,15 +157,15 @@ def _without_visibility(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=[schema.VISIBILITY_COLUMN], errors="ignore").reset_index(drop=True)
 
 
-def race_info(db_path: Path, race_id: str) -> RaceInfo:
-    """Look up one finished race by id (bound parameter).
+def race_info(db_path: Path, race_id: str, *, con: _db.Connection | None = None) -> RaceInfo:
+    """Look up one finished race by id (bound parameter), on `con` if one is open.
 
     Raises:
         UnknownRaceError: if the race is absent or its load did not finish.
     """
-    df = _db.read_df(db_path, _RACE_INFO_SQL, [race_id, _COMPLETE])
+    df = _db.read_df(db_path, _RACE_INFO_SQL, [race_id, _COMPLETE], con=con)
     if df.empty:
-        known_df = _db.read_df(db_path, _KNOWN_SQL, [_COMPLETE])
+        known_df = _db.read_df(db_path, _KNOWN_SQL, [_COMPLETE], con=con)
         known = [str(v) for v in known_df["race_id"]] + [str(v) for v in known_df["slug"]]
         raise UnknownRaceError(race_id, known)
     row = df.iloc[0]
@@ -185,7 +185,7 @@ def race_info(db_path: Path, race_id: str) -> RaceInfo:
     )
 
 
-def _cutoff(db_path: Path, at: AsOf, info: RaceInfo) -> float | None:
+def _cutoff(db_path: Path, at: AsOf, info: RaceInfo, con: _db.Connection) -> float | None:
     """The cutoff for `at`; reads only the lap-N row of `lap_cutoffs` (DEC-008)."""
     if isinstance(at.lap, RaceEnd):
         return None
@@ -193,13 +193,20 @@ def _cutoff(db_path: Path, at: AsOf, info: RaceInfo) -> float | None:
         db_path,
         "SELECT cutoff_s FROM lap_cutoffs WHERE race_id = ? AND lap = ?",
         [info.race_id, at.lap],
+        con=con,
     )
     if df.empty:
         raise LapOutOfRangeError(at.lap, info.slug)
     return float(df["cutoff_s"].iloc[0])
 
 
-def _visible_rows(db_path: Path, table: str, race_id: str, cutoff_s: float | None) -> pd.DataFrame:
+def _visible_rows(
+    db_path: Path,
+    table: str,
+    race_id: str,
+    cutoff_s: float | None,
+    con: _db.Connection,
+) -> pd.DataFrame:
     """Rows of a time table that are visible at the cutoff (all rows for RACE_END)."""
     spec = schema.TABLES[table]
     if spec.visibility != "time":
@@ -214,7 +221,7 @@ def _visible_rows(db_path: Path, table: str, race_id: str, cutoff_s: float | Non
             f"AND visible_at_s IS NOT NULL AND visible_at_s <= ? ORDER BY {order}"
         )
         params = [race_id, cutoff_s]
-    return _without_visibility(schema.normalize(table, _db.read_df(db_path, sql, params)))
+    return _without_visibility(schema.normalize(table, _db.read_df(db_path, sql, params, con=con)))
 
 
 def _typed(columns: Mapping[str, Any], dtypes: Mapping[str, str]) -> pd.DataFrame:
@@ -312,15 +319,25 @@ def rebuild_cars(laps: pd.DataFrame, entries: pd.DataFrame) -> pd.DataFrame:
     return _typed({n: cars[n] for n in _CAR_DTYPES}, _CAR_DTYPES).reset_index(drop=True)
 
 
-def build_snapshot(db_path: Path, at: AsOf, info: RaceInfo) -> RaceSnapshot:
+def build_snapshot(
+    db_path: Path, at: AsOf, info: RaceInfo, *, con: _db.Connection | None = None
+) -> RaceSnapshot:
     """Everything knowable about `info` at `at`, with results never read (D-01, D-03).
+
+    All queries run on one read connection (`con`, or one opened here), so the cutoff and the
+    rows come from the same load of the cache (WR-04).
 
     Raises:
         LapOutOfRangeError: if `at.lap` is beyond the last lap of the race.
     """
-    cutoff_s = _cutoff(db_path, at, info)
-    entries = schema.normalize("entries", _db.read_table(db_path, "entries", race_id=info.race_id))
-    frames = {t: _visible_rows(db_path, t, info.race_id, cutoff_s) for t in _TIME_TABLES}
+    if con is None:
+        with _db.connect_reader(db_path) as own:
+            return build_snapshot(db_path, at, info, con=own)
+    cutoff_s = _cutoff(db_path, at, info, con)
+    entries = schema.normalize(
+        "entries", _db.read_table(db_path, "entries", race_id=info.race_id, con=con)
+    )
+    frames = {t: _visible_rows(db_path, t, info.race_id, cutoff_s, con) for t in _TIME_TABLES}
     laps = frames["laps"]
     return RaceSnapshot(
         race=info,
@@ -337,13 +354,22 @@ def build_snapshot(db_path: Path, at: AsOf, info: RaceInfo) -> RaceSnapshot:
     )
 
 
-def build_history(db_path: Path, at: AsOf, info: RaceInfo) -> History:
-    """Every earlier in-sample race in full (results included), none from `info` onwards."""
+def build_history(
+    db_path: Path, at: AsOf, info: RaceInfo, *, con: _db.Connection | None = None
+) -> History:
+    """Every earlier in-sample race in full (results included), none from `info` onwards.
+
+    All queries run on one read connection (`con`, or one opened here) (WR-04).
+    """
+    if con is None:
+        with _db.connect_reader(db_path) as own:
+            return build_history(db_path, at, info, con=own)
     params: list[object] = [info.season, info.season, info.round]
     race_df = _db.read_df(
         db_path,
         f"SELECT race_id FROM races WHERE {_EARLIER_PREDICATE} ORDER BY season, round",
         params,
+        con=con,
     )
     frames: dict[str, pd.DataFrame] = {}
     for table in _HISTORY_TABLES:
@@ -352,7 +378,7 @@ def build_history(db_path: Path, at: AsOf, info: RaceInfo) -> History:
             f"(SELECT race_id FROM races WHERE {_EARLIER_PREDICATE}) ORDER BY {_order(table)}"
         )
         frames[table] = _without_visibility(
-            schema.normalize(table, _db.read_df(db_path, sql, params))
+            schema.normalize(table, _db.read_df(db_path, sql, params, con=con))
         )
     return History(
         as_of=at,
@@ -367,6 +393,27 @@ def build_history(db_path: Path, at: AsOf, info: RaceInfo) -> History:
     )
 
 
+def guarded_snapshot(db_path: Path, at: AsOf, check: Callable[[RaceInfo], None]) -> RaceSnapshot:
+    """Look up the race, let the door's `check` reject it, and build the snapshot.
+
+    The race lookup and every snapshot query run on ONE read connection (WR-04). `check` raises
+    the door's own error (the as-of door refuses 2026 races, the out-of-sample door refuses the
+    others).
+    """
+    with _db.connect_reader(db_path) as con:
+        info = race_info(db_path, at.race_id, con=con)
+        check(info)
+        return build_snapshot(db_path, at, info, con=con)
+
+
+def guarded_history(db_path: Path, at: AsOf, check: Callable[[RaceInfo], None]) -> History:
+    """As `guarded_snapshot`, for the history of earlier races."""
+    with _db.connect_reader(db_path) as con:
+        info = race_info(db_path, at.race_id, con=con)
+        check(info)
+        return build_history(db_path, at, info, con=con)
+
+
 __all__ = [
     "RACE_END",
     "AsOf",
@@ -376,6 +423,8 @@ __all__ = [
     "RaceSnapshot",
     "build_history",
     "build_snapshot",
+    "guarded_history",
+    "guarded_snapshot",
     "race_info",
     "rebuild_cars",
     "rebuild_pit_events",

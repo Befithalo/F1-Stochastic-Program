@@ -2,8 +2,8 @@
 
 * `leaky_consumer.mean_lap_time_whole_race` opens the database directly: caught by BOTH the
   import ban (scan) and the future scramble.
-* The through-accessor leaks use only the public door: the import ban sees nothing, only the
-  scramble can catch them.
+* The through-accessor leaks use only the public door: the import ban sees no storage access
+  (it only objects to the driver-only names), only the scramble can catch the future lap.
 * Every honest consumer passes at a mid-race point.
 """
 
@@ -49,7 +49,16 @@ def test_direct_duckdb_leak_is_caught_by_both_checks(tables: dict[str, pd.DataFr
 def test_through_accessor_leaks_are_caught_only_by_the_scramble(
     tables: dict[str, pd.DataFrame], name: str
 ) -> None:
-    assert scan([FIXTURES / "leaky_through_accessor.py"], REPO_ROOT) == []
+    # The import scan sees no storage back door here. Since WR-02 it does flag the driver-only
+    # names (AsOfAccessor, RACE_END, RaceEnd) because this fixture is not a replay driver, but
+    # it cannot tell that the lap asked for is in the future: only the scramble catches that.
+    violations = scan([FIXTURES / "leaky_through_accessor.py"], REPO_ROOT)
+    driver_only = {
+        "f1si.data.asof.AsOfAccessor",
+        "f1si.data.asof.RACE_END",
+        "f1si.data.asof.RaceEnd",
+    }
+    assert {v.imported for v in violations} <= driver_only
     consumer: Consumer = getattr(leaky_through_accessor, name)
     with pytest.raises(LookaheadDetected):
         assert_no_lookahead(consumer, tables, AsOf("2023-02", 2), rng=np.random.default_rng(0))

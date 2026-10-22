@@ -584,3 +584,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Treating a raise as "equal outputs" (the bug). Lowering the grid to a few edge laps (a lap-specific leak in one race would be found only by luck).
 **Consequences:** The full grid adds about 40 scramble setups to the guard tests. A new public function in a designated module, or a new consumer module, needs a registry entry before CI is green. The designated-module list in `tests/guards/consumers.py` is still maintained by hand, but a module that uses the accessor without being a driver now fails the import scan.
 **Refs:** D-02, D-04, DAT-04
+
+## DEC-054 — One read connection per snapshot, history or results call
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** `build_snapshot` opened about eight separate read-only DuckDB connections. A concurrent `f1si load` could take the write lock between them and re-load a race (delete, then insert), so one snapshot could mix a `lap_cutoffs` row of the old load with `laps` of the new one, or fail half-way with `CacheBusyError`. Opening a file per query also cost about 40 ms each (WR-04).
+**Decision:** Each door call (`snapshot`, `history`, `final_classification`) opens one read-only connection with `_db.connect_reader` and passes it to every query through an optional `con=` argument of `_db.read_df` and `_db.read_table`. The doors call `_snapshot.guarded_snapshot` / `guarded_history`, which look up the race, run the door's own check (2026 locked, or in-sample refused) and build the result on that connection. The type is exported as `_db.Connection` so only `_db` imports duckdb. A test counts the connections each door call opens.
+**Why:** DuckDB does not let another process write while a read-only connection is open, so the whole call sees one load of the cache or fails once with `CacheBusyError`, never a mixture. It is also several times faster.
+**Alternatives rejected:** An explicit read transaction (the file lock already gives the guarantee, and a transaction would not stop a writer in another process). A connection pool or a long-lived accessor connection (a Windows file lock would outlive the call, see DEC-010).
+**Consequences:** A `f1si load` started while a snapshot is being built waits or reports a busy cache for the length of that call, which is short. The deterministic scramble grid became about twice as fast.
+**Refs:** D-01, D-02

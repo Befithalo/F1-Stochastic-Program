@@ -2,6 +2,8 @@
 
 import inspect
 import types
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from pathlib import Path
 
 import pytest
@@ -91,3 +93,34 @@ def test_out_of_sample_door(synthetic_db: Path) -> None:
         door.snapshot(AsOf("2023-01", 5))
     with pytest.raises(ValueError, match=r"AsOfAccessor"):
         door.final_classification("2023-01")
+
+
+def test_each_door_call_reads_on_one_connection(
+    synthetic_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WR-04: all the queries of one snapshot/history/results call share one read connection.
+
+    Separate connections could straddle a concurrent re-load of a race and mix two loads.
+    """
+    from f1si.data import _db
+
+    opened: list[Path] = []
+    real = _db.connect_reader
+
+    def counting(db_path: Path) -> AbstractContextManager[_db.Connection]:
+        opened.append(db_path)
+        return real(db_path)
+
+    monkeypatch.setattr(_db, "connect_reader", counting)
+    calls: dict[str, Callable[[], object]] = {
+        "snapshot": lambda: AsOfAccessor(synthetic_db).snapshot(AsOf("2023-02", 5)),
+        "race end": lambda: AsOfAccessor(synthetic_db).snapshot(AsOf("2023-02", RACE_END)),
+        "history": lambda: AsOfAccessor(synthetic_db).history(AsOf("2024-01", 3)),
+        "results": lambda: ResultsAccessor(synthetic_db).final_classification("2023-01"),
+        "2026 snapshot": lambda: OutOfSampleAccessor(synthetic_db).snapshot(AsOf("2026-01", 3)),
+        "2026 results": lambda: OutOfSampleAccessor(synthetic_db).final_classification("2026-01"),
+    }
+    for name, call in calls.items():
+        opened.clear()
+        call()
+        assert len(opened) == 1, f"{name} opened {len(opened)} connections"

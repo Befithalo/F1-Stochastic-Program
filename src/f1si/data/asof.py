@@ -88,13 +88,10 @@ class AsOfAccessor:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
 
-    def _info(self, race_id: str) -> RaceInfo:
-        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
-
-        info = _snapshot.race_info(self._db_path, race_id)
+    @staticmethod
+    def _check(info: RaceInfo) -> None:
         if info.out_of_sample:
             raise OutOfSampleLockedError(info.race_id)
-        return info
 
     def snapshot(self, at: AsOf) -> RaceSnapshot:
         """Rows of race `at.race_id` visible at `at`, with stints, pit events and cars rebuilt.
@@ -106,7 +103,7 @@ class AsOfAccessor:
         """
         from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
 
-        return _snapshot.build_snapshot(self._db_path, at, self._info(at.race_id))
+        return _snapshot.guarded_snapshot(self._db_path, at, self._check)
 
     def history(self, at: AsOf) -> History:
         """Every earlier in-sample race in full, results included; never `at.race_id` or later.
@@ -117,4 +114,4 @@ class AsOfAccessor:
         """
         from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
 
-        return _snapshot.build_history(self._db_path, at, self._info(at.race_id))
+        return _snapshot.guarded_history(self._db_path, at, self._check)

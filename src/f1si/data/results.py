@@ -45,11 +45,12 @@ class ResultsAccessor:
         """
         from f1si.data import _db  # local import: not a module attribute (CR-01)
 
-        race = _db.read_df(self._db_path, _RACE_SQL, [race_id])
-        if race.empty:
-            known_df = _db.read_df(self._db_path, _KNOWN_SQL)
-            known = [str(v) for v in known_df["race_id"]] + [str(v) for v in known_df["slug"]]
-            raise UnknownRaceError(race_id, known)
-        if bool(race["out_of_sample"].iloc[0]):
-            raise OutOfSampleLockedError(race_id)
-        return _db.read_df(self._db_path, _RESULTS_SQL, [race_id])
+        with _db.connect_reader(self._db_path) as con:  # one connection: one consistent load
+            race = _db.read_df(self._db_path, _RACE_SQL, [race_id], con=con)
+            if race.empty:
+                known_df = _db.read_df(self._db_path, _KNOWN_SQL, con=con)
+                known = [str(v) for v in known_df["race_id"]] + [str(v) for v in known_df["slug"]]
+                raise UnknownRaceError(race_id, known)
+            if bool(race["out_of_sample"].iloc[0]):
+                raise OutOfSampleLockedError(race_id)
+            return _db.read_df(self._db_path, _RESULTS_SQL, [race_id], con=con)

@@ -8,6 +8,9 @@ Rules this module enforces (DEC-010, DEC-011):
   row last (the completion marker), commit. Any exception, including Ctrl+C, triggers a ROLLBACK.
 * Every value reaches SQL as a bound `?` parameter. Table and view names are interpolated only
   after being checked against the constants in `f1si.data.schema`.
+* A multi-query read (a snapshot, a history) opens ONE read-only connection with
+  `connect_reader` and passes it to every query via `con=`. While it is open no other process can
+  take the write lock, so all the queries see one consistent load of the cache (WR-04).
 * Lock errors from DuckDB (a Linux conflicting-lock message, a Windows "used by another
   process" message) become `CacheBusyError`; a missing file becomes `CacheMissingError`.
 """
@@ -29,6 +32,9 @@ _VIEW_ORDER: Mapping[str, str] = {
     "stints": "race_id, driver_number, stint",
     "pit_stops": "race_id, driver_number, in_lap",
 }
+
+
+Connection = duckdb.DuckDBPyConnection  # re-exported so callers never import duckdb
 
 
 def _is_lock_error(err: duckdb.IOException) -> bool:
@@ -143,14 +149,34 @@ def write_tables(db_path: Path, tables: Mapping[str, pd.DataFrame]) -> None:
             raise
 
 
-def read_df(db_path: Path, sql: str, params: Sequence[object] = ()) -> pd.DataFrame:
-    """Run a read-only query with bound `params` and return a DataFrame."""
-    with connect_reader(db_path) as con:
+def read_df(
+    db_path: Path,
+    sql: str,
+    params: Sequence[object] = (),
+    *,
+    con: Connection | None = None,
+) -> pd.DataFrame:
+    """Run a read-only query with bound `params` and return a DataFrame.
+
+    With `con` (from `connect_reader`) the query runs on that open connection; without it a
+    short-lived connection is opened and closed around this one query.
+    """
+    if con is not None:
         return con.execute(sql, list(params)).df()
+    with connect_reader(db_path) as own:
+        return own.execute(sql, list(params)).df()
 
 
-def read_table(db_path: Path, table: str, *, race_id: str | None = None) -> pd.DataFrame:
+def read_table(
+    db_path: Path,
+    table: str,
+    *,
+    race_id: str | None = None,
+    con: Connection | None = None,
+) -> pd.DataFrame:
     """Read a table or view, optionally for one race, in a deterministic order.
+
+    Pass `con` to reuse an open read connection (see `read_df`).
 
     Raises:
         ValueError: if `table` is not in `schema.TABLES` or `schema.VIEWS`.
@@ -165,7 +191,7 @@ def read_table(db_path: Path, table: str, *, race_id: str | None = None) -> pd.D
         )
     where = "" if race_id is None else " WHERE race_id = ?"
     params: list[object] = [] if race_id is None else [race_id]
-    df = read_df(db_path, f"SELECT * FROM {table}{where} ORDER BY {order}", params)
+    df = read_df(db_path, f"SELECT * FROM {table}{where} ORDER BY {order}", params, con=con)
     return schema.normalize(table, df) if table in schema.TABLES else df
 
 
