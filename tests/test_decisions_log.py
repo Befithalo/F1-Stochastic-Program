@@ -24,8 +24,10 @@ LABELS = (
     "**Consequences:**",
     "**Refs:**",
 )
-REQUIRED_REFS = frozenset({"D-01", "D-02", "D-03", "D-04", "D-08", "D-09", "D-10", "D-13", "D-16"})
-MIN_ENTRIES = 35
+REQUIRED_REFS = frozenset(
+    {"D-01", "D-02", "D-03", "D-04", "D-05", "D-06", "D-07", "D-08", "D-09", "D-10", "D-13", "D-16"}
+)
+MIN_ENTRIES = 49
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -69,6 +71,10 @@ def test_refs_cover_required_decisions() -> None:
         ("RACE_END",),
         ("LapOutOfRangeError",),
         ("responsibility map", "f1si.cli"),
+        ("VIRTUAL SAFETY CAR DEPLOYED", "SAFETY CAR IN THIS LAP", "PIT EXIT"),
+        ("2.1 s", "450"),
+        ("lights out",),
+        ("pit_lane_start", "Did not start"),
     ],
 )
 def test_some_entry_contains_keywords(keywords: tuple[str, ...]) -> None:
@@ -77,3 +83,17 @@ def test_some_entry_contains_keywords(keywords: tuple[str, ...]) -> None:
 
 def test_cli_source_choice_entry_exists_by_title() -> None:
     assert any(title == "The CLI chooses the data source" for _, title, _ in _entries())
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Track status derived from OpenF1 race control",
+        "Race calendar and identity",
+        "HTTP pacing, caching and retries",
+        "OpenF1 lap clock and tyre fields",
+        "Pit-lane start rule",
+    ],
+)
+def test_source_decisions_exist_by_title(title: str) -> None:
+    assert any(t == title for _, t, _ in _entries()), title

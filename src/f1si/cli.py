@@ -15,7 +15,8 @@ from f1si import paths
 from f1si.data import asof
 from f1si.data.errors import F1siDataError
 from f1si.data.loader import load_races
-from f1si.data.sources import SourceError
+from f1si.data.sources import RaceSource, SourceError
+from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
 from f1si.rng import DEFAULT_SEED, make_rng
@@ -39,7 +40,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     load = sub.add_parser("load", help="load races into the local cache")
     load.add_argument(
-        "--source", required=True, choices=["synthetic"], help="where races come from"
+        "--source",
+        choices=["openf1", "synthetic"],
+        default="openf1",
+        help="where races come from (default: openf1, real races from OpenF1 + Jolpica)",
     )
     load.add_argument(
         "--seed", type=int, default=DEFAULT_SEED, help=f"random seed (default {DEFAULT_SEED})"
@@ -65,15 +69,29 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _cmd_load(
-    data_dir: Path, seed: int, seasons: Sequence[int] | None, only: Sequence[str] | None
+    data_dir: Path,
+    source_name: str,
+    seed: int,
+    seasons: Sequence[int] | None,
+    only: Sequence[str] | None,
 ) -> int:
-    source = SyntheticSource(rng=make_rng(seed))
+    source: RaceSource
+    if source_name == "openf1":
+        source = OpenF1Source(http_cache_dir=paths.http_cache_dir(data_dir), echo=print)
+        chosen = source.default_seasons if seasons is None else tuple(seasons)
+        print(
+            f"Loading seasons {', '.join(str(s) for s in chosen)} from OpenF1 + Jolpica. "
+            "New races take about 15 s each; finished races are kept if you stop with Ctrl+C."
+        )
+    else:
+        source = SyntheticSource(rng=make_rng(seed))
+        chosen = source.default_seasons if seasons is None else tuple(seasons)
     db = paths.db_path(data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
     report = load_races(
         source,
         db,
-        source.default_seasons if seasons is None else seasons,
+        chosen,
         now=datetime.now(UTC),
         echo=print,
         only=only,
@@ -109,8 +127,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
         if args.command == "load":
-            return _cmd_load(data_dir, args.seed, args.seasons, args.only)
+            return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
+    except KeyboardInterrupt:
+        print("Stopped. Finished races are kept; run the same command to continue.")
+        return 130
     except UnknownEraError as err:
         if args.debug:
             raise

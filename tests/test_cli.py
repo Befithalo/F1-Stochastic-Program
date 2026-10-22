@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from f1si import paths
-from f1si.cli import main
+from f1si.cli import build_parser, main
 from f1si.data import _db, asof, schema
 from f1si.data.loader import load_races
 from f1si.data.sources import NormalizedRace, RaceRef
@@ -39,10 +39,20 @@ def test_races_without_cache_says_what_to_do(
     assert "uv run f1si load" in capsys.readouterr().err
 
 
-def test_load_requires_source(tmp_path: Path) -> None:
-    with pytest.raises(SystemExit) as exc:
-        main(["--data-dir", str(tmp_path), "load"])
-    assert exc.value.code == 2
+def test_load_default_source_is_openf1() -> None:
+    assert build_parser().parse_args(["load"]).source == "openf1"
+    assert build_parser().parse_args(["load", "--source", "synthetic"]).source == "synthetic"
+
+
+def test_ctrl_c_during_load_exits_130_and_says_progress_is_kept(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def interrupted(*_args: object, **_kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("f1si.cli.load_races", interrupted)
+    assert main(["--data-dir", str(tmp_path), "load", "--source", "synthetic"]) == 130
+    assert "Finished races are kept" in capsys.readouterr().out
 
 
 def test_load_prints_one_progress_line_per_race(

@@ -386,3 +386,157 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Regex on the message.
 **Consequences:** Other exceptions the CLI reports in its own words should carry their facts as attributes too.
 **Refs:** DAT-05
+
+## DEC-036 — HTTP pacing, caching and retries
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** OpenF1 and Jolpica are free services with rate limits, and a full multi-season load makes hundreds of calls. Our traffic must respect the limits, and a re-run must not repeat calls.
+**Decision:** Every call goes through one `RateLimitedClient`. OpenF1 calls are at least 2.1 s apart (below the 30 per minute limit). Jolpica calls are at least 0.5 s apart and at most 450 per rolling hour (limits are 4 per second burst and 500 per hour). Only real network calls are paced or counted; cache hits are free. HTTP 429 is retried up to four times (the `Retry-After` header if numeric, capped at 3600 s, else 5/15/45/90 s) and then raises `RateLimitedError`; the loader then waits at least 60 s and retries the race, up to 3 attempts. HTTP 5xx is retried twice (5 s, 15 s). Network errors become a single-line `SourceError`; HTTP 404 returns `None`. Responses are cached in SQLite through requests-cache with the JSON serializer (never pickle) under `data/http-cache`; only HTTP 200 is stored; race responses never expire and schedules expire after 12 h.
+**Why:** Spacing and a cache keep us inside the terms of service, and the JSON serializer means a restored or swapped cache file cannot execute code.
+**Alternatives rejected:** Pacing at the stated limit with no margin (a clock drift or a second process would trip it). A pickle cache (code execution risk). No cache (a re-run would repeat every call).
+**Consequences:** The first load of a race takes about 15 s (about 7 paced calls). Re-runs are served from the cache. The hourly Jolpica budget is the limit that matters for a full multi-season load, and the loader's rate-limit wait handles it.
+**Refs:** D-08, D-14
+
+## DEC-037 — One network door
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** Look-ahead and licensing risks both grow with the number of places that can reach the network.
+**Decision:** `requests` and `requests_cache` are imported only in `f1si/data/sources/_http.py`, enforced by the import-ban `POLICY`. The adapters depend on the small `JsonGetter` protocol, so tests supply a fake and run offline. `f1si.data.sources.openf1` may be imported only by `f1si.cli`, and `jolpica` only by `openf1`.
+**Why:** One door means one place for pacing, retries and caching, and unit tests never touch the network.
+**Alternatives rejected:** Each adapter creating its own session (duplicated pacing, untestable offline).
+**Consequences:** A new source reuses `RateLimitedClient` or adds its own entry to the policy table.
+**Refs:** D-08, D-02
+
+## DEC-038 — Track status derived from OpenF1 race control
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** OpenF1 has no track-status feed like the official timing system's, but the model needs green, yellow, safety car, virtual safety car and red flag periods.
+**Decision:** `derive_track_status` rebuilds the timeline from race-control messages. "VIRTUAL SAFETY CAR DEPLOYED" gives 6. "VIRTUAL SAFETY CAR ENDING" gives 7, which returns to 1 at the next Track GREEN or CLEAR flag, or 15 s later, whichever comes first. "SAFETY CAR DEPLOYED" gives 4. "SAFETY CAR IN THIS LAP" returns to 1 at the leader's next lap completion (the first leader lap end strictly after the message), unless a Track GREEN or CLEAR comes first. A RED flag gives 5, ended by a Track GREEN or CLEAR or by a safety car or virtual safety car restart. YELLOW and DOUBLE YELLOW give 2 while any sector yellow is active. Flag messages containing "PIT EXIT" and driver-scope flags are ignored. When several things are true at once the priority is 5 > 4 > 6 > 7 > 2 > 1. The timeline starts implicitly green, so the first row appears at the first change.
+**Why:** The mapping uses only messages that exist at the time they are sent, so the timeline is knowable at each row's time. The leader's lap end for "in this lap" is the best available signal for when the field is released.
+**Alternatives rejected:** FastF1's native track status (a separate source with its own terms; kept as a later optional source). Guessing safety car end times from lap-time changes (a model, not a rule).
+**Consequences:** Lower fidelity than the official feed. The 15 s virtual-safety-car ending delay and the leader-lap-end timing are assumptions. On Bahrain 2023 the mapping gives a virtual safety car around lap 41, as expected.
+**Refs:** D-07, D-08
+
+## DEC-039 — Jolpica payloads are untrusted
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** Third-party JSON enters the cache; a missing field or wrong type must not become a silent wrong value.
+**Decision:** Every Jolpica and OpenF1 payload is shape-validated. Integers come only from `int()` of the API's strings and numbers from `float()`; anything else raises `SourceError("Unexpected response from SERVICE for PATH: WHAT")`. After normalizing, the loader validates the whole race before any write.
+**Why:** A loud failure with a path and a reason is easier to fix than a bad number found in a model later, and a failed race is simply retried on the next run.
+**Alternatives rejected:** Best-effort parsing with defaults (hides upstream changes).
+**Consequences:** An upstream format change fails the affected races with a clear message instead of corrupting the cache.
+**Refs:** D-07, D-08
+
+## DEC-040 — Snapshots are plain data
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** The as-of door returns what was knowable at a lap; consumers must not be able to reach the door itself and ask for more.
+**Decision:** The door returns a `RaceSnapshot`, a plain data object. The accessor stays with the replay or backtest driver, and consumers receive snapshots, never the accessor.
+**Why:** A consumer without the accessor cannot ask for a later lap, so the look-ahead question is decided in one place.
+**Alternatives rejected:** Passing the accessor into models (any model could probe later laps).
+**Consequences:** Phase 2's `RaceState` is built from a snapshot. The driver code is the only place that advances the cutoff.
+**Refs:** D-02, DAT-04
+
+## DEC-041 — The door accessors are small and separate
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** The as-of, results and 2026 doors must stay independent so that the import ban can allow each one to different callers.
+**Decision:** `AsOfAccessor` has exactly two methods and no flags. `ResultsAccessor` and `OutOfSampleAccessor` are separate modules guarded by the import ban. `results.py` and `out_of_sample.py` each carry their own small final-classification query, so `results` does not import `_snapshot` and `out_of_sample` does not import `results` (both are import-policy rules).
+**Why:** A small duplicated query is cheaper than a shared module that would let one door reach another.
+**Alternatives rejected:** One accessor with flags for results and 2026 (a flag can be set by accident).
+**Consequences:** The classification query exists twice and must be changed in both places if the results table changes.
+**Refs:** D-02, D-03, D-04
+
+## DEC-042 — Cars at a cutoff: leader N laps, others at most N-1
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** DEC-001 defines the cutoff as the leader completing lap N, so the snapshot must say how many laps each car has done at that moment.
+**Decision:** At lap N the leader has N laps and every other running car at most N-1. `cars.laps_done` (not `laps_completed`) and `position` are rebuilt from the visible laps, ranked by laps done descending and then last lap end ascending.
+**Why:** Rebuilding from visible rows means the position is exactly what a timing screen would show, with no information from after the cutoff.
+**Alternatives rejected:** Taking the final classification position (a post-race fact).
+**Consequences:** Models see lapped cars as slightly behind their true state, never ahead. Phase 2's `RaceState` carries a per-car laps count.
+**Refs:** D-01, DAT-03
+
+## DEC-043 — Stint and pit event rebuild
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** A snapshot shows stints and pit stops, but the end of a stint or the length of a stop is only known once the next lap is visible.
+**Decision:** Stints expose compound, first_lap, last_visible_lap, laps_so_far and tyre_life_now, with no stint end or length. Pit events are the visible out-laps after lap 1; a lap-1 out-lap (a pit-lane start) is not a stop.
+**Why:** Every field is knowable at the cutoff. A stint end appears only when the next stint's first lap becomes visible.
+**Alternatives rejected:** Including the planned stint length (not known in the data, and a leak if taken from the full race).
+**Consequences:** A pit stop appears one lap after the in-lap, when its out-lap becomes visible.
+**Refs:** D-01, DAT-03
+
+## DEC-044 — History: complete earlier races, results included
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** A strategy model trained for race R may learn from earlier races, but not from R or later ones.
+**Decision:** History is every race of an earlier round in the same season or an earlier season, with `load_status = 'complete'` and not out-of-sample, and it includes all tables including results. `races` in a history result is a list of race ids.
+**Why:** Earlier races are finished facts when the current race starts. Excluding 2026 keeps the holdout locked.
+**Alternatives rejected:** Excluding results from history (the walk-forward needs earlier outcomes to fit models).
+**Consequences:** Round order, not date, decides "earlier"; a race renumbered by the calendar would change history.
+**Refs:** D-03, D-04
+
+## DEC-045 — Scramble rules for the future-scramble test
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** The scramble property test must change exactly what is future at the cutoff and nothing else.
+**Decision:** Future means later races, current-race rows with `visible_at_s` NULL or after the cutoff, and the current race's results. At `RACE_END` the current race's time tables are not scrambled, dropped or added, because `RACE_END` has no time filter. `RACE_END` stays in the hypothesis strategy and is also tested deterministically. The harness changes the time column and `visible_at_s` together, because the writer recomputes visibility (DEC-018). Calendar rows of later races are scrambled too, but `races` rows are never dropped, so "next race" lookups through the catalog stay stable for the meta-test.
+**Why:** The rules mirror the visibility rule of DEC-001 exactly, so any difference in output is a leak.
+**Alternatives rejected:** Scrambling everything (would break the output even for a correct door).
+**Consequences:** A new time-indexed table must be added to the scramble tables or the tests fail.
+**Refs:** D-02, DAT-04
+
+## DEC-046 — Unknown race and lap errors
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** A mistyped slug or lap should produce a message that tells the user what to do, not a stack trace.
+**Decision:** An unknown race raises `UnknownRaceError` with up to 3 close slug or race id matches. A lap beyond the race raises `LapOutOfRangeError` suggesting `RACE_END`. The CLI can use `resolve_slug` for slug arguments.
+**Why:** The error carries its facts as attributes, so callers do not parse messages.
+**Alternatives rejected:** Returning an empty snapshot (silently wrong).
+**Consequences:** DEC-002 records the known limit that asking for a lap beyond the race reveals the race length.
+**Refs:** D-02, DAT-04
+
+## DEC-047 — Race calendar and identity
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** Round numbers renumber when a race is cancelled or added, and an event name is not a circuit: the 2026 "Bahrain Grand Prix" is held at Kuala Lumpur.
+**Decision:** Only Race sessions are loaded (not sprints, qualifying or practice). Sessions that OpenF1 marks `is_cancelled`, and races that started less than 6 h ago, are skipped. The round comes from the Jolpica schedule, matched by UTC start date within one day (the closest wins). `race_id` is `{season}-{round:02d}`. The slug comes from the Jolpica race name, with `-r{round}` added when two races in a season share a slug. The circuit is the Jolpica `circuitId`. A session with no matching Jolpica round is skipped with a message. `scheduled_laps` is left empty for Phase 2.
+**Why:** Matching by date to one schedule gives one stable identity per race; the circuit id is the only reliable circuit key.
+**Alternatives rejected:** Using OpenF1's meeting name as the circuit (an event is not a circuit). Filling scheduled laps from the winner's lap count (a post-race fact).
+**Consequences:** A race that is moved by more than a day between the two services would be skipped with a message rather than mislabelled.
+**Refs:** D-05, D-06
+
+## DEC-048 — OpenF1 lap clock and tyre fields
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** The schema's time is seconds since lights out, but OpenF1 timestamps are wall-clock, and its stints are one row per stint rather than one per lap.
+**Decision:** t = 0 is the earliest lap-1 `date_start` of any car, which is lights out (checked on Bahrain 2023 only; assumption A14). Lap end is lap start plus lap duration, or the same driver's next lap start when the duration is missing. A lap-1 row with no start gets 0.0. `tyre_life` is `tyre_age_at_start` plus the laps into the stint plus 1, and a stint with no end extends to the driver's last lap. Pit-out laps come from OpenF1, pit-in laps from the Jolpica stop laps, and the stop duration is placed on the out-lap. Race control and weather are on the same clock, so messages before lights out have negative times. Pit-lane starts follow the "Pit-lane start rule" entry. `scheduled_laps` stays NULL.
+**Why:** Using the car that starts the first lap earliest gives a clock tied to the real start; every derived number is then reproducible from the raw payloads.
+**Alternatives rejected:** The session start time as t = 0 (it is before the formation lap). Jolpica lap times (not available per lap in the free API).
+**Consequences:** A few laps keep gaps that OpenF1 does not fill: on Bahrain 2023 three in-laps have no end time and no stint. Those rows are only visible at the race end.
+**Refs:** D-01, D-08
+
+## DEC-049 — Pit-lane start rule
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** `entries.pit_lane_start` says which cars started from the pit lane. Entries are visible from lap 0 (lights out), so every column must be knowable at lights out.
+**Decision:** `pit_lane_start` is true when the Jolpica grid is 0 and the status, lower-cased and stripped, is none of "Did not start", "Withdrew", "Did not qualify" or "Did not prequalify". `grid_position` is NULL for grid 0. Laps completed is never used.
+**Why:** The earlier draft rule "grid 0 and laps > 0" used a post-race fact and was look-ahead: a pit-lane starter that retires on lap 1 has 0 laps but did start. Whether a car never took the start is settled by lights out.
+**Alternatives rejected:** Grid 0 and laps > 0 (look-ahead). Grid 0 alone (marks non-starters as pit-lane starters).
+**Consequences:** Limitation: the status string is published in the post-race results feed and Jolpica has no separate pre-race signal, so only its "the car never took the start" meaning is used. A non-starter labelled with some other status would be marked as a pit-lane starter with no laps, which stays visible in the cache. Plan 01-10 lists every grid-0 entry with its status as a real-data check. Bahrain 2023 has no grid-0 entries.
+**Refs:** D-01, D-03

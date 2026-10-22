@@ -53,7 +53,6 @@ NON_STARTER_STATUSES: Final = frozenset(
     {"did not start", "withdrew", "did not qualify", "did not prequalify"}
 )
 FIRST_OPENF1_SEASON: Final = 2023
-OPENF1_MIN_INTERVAL_S: Final = 2.1
 
 
 def _unexpected(path: str, detail: str) -> SourceError:
@@ -153,7 +152,7 @@ class OpenF1Source:
             else RateLimitedClient(
                 name="OpenF1",
                 base_url=OPENF1_BASE_URL,
-                min_interval_s=OPENF1_MIN_INTERVAL_S,
+                min_interval_s=2.1,  # 30 calls per minute is the limit
                 max_per_hour=None,
                 cache_path=http_cache_dir / "openf1.sqlite",
                 echo=echo,
