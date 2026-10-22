@@ -90,9 +90,48 @@
 
 ## Traceability
 
-(Filled by roadmap creation.)
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| FND-01 | Phase 1 | Pending |
+| FND-02 | Phase 1 | Pending |
+| FND-03 | Phase 1 | Pending |
+| FND-04 | Phase 1 | Pending |
+| DAT-01 | Phase 1 | Pending |
+| DAT-02 | Phase 1 | Pending |
+| DAT-03 | Phase 1 | Pending |
+| DAT-04 | Phase 1 | Pending |
+| DAT-05 | Phase 1 | Pending |
+| UI-03 | Phase 1 (recurs every phase) | Pending |
+| INT-01 | Phase 2 | Pending |
+| INT-02 | Phase 2 | Pending |
+| INT-03 | Phase 2 | Pending |
+| PAC-01 | Phase 2 | Pending |
+| PAC-02 | Phase 2 | Pending |
+| SIM-01 | Phase 3 | Pending |
+| SIM-02 | Phase 3 | Pending |
+| SIM-03 | Phase 3 | Pending |
+| REG-01 | Phase 3 | Pending |
+| PAC-03 | Phase 4 | Pending |
+| PAC-04 | Phase 4 | Pending |
+| STR-01 | Phase 5 | Pending |
+| STR-02 | Phase 5 | Pending |
+| STR-03 | Phase 5 | Pending |
+| STR-04 | Phase 5 | Pending |
+| RPL-01 | Phase 5 | Pending |
+| RPL-02 | Phase 5 | Pending |
+| BKT-01 | Phase 6 | Pending |
+| BKT-02 | Phase 6 | Pending |
+| BKT-04 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Pending |
+| UI-02 | Phase 6 | Pending |
+| PAC-05 | Phase 7 | Pending |
+| PAC-06 | Phase 7 | Pending |
+| REG-02 | Phase 8 | Pending |
+| REG-03 | Phase 8 | Pending |
+| BKT-03 | Phase 8 | Pending |
+| BKT-05 | Phase 8 | Pending |
 
-**Coverage:** 38 v1 requirements
+**Coverage:** 38 v1 requirements, 38 mapped, 0 unmapped
 
 ---
 *Requirements defined: 2026-10-22*
