@@ -32,3 +32,15 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest --cov=f1si --cov-report=term
+      - name: "Canary: a planted leak must fail the import ban (DAT-04)"
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          cp tests/fixtures/leaky_consumer.py src/f1si/_canary.py
+          if uv run pytest tests/guards/test_import_ban.py -q -p no:cacheprovider; then
+            echo "::error::planted leak in src/f1si/_canary.py was NOT caught"
+            rm -f src/f1si/_canary.py
+            exit 1
+          fi
+          rm -f src/f1si/_canary.py
+          echo "Canary caught as expected"
