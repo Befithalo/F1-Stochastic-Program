@@ -258,9 +258,6 @@ def build_figure(data: StintPlotData) -> Figure:
                 )
         for lap in data.stint_starts.get(code, ()):
             ax.axvline(lap - 0.5, color=_STINT_LINE_COLOR, linewidth=0.6, linestyle=":", zorder=0)
-    fig.supxlabel("Lap")
-    fig.supylabel("Lap time (s)")
-    fig.suptitle(data.title)
 
     present = [
         c for c in COMPOUND_COLORS if len(data.points) and (data.points["compound"] == c).any()
@@ -310,6 +307,12 @@ def build_figure(data: StintPlotData) -> Figure:
         ),
     ]
     fig.legend(handles=handles, loc="outside lower center", ncols=min(len(handles), 4), fontsize=8)
+    for index, ax in enumerate(flat[: len(data.drivers)]):
+        if index + ncols >= len(data.drivers):  # lowest visible panel of its column
+            ax.tick_params(labelbottom=True)
+            ax.set_xlabel("Lap", fontsize=8)
+    fig.supylabel("Lap time (s)")
+    fig.suptitle(data.title)
     return fig
 
 
