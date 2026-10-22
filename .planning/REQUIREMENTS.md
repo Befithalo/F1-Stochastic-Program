@@ -7,8 +7,8 @@
 
 ### Foundation
 
-- [ ] **FND-01**: Repo has a uv-managed Python 3.12 `src/f1si` package with ruff, mypy strict and pytest configured
-- [ ] **FND-02**: GitHub Actions CI runs lint, type-check and tests on every push and must pass for a phase to count as done
+- [x] **FND-01**: Repo has a uv-managed Python 3.12 `src/f1si` package with ruff, mypy strict and pytest configured
+- [x] **FND-02**: GitHub Actions CI runs lint, type-check and tests on every push and must pass for a phase to count as done
 - [ ] **FND-03**: All randomness uses an explicit `np.random.Generator`, and the same seed reproduces identical results
 - [ ] **FND-04**: `DECISIONS.md` logs every method choice with its rationale
 
@@ -92,8 +92,8 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FND-01 | Phase 1 | Pending |
-| FND-02 | Phase 1 | Pending |
+| FND-01 | Phase 1 | Complete |
+| FND-02 | Phase 1 | Complete |
 | FND-03 | Phase 1 | Pending |
 | FND-04 | Phase 1 | Pending |
 | DAT-01 | Phase 1 | Pending |

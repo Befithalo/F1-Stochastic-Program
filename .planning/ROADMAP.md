@@ -31,12 +31,12 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
   4. Asking the as-of accessor for lap N never returns rows after lap N, and a deliberately leaking test case fails the build
   5. Every cached race shows its regulation era, and 2026 races are flagged out-of-sample; the same seed gives identical random results; DECISIONS.md exists with the first entries
 
-**Plans:** 11 plans (8 dependency waves, executed one plan at a time on main; walking skeleton = 01-01..01-03, see phases/01-foundation-data/SKELETON.md)
+**Plans:** 1/11 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Bootstrap: scaffold, CI config, repo hygiene + F1 Docs commit; owner approves dependencies and installs uv (wave 1)
+- [x] 01-01-PLAN.md — Bootstrap: scaffold, CI config, repo hygiene + F1 Docs commit; owner approves dependencies and installs uv (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 0/11 | Planned | - |
+| 1. Foundation & Data | 1/11 | In Progress|  |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
