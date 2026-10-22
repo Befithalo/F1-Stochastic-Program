@@ -39,6 +39,19 @@ def test_races_without_cache_says_what_to_do(
     assert "uv run f1si load" in capsys.readouterr().err
 
 
+def test_races_with_an_empty_cache_says_what_to_do(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """WR-07: a cache file with the schema but no finished race used to raise TypeError."""
+    db = paths.db_path(tmp_path)
+    with _db.connect_writer(db) as con:
+        _db.ensure_schema(con)
+    assert main(["--data-dir", str(tmp_path), "races"]) == 0
+    out = capsys.readouterr().out
+    assert "No races cached yet" in out
+    assert "uv run f1si load" in out
+
+
 def test_load_default_source_is_openf1() -> None:
     assert build_parser().parse_args(["load"]).source == "openf1"
     assert build_parser().parse_args(["load", "--source", "synthetic"]).source == "synthetic"

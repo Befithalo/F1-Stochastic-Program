@@ -131,6 +131,9 @@ def _cmd_races(data_dir: Path) -> int:
         )
         for r in cat.itertuples(index=False)
     ]
+    if not rows:
+        print("No races cached yet. Run: uv run f1si load")
+        return 0
     widths = [max(len(h), *(len(row[i]) for row in rows)) for i, h in enumerate(header)]
     for line in (header, *rows):
         print("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(line)).rstrip())
