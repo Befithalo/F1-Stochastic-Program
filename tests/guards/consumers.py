@@ -2,13 +2,15 @@
 
 Every new consumer of the as-of door must be registered in `CONSUMERS` so that the scramble test
 proves it ignores the future. A consumer is a function `(db_path, at) -> output`; the output is
-compared exactly (DataFrames, dataclasses, lists, scalars). Plan 01-09 adds the stint plot data.
+compared exactly (DataFrames, dataclasses, lists, scalars). The stint plot data (plan 01-09) is
+registered below.
 """
 
 from pathlib import Path
 from typing import Final
 
 from f1si.data.asof import AsOf, AsOfAccessor
+from f1si.plots.stints import prepare_stint_plot_data
 from tests.guards.scramble import Consumer
 
 
@@ -37,10 +39,16 @@ def cars(db_path: Path, at: AsOf) -> object:
     return AsOfAccessor(db_path).snapshot(at).cars
 
 
+def stint_plot_data(db_path: Path, at: AsOf) -> object:
+    """The stint plot's prepared data (points, y-range, panel titles, stint starts)."""
+    return prepare_stint_plot_data(AsOfAccessor(db_path).snapshot(at))
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
     "stints": stints,
     "pit_events": pit_events,
     "cars": cars,
+    "stint_plot_data": stint_plot_data,
 }

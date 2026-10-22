@@ -25,9 +25,23 @@ LABELS = (
     "**Refs:**",
 )
 REQUIRED_REFS = frozenset(
-    {"D-01", "D-02", "D-03", "D-04", "D-05", "D-06", "D-07", "D-08", "D-09", "D-10", "D-13", "D-16"}
+    {
+        "D-01",
+        "D-02",
+        "D-03",
+        "D-04",
+        "D-05",
+        "D-06",
+        "D-07",
+        "D-08",
+        "D-09",
+        "D-10",
+        "D-13",
+        "D-15",
+        "D-16",
+    }
 )
-MIN_ENTRIES = 49
+MIN_ENTRIES = 50
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -97,3 +111,10 @@ def test_cli_source_choice_entry_exists_by_title() -> None:
 )
 def test_source_decisions_exist_by_title(title: str) -> None:
     assert any(t == title for _, t, _ in _entries()), title
+
+
+def test_stint_plot_conventions_entry_exists_by_title() -> None:
+    matches = [body for _, title, body in _entries() if title == "Stint plot conventions"]
+    assert len(matches) == 1
+    assert "stint-boundary" in matches[0]
+    assert "D-15" in matches[0]

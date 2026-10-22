@@ -1,7 +1,8 @@
 """Command-line entry point for f1si.
 
-Subcommands: `load` (fill the cache) and `races` (list cached races with their regulation era).
-Plan 01-09 adds `plot`. Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
+Subcommands: `load` (fill the cache), `races` (list cached races with their regulation era) and
+`plot` (lap time by stint for one cached race). Exit codes: 0 ok, 1 user-facing error, 2 some
+races failed.
 """
 
 import argparse
@@ -13,12 +14,13 @@ from pathlib import Path
 import f1si
 from f1si import paths
 from f1si.data import asof
-from f1si.data.errors import F1siDataError
+from f1si.data.errors import F1siDataError, OutOfSampleLockedError
 from f1si.data.loader import load_races
 from f1si.data.sources import RaceSource, SourceError
 from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
+from f1si.plots.stints import plot_file_name, prepare_stint_plot_data, render_stint_plot
 from f1si.rng import DEFAULT_SEED, make_rng
 
 
@@ -34,6 +36,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="folder holding the DuckDB cache (default: $F1SI_DATA_DIR or ./data)",
+    )
+    parser.add_argument(
+        "--reports-dir",
+        type=Path,
+        default=None,
+        help="folder for generated plots (default: $F1SI_REPORTS_DIR or ./reports)",
     )
     parser.add_argument("--debug", action="store_true", help="show full tracebacks on errors")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -65,6 +73,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("races", help="list cached races and their regulation era")
+
+    plot = sub.add_parser("plot", help="plot lap time by stint for one cached race")
+    plot.add_argument("slug", metavar="SLUG", help="race slug (for example bahrain-2023)")
+    plot.add_argument(
+        "--drivers",
+        nargs="+",
+        default=None,
+        metavar="CODE",
+        help="only these driver codes, for example VER HAM (default: all drivers)",
+    )
     return parser
 
 
@@ -121,11 +139,37 @@ def _cmd_races(data_dir: Path) -> int:
     return 0
 
 
+def _cmd_plot(data_dir: Path, reports_dir: Path, slug: str, drivers: Sequence[str] | None) -> int:
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    try:
+        snapshot = asof.AsOfAccessor(db).snapshot(asof.AsOf(race_id, asof.RACE_END))
+    except OutOfSampleLockedError as err:
+        print(
+            f"{err} 2026 races are out-of-sample, so they cannot be plotted in Phase 1.",
+            file=sys.stderr,
+        )
+        return 1
+    data = prepare_stint_plot_data(snapshot, drivers=drivers)
+    out = reports_dir / plot_file_name(snapshot.race.slug, drivers)
+    render_stint_plot(data, out)
+    print(
+        f"Wrote {out} ({len(data.drivers)} drivers; {data.skipped_laps} laps without a time "
+        "were skipped). Open it to see lap times by stint."
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     args = build_parser().parse_args(argv)
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
+        if args.command == "plot":
+            reports_dir: Path = (
+                args.reports_dir if args.reports_dir is not None else paths.reports_dir()
+            )
+            return _cmd_plot(data_dir, reports_dir, args.slug, args.drivers)
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
@@ -142,6 +186,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"(supported seasons: {first}-{last}, see f1si/eras.py)",
             file=sys.stderr,
         )
+        return 1
+    except ValueError as err:
+        if args.debug or args.command != "plot":
+            raise
+        print(str(err), file=sys.stderr)
         return 1
     except (F1siDataError, SourceError) as err:
         if args.debug:

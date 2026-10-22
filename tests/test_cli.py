@@ -162,3 +162,64 @@ def test_synthetic_db_holds_complete_races(
     assert len(_db.completed_race_ids(synthetic_db)) == len(synthetic_races) == 4
     for name in schema.PER_RACE_TABLES:
         assert len(_db.read_table(synthetic_db, name)) > 0
+
+
+def _load_synthetic(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--data-dir", str(tmp_path), "load", "--source", "synthetic"]) == 0
+    capsys.readouterr()
+
+
+def test_plot_command(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _load_synthetic(tmp_path, capsys)
+    base = ["--data-dir", str(tmp_path), "--reports-dir", str(tmp_path / "reports")]
+    assert main([*base, "plot", "alpha-2023"]) == 0
+    out = capsys.readouterr().out
+    assert "alpha-2023.png" in out
+    assert "6 drivers" in out
+    png = tmp_path / "reports" / "alpha-2023.png"
+    assert png.read_bytes().startswith(b"\x89PNG")
+
+    assert main([*base, "plot", "alpha-2023", "--drivers", "AAA", "BBB"]) == 0
+    assert (tmp_path / "reports" / "alpha-2023-aaa-bbb.png").is_file()
+
+
+def test_plot_by_race_id_names_file_from_slug(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _load_synthetic(tmp_path, capsys)
+    base = ["--data-dir", str(tmp_path), "--reports-dir", str(tmp_path / "reports")]
+    assert main([*base, "plot", "2023-01"]) == 0
+    assert (tmp_path / "reports" / "alpha-2023.png").is_file()
+
+
+def test_plot_unknown_race_suggests_close_match(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _load_synthetic(tmp_path, capsys)
+    assert main(["--data-dir", str(tmp_path), "plot", "alpah-2023"]) == 1
+    assert "alpha-2023" in capsys.readouterr().err
+
+
+def test_plot_refuses_2026(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _load_synthetic(tmp_path, capsys)
+    assert main(["--data-dir", str(tmp_path), "plot", "delta-2026"]) == 1
+    assert "out-of-sample" in capsys.readouterr().err
+
+
+def test_plot_unknown_driver_lists_codes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _load_synthetic(tmp_path, capsys)
+    base = ["--data-dir", str(tmp_path), "--reports-dir", str(tmp_path / "reports")]
+    assert main([*base, "plot", "alpha-2023", "--drivers", "ZZZ"]) == 1
+    assert "AAA" in capsys.readouterr().err
+    assert main([*base, "plot", "alpha-2023", "--drivers", "../x"]) == 1
+    assert "three letters" in capsys.readouterr().err
+    assert not (tmp_path / "reports").exists()
+
+
+def test_plot_without_cache_says_what_to_do(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["--data-dir", str(tmp_path / "nothing"), "plot", "alpha-2023"]) == 1
+    assert "uv run f1si load" in capsys.readouterr().err
