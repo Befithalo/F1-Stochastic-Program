@@ -650,3 +650,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A table in `jolpica.sqlite` (would need an exception to the `sqlite3` ban). Seeding from the `created_at` of cached responses (calls that returned 429 or 5xx, and forgotten races, would not be counted).
 **Consequences:** Two loads running at the same moment can still lose an entry in the file; the loader refuses a busy cache, so this is unlikely. Setting the system clock back can make an entry look younger than it is, which only makes the client wait longer.
 **Refs:** D-08, D-14
+
+## DEC-060 — An empty cache lists nothing, and only real lock messages mean "busy"
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** `f1si races` crashed with a `TypeError` on a cache file that had the schema but no finished race (WR-07). The storage layer reported any DuckDB `IOException` whose text contained "lock" as a busy cache, and "block" contains "lock", so a corrupt file ("computed checksum of block ...") or a short read told the user to wait for another command that did not exist (WR-10).
+**Decision:** `f1si races` on an empty cache prints "No races cached yet. Run: uv run f1si load" and exits 0. `_db` treats an `IOException` as a busy cache only when its text contains one of "could not set lock", "conflicting lock", "being used by another process" or "already open"; anything else is raised as it is. Tests cover the three real lock messages and four messages that must not match.
+**Why:** A traceback tells a new user nothing, and a wrong "busy" message hides corruption.
+**Alternatives rejected:** A word-boundary match on "lock" (still matches "unlocked block"-like text and other future messages). Exit code 1 for an empty cache (it is a valid state, not an error; a missing cache file still exits 1).
+**Consequences:** If a future DuckDB version rewords its lock message, a busy cache would surface as the raw error until the phrase list is extended; the process-level lock test in `test_db_roundtrip.py` would catch that.
+**Refs:** D-14
