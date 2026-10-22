@@ -32,15 +32,30 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest --cov=f1si --cov-report=term
-      - name: "Canary: a planted leak must fail the import ban (DAT-04)"
+      - name: "Canary: planted leaks must fail the import ban (DAT-04, CR-01)"
         if: runner.os == 'Linux'
         shell: bash
         run: |
-          cp tests/fixtures/leaky_consumer.py src/f1si/_canary.py
-          if uv run pytest tests/guards/test_import_ban.py -q -p no:cacheprovider; then
-            echo "::error::planted leak in src/f1si/_canary.py was NOT caught"
+          # Two leaks: a direct `import duckdb`, and a re-export (`from f1si.data.asof import _db`).
+          # Each must fail the scan WITH the expected violation in the output, so a collection or
+          # import error (also a non-zero pytest exit) cannot pass for "caught".
+          set -u
+          check() {
+            fixture="$1"
+            expected="$2"
+            cp "$fixture" src/f1si/_canary.py
+            if out=$(uv run pytest "tests/guards/test_import_ban.py::test_real_src_tree_is_clean" -q -p no:cacheprovider 2>&1); then
+              rm -f src/f1si/_canary.py
+              echo "::error::planted leak ($fixture) was NOT caught"
+              exit 1
+            fi
             rm -f src/f1si/_canary.py
-            exit 1
-          fi
-          rm -f src/f1si/_canary.py
-          echo "Canary caught as expected"
+            if ! printf '%s\n' "$out" | grep -qF "$expected"; then
+              printf '%s\n' "$out"
+              echo "::error::pytest failed, but without the expected violation '$expected'"
+              exit 1
+            fi
+            echo "Canary caught: $fixture"
+          }
+          check tests/fixtures/leaky_consumer.py "f1si._canary imports duckdb"
+          check tests/fixtures/leaky_reexport.py "f1si._canary imports f1si.data.asof._db"

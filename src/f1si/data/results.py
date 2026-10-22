@@ -13,7 +13,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from f1si.data import _db
 from f1si.data.errors import OutOfSampleLockedError, UnknownRaceError
 
 __all__ = ["ResultsAccessor"]
@@ -44,6 +43,8 @@ class ResultsAccessor:
             UnknownRaceError: unknown race id.
             OutOfSampleLockedError: the race is a 2026 race.
         """
+        from f1si.data import _db  # local import: not a module attribute (CR-01)
+
         race = _db.read_df(self._db_path, _RACE_SQL, [race_id])
         if race.empty:
             known_df = _db.read_df(self._db_path, _KNOWN_SQL)

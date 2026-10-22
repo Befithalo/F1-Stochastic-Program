@@ -15,7 +15,7 @@ import pytest
 
 from f1si.data import _db
 from f1si.data.asof import AsOf
-from tests.fixtures import leaky_through_accessor
+from tests.fixtures import leaky_reexport, leaky_through_accessor
 from tests.fixtures.leaky_consumer import mean_lap_time_whole_race
 from tests.guards.consumers import CONSUMERS
 from tests.guards.import_scan import REPO_ROOT, scan
@@ -52,3 +52,14 @@ def test_through_accessor_leaks_are_caught_only_by_the_scramble(
 @pytest.mark.parametrize("name", sorted(CONSUMERS))
 def test_honest_consumers_pass(tables: dict[str, pd.DataFrame], name: str) -> None:
     assert_no_lookahead(CONSUMERS[name], tables, AT, rng=np.random.default_rng(0))
+
+
+@pytest.mark.parametrize("name", ["results_row_count_via_from_import", "laps_via_attribute"])
+def test_reexport_leak_is_caught_statically_and_cannot_run(synthetic_db: Path, name: str) -> None:
+    """CR-01: a leak through a re-exported private module fails the scan AND fails at runtime."""
+    violations = scan([FIXTURES / "leaky_reexport.py"], REPO_ROOT)
+    assert any(v.imported in ("f1si.data.asof._db", "f1si.data._db") for v in violations)
+    assert not any("duckdb" in v.imported for v in violations)  # no `import duckdb` to rely on
+    consumer = getattr(leaky_reexport, name)
+    with pytest.raises((ImportError, AttributeError)):
+        consumer(synthetic_db, AT)

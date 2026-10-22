@@ -28,7 +28,6 @@ from pathlib import Path
 
 import pandas as pd
 
-from f1si.data import _db, _snapshot
 from f1si.data._snapshot import RACE_END, AsOf, History, RaceEnd, RaceInfo, RaceSnapshot
 from f1si.data.errors import OutOfSampleLockedError, UnknownRaceError
 
@@ -60,6 +59,8 @@ def catalog(db_path: Path) -> pd.DataFrame:
         CacheMissingError: if no cache exists at `db_path`.
         CacheBusyError: if another process holds the cache open.
     """
+    from f1si.data import _db  # local import: asof must not re-export the storage module (CR-01)
+
     return _db.read_df(db_path, _CATALOG_SQL)
 
 
@@ -88,6 +89,8 @@ class AsOfAccessor:
         self._db_path = db_path
 
     def _info(self, race_id: str) -> RaceInfo:
+        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
+
         info = _snapshot.race_info(self._db_path, race_id)
         if info.out_of_sample:
             raise OutOfSampleLockedError(info.race_id)
@@ -101,6 +104,8 @@ class AsOfAccessor:
             OutOfSampleLockedError: the race is a 2026 race.
             LapOutOfRangeError: `at.lap` is beyond the last lap.
         """
+        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
+
         return _snapshot.build_snapshot(self._db_path, at, self._info(at.race_id))
 
     def history(self, at: AsOf) -> History:
@@ -110,4 +115,6 @@ class AsOfAccessor:
             UnknownRaceError: unknown race id.
             OutOfSampleLockedError: the race is a 2026 race.
         """
+        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
+
         return _snapshot.build_history(self._db_path, at, self._info(at.race_id))

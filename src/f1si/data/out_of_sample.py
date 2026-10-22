@@ -11,8 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from f1si.data import _db, _snapshot
-from f1si.data._snapshot import AsOf, RaceSnapshot
+from f1si.data._snapshot import AsOf, RaceInfo, RaceSnapshot
 
 __all__ = ["OutOfSampleAccessor"]
 
@@ -30,7 +29,9 @@ class OutOfSampleAccessor:
     def __init__(self, db_path: Path) -> None:
         self._db_path = db_path
 
-    def _info(self, race_id: str) -> _snapshot.RaceInfo:
+    def _info(self, race_id: str) -> RaceInfo:
+        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
+
         info = _snapshot.race_info(self._db_path, race_id)
         if not info.out_of_sample:
             raise ValueError(f"{race_id} is in-sample; use f1si.data.asof.AsOfAccessor")
@@ -44,6 +45,8 @@ class OutOfSampleAccessor:
             ValueError: the race is in-sample (use `f1si.data.asof.AsOfAccessor`).
             LapOutOfRangeError: `at.lap` is beyond the last lap.
         """
+        from f1si.data import _snapshot  # local import: not a module attribute (CR-01)
+
         return _snapshot.build_snapshot(self._db_path, at, self._info(at.race_id))
 
     def final_classification(self, race_id: str) -> pd.DataFrame:
@@ -53,5 +56,7 @@ class OutOfSampleAccessor:
             UnknownRaceError: unknown race id.
             ValueError: the race is in-sample.
         """
+        from f1si.data import _db  # local import: not a module attribute (CR-01)
+
         info = self._info(race_id)
         return _db.read_df(self._db_path, _RESULTS_SQL, [info.race_id])

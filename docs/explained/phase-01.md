@@ -96,11 +96,12 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 
 ### Guards, fixtures and shared test setup
 
-- `tests/guards/import_scan.py` is the import guard: it reads code without running it and checks every import against one policy table, including tricks like `importlib` and `__import__`.
+- `tests/guards/import_scan.py` is the import guard: it reads code without running it and checks every import against one policy table, including tricks like `importlib` and `__import__`, and it judges the private storage modules by identity, so reaching them through any other module (for example `from f1si.data.asof import _db`) is caught too.
 - `tests/guards/scramble.py` is the scramble tool: it replaces the future with garbage while leaving everything knowable untouched, and compares outputs exactly.
 - `tests/guards/consumers.py` is the list of every piece of code that reads through the as-of door; each one must be registered so the scramble test checks it.
 - `tests/fixtures/leaky_consumer.py` is a deliberately leaky file that opens the database directly and averages the whole race. Both guards must catch it.
 - `tests/fixtures/leaky_through_accessor.py` holds three leaks that use only the public door (asking for a later lap, for the whole race, for the history of the next race). Only the scramble test can catch these.
+- `tests/fixtures/leaky_reexport.py` leaks through a re-exported private module, without naming `duckdb`. The import guard flags it, and at run time it cannot even run because the door modules no longer expose the storage module.
 - `tests/conftest.py` builds a seeded fake dataset and a database holding it, shared by many tests.
 
 ### Automation and notes

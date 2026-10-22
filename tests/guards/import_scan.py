@@ -13,7 +13,18 @@ What is detected:
   * `importlib.import_module("x")`, `import_module("x")` and `__import__("x")` with a string
     literal argument;
   * attribute use of the numpy RNG constructors (`np.random.default_rng`, `RandomState`,
-    `np.random.seed`, bit generators), which need no import statement of their own.
+    `np.random.seed`, bit generators), which need no import statement of their own, including
+    through an alias of `numpy.random` (`from numpy import random as r; r.seed(1)`);
+  * private storage reached through ANY module path (CR-01). The private modules `_db` and
+    `_snapshot` are canonicalised: every dotted path that passes through a component named `_db`
+    or `_snapshot` (`f1si.data.asof._db`, `f1si.data.loader._db`, ...) is judged as the home path
+    `f1si.data._db` / `f1si.data._snapshot`. The attribute `x._db` / `x._snapshot` on any object
+    (`import f1si.data.asof as a; a._db.read_df(...)`), `getattr(x, "_db")`, and a string literal
+    that spells a protected `f1si` module path (`sys.modules["f1si.data._db"]`) are flagged the
+    same way. Re-exporting a private module therefore never opens a back door, and the modules
+    that bind `_db` / `_snapshot` import them inside functions so the names are not module
+    attributes at all (a runtime test in `test_import_ban.py` checks that too).
+  * `from pkg import *` yields every protected name below `pkg`.
 
 Honest limit: Python cannot be sandboxed. `getattr`, `exec` or a computed module name defeat a
 static scan. This stops accidents and obvious bypasses; the future-scramble test (plan 01-07)
@@ -67,6 +78,12 @@ POLICY: Final[tuple[Rule, ...]] = (
     _rule("urllib.request", ("f1si.data.sources._http",), _NETWORK_REASON),
     _rule("http.client", ("f1si.data.sources._http",), _NETWORK_REASON),
     _rule("socket", ("f1si.data.sources._http",), _NETWORK_REASON),
+    _rule("polars", (), "another SQL/dataframe engine over the cache is a back door (D-02)"),
+    _rule("ibis", (), "another SQL/dataframe engine over the cache is a back door (D-02)"),
+    _rule("sqlalchemy", (), "another SQL engine over the cache is a back door (D-02)"),
+    _rule("pandas.read_sql", (), "SQL through pandas is a back door (D-02)"),
+    _rule("pandas.read_sql_query", (), "SQL through pandas is a back door (D-02)"),
+    _rule("pandas.read_sql_table", (), "SQL through pandas is a back door (D-02)"),
     _rule("random", (), "stdlib random bypasses the seeded Generator (FND-03)"),
     _rule("numpy.random.RandomState", (), "legacy global RNG (FND-03)"),
     _rule("numpy.random.seed", (), "legacy global RNG (FND-03)"),
@@ -75,6 +92,9 @@ POLICY: Final[tuple[Rule, ...]] = (
     _rule("numpy.random.Philox", ("f1si.rng",), _RNG_CTOR_REASON),
     _rule("numpy.random.SFC64", ("f1si.rng",), _RNG_CTOR_REASON),
     _rule("numpy.random.MT19937", ("f1si.rng",), _RNG_CTOR_REASON),
+    _rule("numpy.random.PCG64DXSM", ("f1si.rng",), _RNG_CTOR_REASON),
+    _rule("numpy.random.BitGenerator", ("f1si.rng",), _RNG_CTOR_REASON),
+    _rule("numpy.random.SeedSequence", ("f1si.rng",), _RNG_CTOR_REASON),
     _rule(
         "f1si.data._db",
         (
@@ -118,11 +138,53 @@ POLICY: Final[tuple[Rule, ...]] = (
     ),
 )
 
-_RNG_CONSTRUCTORS: Final = frozenset({"default_rng", "PCG64", "Philox", "SFC64", "MT19937"})
+_RNG_CONSTRUCTORS: Final = frozenset(
+    {
+        "default_rng",
+        "PCG64",
+        "PCG64DXSM",
+        "Philox",
+        "SFC64",
+        "MT19937",
+        "BitGenerator",
+        "SeedSequence",
+    }
+)
+_SQL_READERS: Final = frozenset({"read_sql", "read_sql_query", "read_sql_table"})
+
+# Private storage modules, by the component name they are bound to anywhere (CR-01).
+_PRIVATE_LEAVES: Final = {"_db": "f1si.data._db", "_snapshot": "f1si.data._snapshot"}
 
 
 def _matches(name: str, protected: str) -> bool:
     return name == protected or name.startswith(protected + ".")
+
+
+def canonical(name: str) -> str:
+    """Resolve a dotted `f1si` path that passes through a private module to its home path.
+
+    `f1si.data.asof._db.read_df` -> `f1si.data._db.read_df`; other names are returned unchanged.
+    This is what makes the ban structural: it no longer matters which module re-exports `_db`.
+    """
+    if not name.startswith("f1si."):
+        return name
+    parts = name.split(".")
+    for i, part in enumerate(parts):
+        if part in _PRIVATE_LEAVES:
+            return ".".join([_PRIVATE_LEAVES[part], *parts[i + 1 :]])
+    return name
+
+
+def _dotted(node: ast.expr) -> str | None:
+    """`a.b.c` for a pure attribute chain starting at a name, else None."""
+    parts: list[str] = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+        return ".".join(reversed(parts))
+    return None
 
 
 def module_name_for(path: Path, root: Path) -> tuple[str, bool]:
@@ -149,7 +211,16 @@ def imported_names(tree: ast.Module, module: str, is_pkg: bool) -> list[tuple[st
             base_parts = pkg_parts[: len(pkg_parts) - (node.level - 1)] if node.level else []
             base = ".".join([*base_parts, *(node.module.split(".") if node.module else [])])
             out.append((base, node.lineno))
-            out += [(f"{base}.{alias.name}", node.lineno) for alias in node.names]
+            for alias in node.names:
+                if alias.name == "*":
+                    # a star import binds everything below `base`, protected names included
+                    out += [
+                        (rule.protected, node.lineno)
+                        for rule in POLICY
+                        if rule.protected.startswith(base + ".")
+                    ]
+                else:
+                    out.append((f"{base}.{alias.name}", node.lineno))
         elif (
             isinstance(node, ast.Call)
             and node.args
@@ -167,23 +238,62 @@ def imported_names(tree: ast.Module, module: str, is_pkg: bool) -> list[tuple[st
     return out
 
 
-def rng_attribute_names(tree: ast.Module, module: str) -> list[tuple[str, int]]:
-    """RNG constructors and legacy seeding reached by attribute access (`np.random.seed(...)`)."""
+def _numpy_random_aliases(tree: ast.Module) -> set[str]:
+    """Local names bound to the `numpy.random` module (`import numpy.random as r`, ...)."""
+    aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            aliases |= {a.asname for a in node.names if a.name == "numpy.random" and a.asname}
+        elif isinstance(node, ast.ImportFrom) and node.module == "numpy" and node.level == 0:
+            aliases |= {a.asname or a.name for a in node.names if a.name == "random"}
+    return aliases
+
+
+def attribute_names(tree: ast.Module, module: str) -> list[tuple[str, int]]:
+    """Protected names reached without an import statement of their own.
+
+    * RNG constructors and legacy seeding by attribute access (`np.random.seed(...)`, also via an
+      alias of `numpy.random`), and SQL readers (`pd.read_sql`);
+    * private storage: any `x._db` / `x._snapshot` attribute, `getattr(x, "_db")`, a full dotted
+      chain that spells a protected `f1si` path, and a string literal that spells one (CR-01).
+    """
     del module  # the same names are flagged in every module; the policy decides who may use them
     out: list[tuple[str, int]] = []
+    random_aliases = _numpy_random_aliases(tree)
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Attribute):
-            continue
-        if node.attr == "RandomState":
-            out.append(("numpy.random.RandomState", node.lineno))
+        if isinstance(node, ast.Attribute):
+            if node.attr == "RandomState":
+                out.append(("numpy.random.RandomState", node.lineno))
+            elif node.attr == "seed" and (
+                (isinstance(node.value, ast.Attribute) and node.value.attr == "random")
+                or (isinstance(node.value, ast.Name) and node.value.id in random_aliases)
+            ):
+                out.append(("numpy.random.seed", node.lineno))
+            elif node.attr in _RNG_CONSTRUCTORS:
+                out.append((f"numpy.random.{node.attr}", node.lineno))
+            elif node.attr in _SQL_READERS:
+                out.append((f"pandas.{node.attr}", node.lineno))
+            if node.attr in _PRIVATE_LEAVES:
+                out.append((_PRIVATE_LEAVES[node.attr], node.lineno))
+            chain = _dotted(node)
+            if chain is not None and chain.startswith("f1si."):
+                out.append((canonical(chain), node.lineno))
         elif (
-            node.attr == "seed"
-            and isinstance(node.value, ast.Attribute)
-            and node.value.attr == "random"
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value in _PRIVATE_LEAVES
         ):
-            out.append(("numpy.random.seed", node.lineno))
-        elif node.attr in _RNG_CONSTRUCTORS:
-            out.append((f"numpy.random.{node.attr}", node.lineno))
+            out.append((_PRIVATE_LEAVES[node.args[1].value], node.lineno))
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value.startswith("f1si.")
+            and node.value.replace(".", "").replace("_", "").isalnum()
+        ):
+            out.append((canonical(node.value), node.lineno))
     return out
 
 
@@ -199,17 +309,22 @@ def scan(paths: Iterable[Path], root: Path) -> list[Violation]:
     for path in paths:
         module, is_pkg = module_name_for(path, root)
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        names = imported_names(tree, module, is_pkg) + rng_attribute_names(tree, module)
+        names = imported_names(tree, module, is_pkg) + attribute_names(tree, module)
+        seen: set[tuple[int, str, str]] = set()
         for name, lineno in sorted(names, key=lambda item: (item[1], item[0])):
+            judged = canonical(name)
             for rule in POLICY:
-                if _matches(name, rule.protected) and not _allowed(module, rule):
-                    violations.append(Violation(path, module, lineno, name, rule.reason))
+                if _matches(judged, rule.protected) and not _allowed(module, rule):
+                    key = (lineno, name, rule.protected)
+                    if key not in seen:
+                        seen.add(key)
+                        violations.append(Violation(path, module, lineno, name, rule.reason))
     return violations
 
 
 def scan_package(src_root: Path = SRC_ROOT) -> list[Violation]:
-    """Scan every `*.py` under `src_root / "f1si"`, in sorted order."""
-    return scan(sorted((src_root / "f1si").rglob("*.py")), root=src_root)
+    """Scan every `*.py` under `src_root` (the whole `src/` tree, not only `f1si`), sorted."""
+    return scan(sorted(src_root.rglob("*.py")), root=src_root)
 
 
 def format_violations(violations: Iterable[Violation]) -> str:

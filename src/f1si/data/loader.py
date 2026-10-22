@@ -26,7 +26,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from f1si.data import _db, derive, schema
+from f1si.data import derive, schema
 from f1si.data.errors import CacheBusyError, MixedSourceError
 from f1si.data.sources import NormalizedRace, RaceRef, RaceSource, RateLimitedError, SourceError
 from f1si.eras import era_for_season
@@ -148,6 +148,8 @@ def load_races(
         MixedSourceError: if the cache already holds data from another source.
         CacheBusyError: if another process holds the cache open.
     """
+    from f1si.data import _db  # local import: not a module attribute (CR-01)
+
     for season in seasons:
         era_for_season(season)
     foreign = _db.sources_in_cache(db_path) - {source.name}
@@ -206,6 +208,8 @@ def _load_one(
     Problems that would fail every race (`CacheBusyError`, `MixedSourceError`) and interrupts
     (`KeyboardInterrupt`, `SystemExit`) propagate.
     """
+    from f1si.data import _db  # local import: not a module attribute (CR-01)
+
     for attempt in range(1, max_attempts + 1):
         try:
             race = source.fetch(ref)
