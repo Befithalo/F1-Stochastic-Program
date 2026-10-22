@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-10-22T08:30:19.102Z"
+last_updated: "2026-10-22T08:38:34.245Z"
 last_activity: 2026-10-22
 progress:
   total_phases: 8
   completed_phases: 0
   total_plans: 11
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 1 (Foundation & Data) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 Status: Ready to execute
 Last activity: 2026-10-22
 
-Progress: [███░░░░░░░] 27%
+Progress: [████░░░░░░] 36%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [███░░░░░░░] 27%
 | Phase 01 P01 | multi-session | 3 tasks | 15 files |
 | Phase 01 P02 | 40min | 3 tasks | 19 files |
 | Phase 01 P03 | 2 sessions | 3 tasks | 11 files |
+| Phase 1 P04 | 45min | 2 tasks | 22 files |
 
 ### Decisions
 
@@ -61,6 +62,7 @@ Progress: [███░░░░░░░] 27%
 - [Phase 01-01]: Dependency names verified against PyPI JSON for all 14 packages — slopcheck unavailable; legitimacy gate before first install
 - [Phase 01-02]: write_race strict (all per-race tables required); lock errors mapped to CacheBusyError by message text; ruff excludes .planning and F1 Docs; .gitignore data dirs anchored to repo root — Completion marker integrity; Windows/Linux lock wording; ruff 0.17 formats markdown; src/f1si/data must be tracked
 - [Phase 01-03]: CLI constructs the source; load_races receives it (deviation from RESEARCH map, per SKELETON) — Keeps loader source-agnostic
+- [Phase 1]: Plan 04: lap_cutoffs precomputed with reverse cumulative minimum; loader collects per-race failures (exit 2), retries rate limits via injected sleep, refuses mixed sources
 
 ### Pending Todos
 
@@ -73,6 +75,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-10-22T08:30:19.090Z
+Last session: 2026-10-22T08:38:28.135Z
 Stopped at: Completed 01-03-PLAN.md
 Resume file: None
