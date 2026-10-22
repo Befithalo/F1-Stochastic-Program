@@ -31,7 +31,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
   4. Asking the as-of accessor for lap N never returns rows after lap N, and a deliberately leaking test case fails the build
   5. Every cached race shows its regulation era, and 2026 races are flagged out-of-sample; the same seed gives identical random results; DECISIONS.md exists with the first entries
 
-**Plans:** 6/11 plans executed
+**Plans:** 7/11 plans executed
 
 Plans:
 **Wave 1**
@@ -54,7 +54,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 01-07-PLAN.md — As-of / results / out-of-sample doors, RACE_END, 2026 lock; future-scramble property test and meta-test (wave 5)
+- [x] 01-07-PLAN.md — As-of / results / out-of-sample doors, RACE_END, 2026 lock; future-scramble property test and meta-test (wave 5)
 - [ ] 01-08-PLAN.md — OpenF1 source and pit-lane start rule; `f1si load` defaults to OpenF1 + Jolpica; real Bahrain 2023 load (wave 5)
 
 **Wave 6** *(blocked on Wave 5 completion)*
@@ -184,7 +184,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Data | 6/11 | In Progress|  |
+| 1. Foundation & Data | 7/11 | In Progress|  |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
