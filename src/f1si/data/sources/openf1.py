@@ -21,13 +21,20 @@ lights out. Then, per driver::
 Race-control and weather rows are placed on the same clock, so messages sent before lights out
 have negative `t_s`.
 
-Provenance of `entries.pit_lane_start` (look-ahead guard): entries are visible from lap 0, so each
-column may use only facts fixed by lights out. A pit-lane start is Jolpica grid 0 AND a status that
-does not say the car never took the start. Laps completed is a post-race fact and is never used.
+Provenance of `entries` (look-ahead guard): entries are visible from lap 0, so each column may use
+only facts fixed by lights out. Nothing from the results feed except the grid slot, the driver
+identity and the team is used: no status, no laps completed, no position.
+
+* `pit_lane_start` is Jolpica grid 0 AND an OpenF1 lap-1 timing record for the car. A grid-0 car
+  that never took the start has no lap-1 record. This is the best signal the two feeds offer, but
+  it is honest to say it is not a pre-race one: the record appears during lap 1 (DEC-049, DEC-056).
+* `start_compound` and `start_tyre_age` come only from OpenF1 stint number 1 (its `lap_start` may
+  be null or 1). If that stint is absent they stay NULL and the fetch prints a note; the second
+  stint is never taken for the first (that is the tyre after the first stop).
 """
 
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -48,10 +55,6 @@ MAX_ENTRIES: Final = 22
 MIN_DRIVERS_WITH_LAP_1: Final = 15
 # A race that started less than this long ago may still be running (assumption A7).
 COMPLETED_MARGIN: Final = timedelta(hours=6)
-# Jolpica statuses that mean "the car never took the start" (compared lower case, stripped).
-NON_STARTER_STATUSES: Final = frozenset(
-    {"did not start", "withdrew", "did not qualify", "did not prequalify"}
-)
 FIRST_OPENF1_SEASON: Final = 2023
 
 
@@ -121,6 +124,14 @@ class _RawLap:
     s2: float | None
     s3: float | None
     pit_out: bool
+
+
+@dataclass(frozen=True)
+class _Opening:
+    """The tyre a car started the race on (OpenF1 stint number 1)."""
+
+    compound: str | None
+    age_at_start: int
 
 
 @dataclass(frozen=True)
@@ -265,7 +276,20 @@ class OpenF1Source:
         lap_one = [lap.start for lap in laps_in if lap.lap == 1 and lap.start is not None]
         t0 = min(lap_one) if lap_one else pd.to_datetime(ref.race_start_utc, utc=True)
 
-        entries = _build_entries(ref, drivers_raw, results, stints)
+        openings = _parse_openings(stints_raw)
+        started = {lap.driver for lap in laps_in if lap.lap == 1}
+        entries = _build_entries(ref, drivers_raw, results, openings, started)
+        unknown_tyre = sorted(
+            int(n)
+            for n in entries.loc[entries["start_compound"].isna(), "driver_number"]
+            if int(n) in started
+        )
+        if unknown_tyre:
+            self._echo(
+                f"  note: {ref.slug}: starting tyre unknown for driver(s) "
+                f"{', '.join(str(n) for n in unknown_tyre)} (OpenF1 has no first stint); "
+                "start_compound left empty"
+            )
         laps = _build_laps(ref, laps_in, stints, results, pit_stops, t0)
         race_control = _build_race_control(ref, control_raw, t0)
         weather = _build_weather(ref, weather_raw, t0)
@@ -410,11 +434,39 @@ def _parse_stints(rows: Sequence[Mapping[str, object]]) -> list[_RawStint]:
     return sorted(out, key=lambda s: (s.driver, s.number))
 
 
+def _parse_openings(rows: Sequence[Mapping[str, object]]) -> dict[int, _Opening]:
+    """Per driver, the compound and tyre age of OpenF1 stint number 1.
+
+    Stint 1 counts even when its `lap_start` is null (the feed sometimes omits it), but not when
+    it says the stint began after lap 1: that row is then not the opening stint.
+    """
+    path = "/stints"
+    out: dict[int, _Opening] = {}
+    for row in rows:
+        _required(row, ("driver_number", "stint_number"), path)
+        driver = _whole(row["driver_number"], path, "driver_number")
+        number = _whole(row["stint_number"], path, "stint_number")
+        if driver is None or number != 1:
+            continue
+        lap_start = _whole(row.get("lap_start"), path, "lap_start")
+        if lap_start is not None and lap_start > 1:
+            continue
+        out.setdefault(
+            driver,
+            _Opening(
+                compound=_compound(row.get("compound")),
+                age_at_start=_whole(row.get("tyre_age_at_start"), path, "tyre_age_at_start") or 0,
+            ),
+        )
+    return out
+
+
 def _build_entries(
     ref: RaceRef,
     drivers_raw: Sequence[Mapping[str, object]],
     results: pd.DataFrame,
-    stints: Sequence[_RawStint],
+    openings: Mapping[int, _Opening],
+    started: Collection[int],
 ) -> pd.DataFrame:
     path = "/drivers"
     openf1: dict[int, Mapping[str, object]] = {}
@@ -423,16 +475,11 @@ def _build_entries(
         number = _whole(row["driver_number"], path, "driver_number")
         if number is not None:
             openf1[number] = row
-    first_stint: dict[int, _RawStint] = {}
-    for stint in stints:  # sorted by (driver, stint number): the first one seen is the lowest
-        first_stint.setdefault(stint.driver, stint)
-
     rows: list[dict[str, object]] = []
     for res in results.to_dict("records"):
         number = int(res["driver_number"])
         extra = openf1.get(number, {})
         grid = int(res["grid"])
-        status = str(res["status"]).strip().lower()
         jolpica_code = res["driver_code"]
         acronym = extra.get("name_acronym")
         code = (
@@ -443,7 +490,7 @@ def _build_entries(
             else str(res["driver_id"])[:3]
         )
         full_name = extra.get("full_name")
-        opening = first_stint.get(number)
+        opening = openings.get(number)
         rows.append(
             {
                 "race_id": ref.race_id,
@@ -457,8 +504,8 @@ def _build_entries(
                 ),
                 "team_name": str(res["team_name"]),
                 "grid_position": grid if grid > 0 else None,
-                # Only facts fixed by lights out: never the laps completed (assumption A8).
-                "pit_lane_start": grid == 0 and status not in NON_STARTER_STATUSES,
+                # No post-race field is used: not the status, not the laps completed (A8).
+                "pit_lane_start": grid == 0 and number in started,
                 "start_compound": None if opening is None else opening.compound,
                 "start_tyre_age": None if opening is None else opening.age_at_start,
             }

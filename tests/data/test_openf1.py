@@ -12,11 +12,7 @@ import pytest
 from f1si.data import schema
 from f1si.data.sources import RaceRef, SourceError
 from f1si.data.sources.jolpica import JolpicaClient
-from f1si.data.sources.openf1 import (
-    NON_STARTER_STATUSES,
-    OPENF1_BASE_URL,
-    OpenF1Source,
-)
+from f1si.data.sources.openf1 import OPENF1_BASE_URL, OpenF1Source
 
 NOW = datetime(2024, 1, 1, tzinfo=UTC)
 LIGHTS_OUT = datetime(2023, 3, 5, 15, 3, 0, tzinfo=UTC)
@@ -441,10 +437,16 @@ def set_result(payloads: Payloads, number: int, **fields: str) -> None:
         row[key] = value
 
 
+def drop_laps(payloads: Payloads, number: int) -> None:
+    """The car has no timing record at all: it never took the start."""
+    payloads.laps = [row for row in payloads.laps if row["driver_number"] != number]
+
+
 def test_pit_lane_start_rule() -> None:
     payloads = Payloads()
     set_result(payloads, 7, grid="0", status="Retired", laps="0", positionText="R")
     set_result(payloads, 8, grid="0", status="Did not start", laps="0", positionText="W")
+    drop_laps(payloads, 8)
     set_result(payloads, 9, grid="3")
     tables, _, _ = fetch_race(payloads)
     entries = tables["entries"].set_index("driver_number")
@@ -460,6 +462,19 @@ def test_pit_lane_start_rule() -> None:
     assert at(entries, 1, "driver_id") == "d01"
 
 
+@pytest.mark.parametrize("status", ["Retired", "Finished", "Engine", "Lapped", "Brand new status"])
+def test_pit_lane_start_does_not_depend_on_the_post_race_status(status: str) -> None:
+    """WR-06: an unlisted status used to turn a grid-0 non-starter into a pit-lane start."""
+    payloads = Payloads()
+    set_result(payloads, 7, grid="0", status=status)
+    set_result(payloads, 8, grid="0", status=status)
+    drop_laps(payloads, 8)
+    tables, _, _ = fetch_race(payloads)
+    entries = tables["entries"].set_index("driver_number")
+    assert bool(at(entries, 7, "pit_lane_start"))
+    assert not bool(at(entries, 8, "pit_lane_start"))
+
+
 def test_pit_lane_start_ignores_laps_completed() -> None:
     results = []
     for laps in ("0", "57"):
@@ -471,12 +486,106 @@ def test_pit_lane_start_ignores_laps_completed() -> None:
     assert bool(results[0])
 
 
-def test_non_starter_statuses_are_compared_case_insensitively() -> None:
-    assert "did not start" in NON_STARTER_STATUSES
+def test_start_compound_comes_only_from_stint_one() -> None:
+    """WR-06: with stint 1 missing, the tyre after the first stop must not be reported."""
     payloads = Payloads()
-    set_result(payloads, 7, grid="0", status="  WITHDREW ")
+    payloads.stints = [
+        row
+        for row in payloads.stints
+        if not (row["driver_number"] == 3 and row["stint_number"] == 1)
+    ]
+    payloads.stints.append(
+        {
+            "driver_number": 3,
+            "stint_number": 2,
+            "compound": "HARD",
+            "lap_start": 2,
+            "lap_end": None,
+            "tyre_age_at_start": 0,
+        }
+    )
+    lines: list[str] = []
+    source, _ = payloads.source(echo=lines.append)
+    (ref,) = source.list_races(2023, now=NOW)
+    entries = source.fetch(ref).tables["entries"].set_index("driver_number")
+    assert pd.isna(at(entries, 3, "start_compound"))
+    assert pd.isna(at(entries, 3, "start_tyre_age"))
+    assert at(entries, 4, "start_compound") == "SOFT"
+    assert any("starting tyre unknown for driver(s) 3" in line for line in lines)
+
+
+def test_start_compound_uses_stint_one_even_when_its_lap_start_is_missing() -> None:
+    payloads = Payloads()
+    for row in payloads.stints:
+        if row["driver_number"] == 3:
+            row["lap_start"] = None
+            row["compound"] = "INTERMEDIATE"
+    payloads.stints.append(
+        {
+            "driver_number": 3,
+            "stint_number": 3,
+            "compound": "HARD",
+            "lap_start": 2,
+            "lap_end": None,
+            "tyre_age_at_start": 0,
+        }
+    )
     tables, _, _ = fetch_race(payloads)
-    assert not bool(tables["entries"].set_index("driver_number").loc[7, "pit_lane_start"])
+    entries = tables["entries"].set_index("driver_number")
+    assert at(entries, 3, "start_compound") == "INTERMEDIATE"
+
+
+def test_stint_one_that_starts_after_lap_one_is_not_the_opening_stint() -> None:
+    payloads = Payloads()
+    for row in payloads.stints:
+        if row["driver_number"] == 3:
+            row["lap_start"] = 3
+    tables, _, _ = fetch_race(payloads)
+    entries = tables["entries"].set_index("driver_number")
+    assert pd.isna(at(entries, 3, "start_compound"))
+
+
+def test_entries_use_only_facts_fixed_at_the_start() -> None:
+    """Provenance (WR-06): entries are visible from lap 0, so nothing after the start may feed them.
+
+    Everything that happens after lap 1 and every post-race outcome is changed; the entries must
+    come out byte-identical. (The future-scramble test leaves the current race's entries alone by
+    design, so this is the test that covers them.)
+    """
+    base = Payloads()
+    set_result(base, 7, grid="0")
+    changed = Payloads()
+    set_result(changed, 7, grid="0")
+    for row in changed.laps:
+        if row["lap_number"] != 1:
+            row["lap_duration"] = 123.4
+            row["is_pit_out_lap"] = True
+    changed.stints += [
+        {
+            "driver_number": n,
+            "stint_number": 2,
+            "compound": "HARD",
+            "lap_start": 2,
+            "lap_end": None,
+            "tyre_age_at_start": 9,
+        }
+        for n in range(1, N_DRIVERS + 1)
+    ]
+    for number in range(1, N_DRIVERS + 1):
+        set_result(
+            changed,
+            number,
+            position="99",
+            positionText="R",
+            points="25",
+            laps="1",
+            status="Engine",
+        )
+        changed.results[number - 1]["Time"] = {"millis": "1"}
+    changed.pit_stops = []
+    a, _, _ = fetch_race(base)
+    b, _, _ = fetch_race(changed)
+    pd.testing.assert_frame_equal(a["entries"], b["entries"], check_exact=True)
 
 
 def test_results_table() -> None:

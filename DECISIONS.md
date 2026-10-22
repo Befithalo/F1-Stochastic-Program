@@ -533,7 +533,7 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 ## DEC-049 — Pit-lane start rule
 
 **Date:** 2026-10-22
-**Status:** Accepted
+**Status:** Accepted; the rule was changed by DEC-056 (the status string is no longer used). The limitation below still applies.
 **Context:** `entries.pit_lane_start` says which cars started from the pit lane. Entries are visible from lap 0 (lights out), so every column must be knowable at lights out.
 **Decision:** `pit_lane_start` is true when the Jolpica grid is 0 and the status, lower-cased and stripped, is none of "Did not start", "Withdrew", "Did not qualify" or "Did not prequalify". `grid_position` is NULL for grid 0. Laps completed is never used.
 **Why:** The earlier draft rule "grid 0 and laps > 0" used a post-race fact and was look-ahead: a pit-lane starter that retires on lap 1 has 0 laps but did start. Whether a car never took the start is settled by lights out.
@@ -606,3 +606,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Rejecting any race with one bad end (it would reject 2024 round 4). A median-based outlier filter (needs a threshold). Failing when the raw leader minimum decreases (that happens legitimately when a leader has a gap, and the repair is safe).
 **Consequences:** `f1si load` shows a note for 2024 round 4 when it is reloaded; the cached copy keeps the glitch until that race is loaded again. Laps whose end was dropped keep their other columns, but have no `visible_at_s`.
 **Refs:** D-01, D-14
+
+## DEC-056 — Entries use only start facts: pit-lane start from the lap-1 record, start tyre from stint 1
+
+**Date:** 2026-10-22
+**Status:** Accepted
+**Context:** `entries` is visible from lap 0, and the future-scramble test deliberately leaves the current race's entries alone, so no guard can catch a post-race value there. The review (WR-06) found two. `pit_lane_start` used the final Jolpica status, so any unlisted post-race status turned a grid-0 non-starter into a pit-lane starter. `start_compound` took the lowest stint number among stints with a `lap_start`, so with stint 1 missing it reported the tyre after the first stop.
+**Decision:** `pit_lane_start` is true when the Jolpica grid is 0 and OpenF1 has a lap-1 timing record for the car; the status and laps completed are not read at all. `start_compound` and `start_tyre_age` come only from OpenF1 stint number 1, which counts when its `lap_start` is null or 1. When that stint is absent, or says it began after lap 1, both stay NULL and the source prints a `note:` line naming the drivers. A test changes everything after lap 1 and every post-race result field and requires identical entries.
+**Why:** A car with no timing record never left the pit lane or the grid, whatever its final status says, and a lap-1 record exists for a car that starts from the pit lane and retires at once. Checked on the cached real data: all 3 pit-lane starters have a lap-1 record, the 1 non-starter has none. A NULL start tyre is honest; the second stint is not the start tyre.
+**Alternatives rejected:** The lap-1 `is_pit_out_lap` flag (it is false for all 3 real pit-lane starters). Keeping the status check as a second filter (it keeps a post-race input for no gain). Adding a flag column (a schema change for one rare case; the note and the NULL carry the information).
+**Consequences:** Honest limit: neither feed has a signal published before lights out for a pit-lane start (no qualifying or penalty data in Phase 1, D-06). The lap-1 record appears during lap 1, so `pit_lane_start` is a start fact that is observed one lap late, not strictly a pre-race value. Models should treat it as known from lap 1, and a later phase with qualifying data can replace it. One real driver (2023 session 9693, driver 30) has a stint 1 with no `lap_start` and now gets the right tyre.
+**Refs:** D-01, D-06, DEC-049
