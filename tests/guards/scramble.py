@@ -17,7 +17,11 @@ that is knowable at an `AsOf` point byte-identical, and replaces everything else
   results (which the as-of door must never serve) change.
 
 `assert_no_lookahead` writes the original and the scrambled tables to two DuckDB files, runs a
-consumer on each and requires identical output (or the identical exception).
+consumer on each and requires identical output. The run on the original data must SUCCEED: a
+consumer that raises on honest data (a typo, a locked 2026 race, a mis-registered consumer) used
+to pass because both runs raised the same exception, which proved nothing (WR-01). A deliberate
+error case must name the exception with `expect_error`; then the original run must raise exactly
+that type, and the scrambled run must raise the same type with the same message.
 
 Guarantees against false negatives (Pitfall 12): garbage always differs from the original value
 in every non-key column (numbers are shifted by 1e3..1e4 or become NA, NA becomes a number,
@@ -56,6 +60,10 @@ _JUNK_ROWS_PER_TABLE: Final = 2
 
 class LookaheadDetected(AssertionError):  # noqa: N818 - name fixed by the plan
     """A consumer's output changed when only the future changed."""
+
+
+class ConsumerFailed(AssertionError):  # noqa: N818 - a test failure, not a leak
+    """A consumer raised on the unscrambled data, so its result says nothing about look-ahead."""
 
 
 def _different(
@@ -284,25 +292,83 @@ def _compare(a: object, b: object, path: str) -> None:
         raise LookaheadDetected(f"{path}: {a!r} vs {b!r}")
 
 
-def assert_no_lookahead(
-    consumer: Consumer,
+def assert_consumers_no_lookahead(
+    consumers: Mapping[str, Consumer],
     tables: Mapping[str, pd.DataFrame],
     at: AsOf,
     *,
     rng: np.random.Generator,
+    expect_error: Mapping[str, type[Exception]] | None = None,
 ) -> None:
-    """Run `consumer` on the original and on the scrambled-future database; outputs must match.
+    """Run every consumer on the original and on one scrambled-future database; outputs must match.
+
+    The scrambled database is built once for all consumers, which makes a full deterministic grid
+    over (race, lap) affordable (WR-02).
+
+    Args:
+        consumers: name -> function under test, `(db_path, at) -> output`.
+        tables: the original tables.
+        at: the point in the race.
+        rng: drives the scrambling.
+        expect_error: name -> exception type for deliberate error cases (for example
+            `OutOfSampleLockedError`). The original run of that consumer must raise exactly this
+            type. Any other raise on the original data is a failure (WR-01).
 
     Raises:
-        LookaheadDetected: naming the field or table that differed, or when only one run raised
-            or the two runs raised different exceptions.
+        ConsumerFailed: a consumer raised on the original data without `expect_error`, raised a
+            different type than expected, or did not raise although an error was expected.
+        LookaheadDetected: naming the field or table that differed, or when only the scrambled
+            run raised or the two runs raised different exceptions.
     """
+    expected = expect_error or {}
     scrambled = scramble_future(tables, at, rng=rng)
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
         original_db = Path(tmp) / "a.duckdb"
         scrambled_db = Path(tmp) / "b.duckdb"
         _db.write_tables(original_db, tables)
         _db.write_tables(scrambled_db, scrambled)
-        result_a = _run(consumer, original_db, at)
-        result_b = _run(consumer, scrambled_db, at)
-    _compare(result_a, result_b, "output")
+        for name, consumer in consumers.items():
+            result_a = _run(consumer, original_db, at)
+            result_b = _run(consumer, scrambled_db, at)
+            _judge(name, result_a, expected.get(name))
+            try:
+                _compare(result_a, result_b, "output")
+            except LookaheadDetected as err:
+                raise LookaheadDetected(f"consumer {name!r}: {err}") from err
+
+
+def _judge(name: str, result_a: tuple[str, object], expect: type[Exception] | None) -> None:
+    """Fail unless the original-data run did what the caller said it should (WR-01)."""
+    kind, payload = result_a
+    if expect is None:
+        if kind == "raised":
+            raise ConsumerFailed(
+                f"consumer {name!r} raised on the unscrambled data, so it exercised nothing: "
+                f"{payload}"
+            )
+    elif kind != "raised":
+        raise ConsumerFailed(
+            f"consumer {name!r}: expected {expect.__name__} on the unscrambled data, got none"
+        )
+    elif not (isinstance(payload, tuple) and payload[0] == expect.__name__):
+        raise ConsumerFailed(
+            f"consumer {name!r}: expected {expect.__name__} on the unscrambled data, got {payload}"
+        )
+
+
+def assert_no_lookahead(
+    consumer: Consumer,
+    tables: Mapping[str, pd.DataFrame],
+    at: AsOf,
+    *,
+    rng: np.random.Generator,
+    expect_error: type[Exception] | None = None,
+) -> None:
+    """`assert_consumers_no_lookahead` for one consumer (see there for the rules)."""
+    assert_consumers_no_lookahead(
+        {"consumer": consumer},
+        tables,
+        at,
+        rng=rng,
+        expect_error=None if expect_error is None else {"consumer": expect_error},
+    )

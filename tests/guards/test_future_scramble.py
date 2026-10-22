@@ -14,8 +14,15 @@ from hypothesis import strategies as st
 
 from f1si.data import _db, schema
 from f1si.data.asof import RACE_END, AsOf, RaceEnd
+from f1si.data.errors import OutOfSampleLockedError
+from f1si.synthetic import default_specs
 from tests.guards.consumers import CONSUMERS
-from tests.guards.scramble import JUNK_RACE_ID, assert_no_lookahead, scramble_future
+from tests.guards.scramble import (
+    JUNK_RACE_ID,
+    assert_consumers_no_lookahead,
+    assert_no_lookahead,
+    scramble_future,
+)
 
 CURRENT = "2023-02"
 TIME_TABLES = tuple(n for n, s in schema.TABLES.items() if s.visibility == "time")
@@ -157,11 +164,57 @@ def test_consumers_ignore_the_future(
     assert_no_lookahead(CONSUMERS[consumer], original_tables, AsOf(race, lap), rng=rng)
 
 
-@pytest.mark.parametrize("lap", [0, 12, RACE_END], ids=["lap0", "lap12", "race_end"])
-@pytest.mark.parametrize("consumer", sorted(CONSUMERS))
-def test_consumers_ignore_the_future_at_edges(
-    original_tables: dict[str, pd.DataFrame], consumer: str, lap: int | RaceEnd
+def _full_grid() -> list[tuple[str, int | RaceEnd]]:
+    """Every in-sample synthetic race at every lap 0..n_laps, plus RACE_END (WR-02)."""
+    grid: list[tuple[str, int | RaceEnd]] = []
+    for spec in default_specs():
+        if spec.season >= 2026:
+            continue  # locked race; covered by test_locked_race_raises_identically
+        race_id = f"{spec.season}-{spec.round:02d}"
+        grid += [(race_id, lap) for lap in range(spec.n_laps + 1)]
+        grid.append((race_id, RACE_END))
+    return grid
+
+
+_GRID = _full_grid()
+
+
+@pytest.mark.parametrize(("race", "lap"), _GRID, ids=[f"{race}-{lap!r}" for race, lap in _GRID])
+def test_every_consumer_ignores_the_future_on_the_full_grid(
+    original_tables: dict[str, pd.DataFrame], race: str, lap: int | RaceEnd
 ) -> None:
-    """Boundaries (before the start, last lap, RACE_END) are always checked, not left to luck."""
-    rng = np.random.default_rng(12345)
-    assert_no_lookahead(CONSUMERS[consumer], original_tables, AsOf(CURRENT, lap), rng=rng)
+    """Deterministic: every registered consumer at every race and lap, not a random sample.
+
+    The seed depends only on (race, lap), so a failure reproduces exactly. The random Hypothesis
+    test above still explores other seeds.
+    """
+    seed = int(race.replace("-", "")) * 100 + (99 if isinstance(lap, RaceEnd) else lap)
+    assert_consumers_no_lookahead(
+        CONSUMERS, original_tables, AsOf(race, lap), rng=np.random.default_rng(seed)
+    )
+
+
+def test_grid_covers_every_in_sample_race(original_tables: dict[str, pd.DataFrame]) -> None:
+    """The grid is built from the specs; it must match what the database actually holds."""
+    races = original_tables["races"]
+    in_sample = set(races.loc[~races["out_of_sample"].astype(bool), "race_id"])
+    assert {race for race, _ in _GRID} == in_sample
+    lc = original_tables["lap_cutoffs"]
+    for race in in_sample:
+        last = int(lc.loc[lc["race_id"] == race, "lap"].max())
+        assert {lap for r, lap in _GRID if r == race and not isinstance(lap, RaceEnd)} == set(
+            range(last + 1)
+        ), race
+
+
+def test_locked_race_raises_identically(original_tables: dict[str, pd.DataFrame]) -> None:
+    """A 2026 race is locked at every lap; asserted explicitly, not compared (WR-01)."""
+    locked = {"snapshot": OutOfSampleLockedError, "history": OutOfSampleLockedError}
+    for lap in (0, 5, RACE_END):
+        assert_consumers_no_lookahead(
+            {name: CONSUMERS[name] for name in locked},
+            original_tables,
+            AsOf("2026-01", lap),
+            rng=np.random.default_rng(7),
+            expect_error=locked,
+        )

@@ -70,6 +70,9 @@ def _rule(protected: str, allowed: tuple[str, ...], reason: str) -> Rule:
 _NETWORK_REASON: Final = "network only through the rate-limited client"
 _RNG_CTOR_REASON: Final = "only f1si.rng.make_rng creates generators (FND-03)"
 
+# Modules that replay a race and so legitimately hold the accessor or ask for RACE_END.
+_REPLAY_DRIVERS: Final = ("f1si.data.asof", "f1si.cli", "f1si.backtest", "f1si.replay")
+
 POLICY: Final[tuple[Rule, ...]] = (
     _rule("duckdb", ("f1si.data._db",), "only the storage module opens the database (D-02)"),
     _rule("sqlite3", (), "SQLite files (HTTP cache) are a back door to whole races"),
@@ -122,6 +125,21 @@ POLICY: Final[tuple[Rule, ...]] = (
         "2026 door: only the holdout evaluation (D-04)",
     ),
     _rule(
+        "f1si.data.asof.AsOfAccessor",
+        _REPLAY_DRIVERS,
+        "only the replay/backtest driver and the CLI hold the accessor (WR-02)",
+    ),
+    _rule(
+        "f1si.data.asof.RACE_END",
+        _REPLAY_DRIVERS,
+        "RACE_END shows the whole race: drivers only, never model code (WR-02)",
+    ),
+    _rule(
+        "f1si.data.asof.RaceEnd",
+        _REPLAY_DRIVERS,
+        "RaceEnd builds another whole-race marker: drivers only (WR-02)",
+    ),
+    _rule(
         "f1si.data.sources._http",
         ("f1si.data.sources.jolpica", "f1si.data.sources.openf1"),
         "HTTP client belongs to the real adapters",
@@ -151,6 +169,8 @@ _RNG_CONSTRUCTORS: Final = frozenset(
     }
 )
 _SQL_READERS: Final = frozenset({"read_sql", "read_sql_query", "read_sql_table"})
+# Names of the as-of module reached as an attribute (`asof.AsOfAccessor(...)`, `asof.RACE_END`).
+_ASOF_ATTRS: Final = frozenset({"AsOfAccessor", "RACE_END", "RaceEnd"})
 
 # Private storage modules, by the component name they are bound to anywhere (CR-01).
 _PRIVATE_LEAVES: Final = {"_db": "f1si.data._db", "_snapshot": "f1si.data._snapshot"}
@@ -254,6 +274,7 @@ def attribute_names(tree: ast.Module, module: str) -> list[tuple[str, int]]:
 
     * RNG constructors and legacy seeding by attribute access (`np.random.seed(...)`, also via an
       alias of `numpy.random`), and SQL readers (`pd.read_sql`);
+    * the replay-only names `AsOfAccessor`, `RACE_END`, `RaceEnd` used as attributes (WR-02);
     * private storage: any `x._db` / `x._snapshot` attribute, `getattr(x, "_db")`, a full dotted
       chain that spells a protected `f1si` path, and a string literal that spells one (CR-01).
     """
@@ -273,6 +294,8 @@ def attribute_names(tree: ast.Module, module: str) -> list[tuple[str, int]]:
                 out.append((f"numpy.random.{node.attr}", node.lineno))
             elif node.attr in _SQL_READERS:
                 out.append((f"pandas.{node.attr}", node.lineno))
+            elif node.attr in _ASOF_ATTRS:
+                out.append((f"f1si.data.asof.{node.attr}", node.lineno))
             if node.attr in _PRIVATE_LEAVES:
                 out.append((_PRIVATE_LEAVES[node.attr], node.lineno))
             chain = _dotted(node)

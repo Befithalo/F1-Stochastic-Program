@@ -52,3 +52,28 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "cars": cars,
     "stint_plot_data": stint_plot_data,
 }
+
+
+# Registration is enforced, not trusted (WR-02): `test_consumer_registry.py` lists every public
+# function and method of the DESIGNATED_MODULES and fails unless each one is either CONSUMED
+# (some registered consumer calls it) or EXEMPT with a written reason. Adding a public function to
+# one of these modules therefore forces a decision here. A module outside this list that reads
+# race data must not hold the accessor at all: the import scan allows `AsOfAccessor` and
+# `RACE_END` only in the replay drivers and the CLI.
+DESIGNATED_MODULES: Final = ("f1si.data.asof", "f1si.plots.stints")
+
+# qualified name -> name of the registered consumer that calls it
+CONSUMED: Final[dict[str, str]] = {
+    "f1si.data.asof.AsOfAccessor.snapshot": "snapshot",
+    "f1si.data.asof.AsOfAccessor.history": "history",
+    "f1si.plots.stints.prepare_stint_plot_data": "stint_plot_data",
+}
+
+# qualified name -> why no scramble consumer is needed
+EXEMPT: Final[dict[str, str]] = {
+    "f1si.data.asof.catalog": "calendar facts (names, dates, eras) of every race are public",
+    "f1si.data.asof.resolve_slug": "maps a name to a race id using the calendar only",
+    "f1si.plots.stints.build_figure": "pure drawing of already-prepared StintPlotData",
+    "f1si.plots.stints.render_stint_plot": "writes a figure of prepared StintPlotData to disk",
+    "f1si.plots.stints.plot_file_name": "string function of a slug and driver codes",
+}

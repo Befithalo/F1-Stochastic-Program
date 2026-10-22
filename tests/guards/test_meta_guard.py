@@ -14,12 +14,18 @@ import pandas as pd
 import pytest
 
 from f1si.data import _db
-from f1si.data.asof import AsOf
+from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
+from f1si.data.errors import OutOfSampleLockedError, UnknownRaceError
 from tests.fixtures import leaky_reexport, leaky_through_accessor
 from tests.fixtures.leaky_consumer import mean_lap_time_whole_race
 from tests.guards.consumers import CONSUMERS
 from tests.guards.import_scan import REPO_ROOT, scan
-from tests.guards.scramble import Consumer, LookaheadDetected, assert_no_lookahead
+from tests.guards.scramble import (
+    Consumer,
+    ConsumerFailed,
+    LookaheadDetected,
+    assert_no_lookahead,
+)
 
 FIXTURES = REPO_ROOT / "tests" / "fixtures"
 AT = AsOf("2023-02", 5)
@@ -63,3 +69,74 @@ def test_reexport_leak_is_caught_statically_and_cannot_run(synthetic_db: Path, n
     consumer = getattr(leaky_reexport, name)
     with pytest.raises((ImportError, AttributeError)):
         consumer(synthetic_db, AT)
+
+
+# WR-01: a consumer that raises proves nothing, so the harness must refuse it
+
+
+def _always_raises(db_path: Path, at: AsOf) -> object:
+    return AsOfAccessor(db_path).snapshot(at).no_such_attribute  # type: ignore[attr-defined]
+
+
+def _asks_for_a_locked_race(db_path: Path, at: AsOf) -> object:
+    return AsOfAccessor(db_path).snapshot(AsOf("2026-01", 1))
+
+
+def _raises_a_leaky_message(db_path: Path, at: AsOf) -> object:
+    """Raises on both runs, with a message that depends on the whole race's weather values."""
+    weather = AsOfAccessor(db_path).snapshot(AsOf(at.race_id, RACE_END)).weather
+    raise ValueError(f"track temperature total {float(weather['track_temp_c'].sum()):.3f}")
+
+
+@pytest.mark.parametrize("consumer", [_always_raises, _asks_for_a_locked_race])
+def test_a_consumer_that_raises_is_rejected(
+    tables: dict[str, pd.DataFrame], consumer: Consumer
+) -> None:
+    with pytest.raises(ConsumerFailed, match="exercised nothing"):
+        assert_no_lookahead(consumer, tables, AT, rng=np.random.default_rng(0))
+
+
+def test_expected_error_is_asserted_explicitly(tables: dict[str, pd.DataFrame]) -> None:
+    assert_no_lookahead(
+        _asks_for_a_locked_race,
+        tables,
+        AT,
+        rng=np.random.default_rng(0),
+        expect_error=OutOfSampleLockedError,
+    )
+
+
+def test_expected_error_must_be_the_one_raised(tables: dict[str, pd.DataFrame]) -> None:
+    with pytest.raises(ConsumerFailed, match="expected UnknownRaceError"):
+        assert_no_lookahead(
+            _asks_for_a_locked_race,
+            tables,
+            AT,
+            rng=np.random.default_rng(0),
+            expect_error=UnknownRaceError,
+        )
+
+
+def test_expected_error_that_never_happens_is_rejected(tables: dict[str, pd.DataFrame]) -> None:
+    with pytest.raises(ConsumerFailed, match="got none"):
+        assert_no_lookahead(
+            CONSUMERS["cars"],
+            tables,
+            AT,
+            rng=np.random.default_rng(0),
+            expect_error=OutOfSampleLockedError,
+        )
+
+
+def test_an_expected_error_is_still_compared_between_the_runs(
+    tables: dict[str, pd.DataFrame],
+) -> None:
+    """Both runs raise the expected type, but the message leaks the future: still caught."""
+    with pytest.raises(LookaheadDetected):
+        assert_no_lookahead(
+            _raises_a_leaky_message,
+            tables,
+            AsOf("2023-02", 2),
+            rng=np.random.default_rng(0),
+            expect_error=ValueError,
+        )
