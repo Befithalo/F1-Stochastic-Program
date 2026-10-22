@@ -939,22 +939,24 @@ git push -u origin main               # Git Credential Manager opens a browser l
 | A13 | matplotlib ships `py.typed` (no stubs needed) | Stack | Minor mypy override if wrong |
 | A14 | OpenF1 lap-1 `date_start` equals lights-out for all cars (observed for Bahrain 2023 only) | Pattern 2 (Option B lap 0) | Lap-0 cutoff slightly off. Validate on more races |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Data source (blocks SC2/SC3).**
+All five were resolved with the user on 2026-10-22. See 01-CONTEXT.md.
+
+1. **Data source (blocks SC2/SC3).** RESOLVED: D-08 (revised). OpenF1 + Jolpica; D-10 revised to match.
    - What we know: FastF1 needs F1 TV plus an alpha release. OpenF1 and Jolpica are free and working.
    - What's unclear: the user's preference, and whether they already have F1 TV.
    - Recommendation: `checkpoint:decision` before the adapter plan; default to Option B. Revise D-08 and D-10 in DECISIONS.md.
-2. **Do "earlier races in full" (D-04) include their final classifications?**
+2. **Do "earlier races in full" (D-04) include their final classifications?** RESOLVED: D-04 (revised). Yes.
    - What we know: D-04 says "in full"; D-03's concern is the *current* race's outcomes.
    - Recommendation: yes. Expose earlier races' `results` in `history()`, since they are past facts. Log it, and confirm with the user at plan review.
-3. **`RACE_END` cutoff for the plot.**
+3. **`RACE_END` cutoff for the plot.** RESOLVED: D-16 (revised). Race-end cutoff in the as-of door.
    - What we know: D-16 says "at the final lap", which hides each non-winner's last lap.
    - Recommendation: add `RACE_END` to the as-of door, log it, and mention it to the user.
-4. **`scheduled_laps` (Phase 2 needs `laps_total`).**
+4. **`scheduled_laps` (Phase 2 needs `laps_total`).** RESOLVED: nullable column in Phase 1 and never filled from post-race lap counts; Phase 2 decides the source.
    - What we know: FastF1's `total_laps` takes the *last* `TotalLaps` value, which may be revised mid-race [VERIFIED: core.py]. OpenF1 has no scheduled-laps field.
    - Recommendation: nullable column now; Phase 2 decides. Never fill it from the winner's completed laps, which is a post-race fact.
-5. **Commit `F1 Docs/`?**
+5. **Commit `F1 Docs/`?** RESOLVED: D-18. Commit it, and gitignore desktop.ini.
    - What we know: the folder is untracked; the canonical refs point to it.
    - Recommendation: ask the user. The BUILD_PLAN text is the user's own document, so committing it is fine if they agree.
 

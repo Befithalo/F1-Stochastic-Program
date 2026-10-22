@@ -27,7 +27,8 @@
     "discuss_mode": "discuss",
     "skip_discuss": false,
     "code_review": true,
-    "code_review_depth": "standard"
+    "code_review_depth": "standard",
+    "use_worktrees": false
   },
   "ship": {
     "pr_body_sections": [
@@ -64,7 +65,7 @@
   "agent_skills": {},
   "features": {},
   "resolve_model_ids": "omit",
-  "runtime": "codex",
+  "runtime": "claude",
   "mode": "interactive",
   "granularity": "standard"
 }
