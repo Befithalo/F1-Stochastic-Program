@@ -360,19 +360,21 @@ _accepts(WrongSignatureStub())  # type: ignore[arg-type]   # strict => unused ig
 | A5 | Minimum thresholds (30 clean laps, df >= 30, min stint 5, MAD k = 3) are reasonable | Pattern 5/6 | Owner may prefer different; all logged as DEC entries |
 | A6 | Literature range -0.03..-0.06 s/lap is taken from CONTEXT.md, not independently verified | Pattern 5 | Displayed sanity range could be off; mark as "approximate" in output |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Per-compound pace offset is missing from D-01.**
+All six were resolved on 2026-11-11 in `02-CONTEXT.md` D-19..D-24 (recommended options taken per the owner's instruction).
+
+1. **RESOLVED (D-19): Per-compound pace offset is missing from D-01.**
    - Known: with D-01's form SOFT 0.125 vs HARD 0.121 s/lap at Bahrain; adding a HARD offset gives +0.26 s (SE 0.13), weakly identified. The optimizer cannot encode that soft is faster per lap, so plan rankings between compounds are near-ties and arguably misleading.
    - Unclear: whether the owner wants the model extended (generator would also need a compound offset to keep the "identical form" and recovery test).
    - Recommendation: implement D-01 as locked; make the output explicitly state "compound pace offsets are not modeled; compound choice among near-ties is not meaningful"; surface to the owner and log as a DECISIONS entry with the measured +0.26 s figure; propose an additive offset term as a candidate for Phase 7 or a Phase 2 amendment.
-2. **Lap-0 / pre-race plan has no same-race data under D-03.**
+2. **RESOLVED (D-20): Lap-0 / pre-race plan has no same-race data under D-03.**
    - Known: lap-0 snapshot has zero laps; CONTEXT D-07 wants "at lap 0 it is the classic pre-race plan"; D-03 forbids pooling.
    - Recommendation: `plan` with `--lap N` fits and prices using only data at N and, if the fit is not identified (N <= ~9 at Bahrain) or N = 0, prints a plain refusal ("not enough laps yet to fit wear; try --lap 20"). With NO `--lap` (default) it uses a whole-race (RACE_END) fit applied to the lap-0 state and labels the result **"hindsight plan: priced with a fit from the whole race"** (no claim of foresight). The builder already accepts snapshot-for-state and model separately, so this needs no extra interface. Needs owner confirmation.
-3. **`laps_total` source** (Pitfall 6): recommend CLI passes it; confirm.
-4. **Yellow laps** (Pitfall 4): confirm "exactly what the plot fades" overrides the text "yellow".
-5. **Position/gap fields at lap 0 or for lapped cars** (Pattern 4): `None` with documentation.
-6. **Two-stop synthetic ground truth for the optimizer:** the generator makes exactly one stop per driver, so "optimizer recovers the true best plan" needs either a hand-built analytic case (equal-slope compounds, known pit loss, closed-form optimum) or a generator extension. Recommend the analytic case (no generator change).
+3. **RESOLVED (D-21): `laps_total` source** (Pitfall 6): recommend CLI passes it; confirm.
+4. **RESOLVED (D-22): Yellow laps** (Pitfall 4): confirm "exactly what the plot fades" overrides the text "yellow".
+5. **RESOLVED (D-23): Position/gap fields at lap 0 or for lapped cars** (Pattern 4): `None` with documentation.
+6. **RESOLVED (D-24): Two-stop synthetic ground truth for the optimizer:** the generator makes exactly one stop per driver, so "optimizer recovers the true best plan" needs either a hand-built analytic case (equal-slope compounds, known pit loss, closed-form optimum) or a generator extension. Recommend the analytic case (no generator change).
 
 ## Environment Availability
 
