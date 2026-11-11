@@ -112,6 +112,22 @@ The user chose the first eight decisions (D-01–D-08) and the PaceModel output 
 - **D-17: Error messages say what to do next, and commands are copy-pasteable in PowerShell** (Phase 1 specifics). An unknown driver lists the valid codes. A wet race, or a compound without enough data, explains why there is no answer.
 - **D-18: Explainer `docs/explained/phase-02.md`**, in the Phase 1 D-17 format: what was built and why, how the pieces connect, a file-by-file tour, and 3–5 interview Q&As. Suggested topics: why fuel and wear are separable, what a Protocol buys you, why free-track is a lower bound. A short plain-language summary goes in chat at phase end. `tests/test_docs.py` (DEC-051) keeps it complete.
 
+### Resolved after research (2026-11-11) *(Claude's picks; the user said to take the recommended options)*
+`02-RESEARCH.md` §Open Questions raised six points. Each resolution below is the researcher's recommendation.
+- **D-19: No per-compound pace offset; D-01 stays as locked.**
+  - Measured at Bahrain 2023: SOFT 0.125 s/lap vs HARD 0.121 s/lap. A HARD offset would be +0.26 s (SE 0.13), which is weakly identified.
+  - The `wear` and `plan` outputs must say: "compound pace offsets are not modeled; compound choice among near-ties is not meaningful."
+  - Log this in DECISIONS.md with the measured +0.26 s figure, and name an additive compound-offset term as the candidate upgrade (Phase 7).
+- **D-20: Plan cutoff policy.**
+  - With `--lap N`, `plan` fits and prices using only data visible at N. At N = 0, or when the fit is not identified (about N ≤ 9 at Bahrain), it refuses plainly, e.g. "not enough laps yet to fit wear; try --lap 20".
+  - With no `--lap`, it uses a whole-race (`RACE_END`) fit applied to the lap-0 state. The output is labeled **"hindsight plan: priced with a fit from the whole race"** and makes no claim of foresight.
+  - This refines D-07's "at lap 0 it is the classic pre-race plan".
+- **D-21: `laps_total` is an explicit argument to the `RaceState` builder.** `races.scheduled_laps` is NULL in the cache, so the CLI supplies it from the race-end maximum lap. Log this in DECISIONS.md.
+- **D-22: "Clean laps" means exactly what the plot fades** (`FADE_TRACK_CODES`: SC/VSC/red, not yellow). This overrides the word "yellow" in D-02. Pit-loss measurement still uses its own SC/VSC predicate, because `_fade_reason` returns the pit reason before it checks track status.
+- **D-23: Position and gap fields are `None` when unknown** (lap 0, lapped cars), documented in the `RaceState` docstring.
+- **D-24: Optimizer ground truth comes from a hand-built analytic case** (known slopes and pit loss, closed-form optimum). The generator is not changed.
+- **D-25: Report the fuel estimate as measured.** At Bahrain it comes out at −0.078 s/lap, outside the sanity range, likely because it absorbs track evolution. Do not clamp it. Say so in the output and in the explainer.
+
 ### Claude's Discretion
 - The exact regression method (OLS via NumPy/SciPy lstsq with classical SEs is enough; heteroskedasticity-robust SEs are optional). Log it.
 - The outlier threshold, minimum clean laps per compound, minimum stint length and default pit loss (D-02, D-03, D-05, D-06). Log each in DECISIONS.md.
