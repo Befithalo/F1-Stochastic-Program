@@ -83,7 +83,28 @@ Plans:
   4. User sees a fitted wear rate (seconds per lap) for each compound on Bahrain 2023, from fuel-corrected lap times
   5. User gets the best 1-stop and 2-stop plan with total race time, found by checking every combination
 
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Contracts: Protocols, RaceState and JSON, conformance suites with planted stubs, mypy rejection proof (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — Wear slice: shared clean-lap rule, joint fuel/wear fit, pit loss, `f1si wear` table, PaceModel conformance (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-03-PLAN.md — RaceState builder at any lap and the wear PNG (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-04-PLAN.md — Free-track 1/2-stop optimizer as StrategyPolicy, analytic ground truth, `f1si plan` (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-05-PLAN.md — Phase 2 explainer, generalized docs test, README, opt-in real Bahrain test, full gate (wave 5)
 
 ### Phase 3: Monte Carlo Simulator
 
@@ -185,7 +206,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
-| 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/0 | Not started | - |
+| 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 0/5 | Planned | - |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
