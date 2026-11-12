@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -10,6 +11,7 @@ import pytest
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.linear import fit_linear_pace
 from f1si.plots.wear import (
+    build_wear_figure,
     prepare_wear_plot_data,
     render_wear_plot,
     wear_file_name,
@@ -90,6 +92,21 @@ def test_render_unidentified_still_writes(long_synthetic_db: Path, tmp_path: Pat
     snap = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, 20))
     data = prepare_wear_plot_data(snap, fit_linear_pace(snap))
     assert render_wear_plot(data, tmp_path / "w.png").exists()
+
+
+def test_band_edges_and_bare_no_data_panel(long_synthetic_db: Path) -> None:
+    _, _, data = _data(long_synthetic_db)
+    panels = (*data.panels, "SOFT")
+    titles = {**data.panel_titles, "SOFT": "SOFT  not enough data"}
+    fig = build_wear_figure(replace(data, panels=panels, panel_titles=titles))
+    axes = fig.axes[: len(panels)]
+    for name, ax in zip(panels, axes, strict=True):
+        if name in data.lines:
+            dashed = [ln for ln in ax.get_lines() if ln.get_linestyle() == "--"]
+            assert len(dashed) == 2, f"{name} band needs two visible edges"
+        else:
+            assert list(ax.get_xticks()) == []
+            assert ax.get_xlabel() == ""
 
 
 def test_wear_file_name() -> None:

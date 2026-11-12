@@ -141,10 +141,11 @@ def build_wear_figure(data: WearPlotData) -> Figure:
     for name, ax in zip(data.panels, flat, strict=False):
         ax.set_title(data.panel_titles[name], fontsize=9)
         ax.tick_params(labelsize=7)
-        ax.set_xlabel("Tyre age (laps)", fontsize=8)
         if name not in data.lines:
             ax.text(0.5, 0.5, _NO_DATA, ha="center", va="center", transform=ax.transAxes)
+            ax.set_xticks([])
             continue
+        ax.set_xlabel("Tyre age (laps)", fontsize=8)
         mine = data.points[data.points["compound"] == name] if len(data.points) else data.points
         for code in drivers:
             sel = mine[mine["driver"] == code]
@@ -164,14 +165,11 @@ def build_wear_figure(data: WearPlotData) -> Figure:
         top = float(mine["tire_age"].max()) if len(mine) else 1.0
         age = np.linspace(0.0, max(top, 1.0), 50)
         colour = COMPOUND_COLORS.get(name, UNKNOWN_COLOR)
-        ax.fill_between(
-            age,
-            intercept + (slope - half) * age,
-            intercept + (slope + half) * age,
-            color=colour,
-            alpha=0.35,
-            zorder=2,
-        )
+        low, high = intercept + (slope - half) * age, intercept + (slope + half) * age
+        ax.fill_between(age, low, high, color=colour, alpha=0.35, zorder=2)
+        # Dashed dark edges keep the band visible for pale compounds (HARD is near-white).
+        for edge in (low, high):
+            ax.plot(age, edge, color=EDGE_COLOR, linewidth=0.7, linestyle="--", zorder=2)
         ax.plot(age, intercept + slope * age, color=EDGE_COLOR, linewidth=2.4, zorder=3)
         ax.plot(age, intercept + slope * age, color=colour, linewidth=1.4, zorder=4)
     flat[0].set_ylabel("Lap time minus fuel and driver offset (s)", fontsize=8)
