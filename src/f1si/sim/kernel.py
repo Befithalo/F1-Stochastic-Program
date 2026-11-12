@@ -58,7 +58,10 @@ from numpy.typing import NDArray
 @njit(cache=True)
 def pass_probability(delta: float, threshold_s: float, scale_s: float) -> float:
     """Chance of a pass for a pace gap `delta`: logistic((delta - threshold) / scale)."""
-    return 1.0 / (1.0 + math.exp((threshold_s - delta) / scale_s))
+    exponent = (threshold_s - delta) / scale_s
+    if exponent > 700.0:  # exp would overflow in the pure-Python twin; the limit is 0
+        return 0.0
+    return 1.0 / (1.0 + math.exp(exponent))
 
 
 @njit(cache=True)

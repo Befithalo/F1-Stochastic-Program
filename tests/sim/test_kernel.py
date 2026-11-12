@@ -17,7 +17,7 @@ from f1si.sim.constants import (
     SCALE_S,
     THRESHOLD_S,
 )
-from f1si.sim.kernel import lap_step
+from f1si.sim.kernel import lap_step, pass_probability
 
 BIG = 10_000
 K = 2
@@ -303,3 +303,10 @@ def test_clocks_increase_along_order_after_every_green_lap(python: bool) -> None
             along = np.take_along_axis(st["clock"], st["order"], axis=1)
             assert (np.diff(along, axis=1) > 0.0).all()
             assert (np.sort(st["order"], axis=1) == np.arange(c)).all()
+
+
+def test_pass_probability_survives_huge_negative_gap() -> None:
+    """WR-02: no OverflowError in the Python twin when the pace gap is hugely negative."""
+    for fn in (pass_probability, pass_probability.py_func):
+        assert fn(-500.0, THRESHOLD_S, SCALE_S) == 0.0
+        assert fn(THRESHOLD_S, THRESHOLD_S, SCALE_S) == pytest.approx(0.5)
