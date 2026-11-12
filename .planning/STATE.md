@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-11-12T18:25:02.385Z"
+stopped_at: Completed 03-06-PLAN.md
+last_updated: "2026-11-12T18:35:13.784Z"
 last_activity: 2026-11-12
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 23
-  completed_plans: 21
+  completed_plans: 22
   percent: 25
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 3 (monte-carlo-simulator) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-11-12
 
-Progress: [█████████░] 91%
+Progress: [██████████] 96%
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [█████████░] 91%
 | Phase 03 P02 | 1h | 2 tasks | 14 files |
 | Phase 03 P03 | ~30m | 2 tasks | 11 files |
 | Phase 03 P04 | 40min | 3 tasks | 16 files |
+| Phase 03 P06 | 40min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,7 @@ Progress: [█████████░] 91%
 - [Phase 03]: DEC-078..080: logistic passing with dirty-air hold, SC mechanics, Sobol+antithetic CRN draws
 - [Phase 03]: DEC-081/082: forced plans exact, fallback for refused cars, leader-relative start with catch-up lap and borrowed pace — see DECISIONS.md
 - [Phase 03]: DEC-083/084: Sobol+antithetic variance ratios 4.5/16.4/3.2; 50k benchmark 1.4 s
+- [Phase 03]: DEC-085: simulate command - hindsight rule, bounds, warm-up excluded, limitations printed
 
 ### Pending Todos
 
@@ -104,6 +106,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-12T18:25:02.377Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-11-12T18:35:13.777Z
+Stopped at: Completed 03-06-PLAN.md
 Resume file: None
