@@ -6,7 +6,8 @@ tyres at the end of the lap:
     t(d, L) = base + offset_d + fuel * (L - 1) + wear[c] * a + eps(d, L)
               + start(d) * [L = 1] + pit_loss * [L is an out-lap after a stop]
 
-then multiplied by `vsc_slowdown_factor` on virtual-safety-car laps. Here `offset_d = i * gap`
+then multiplied by `vsc_slowdown_factor` on virtual-safety-car laps and by `sc_slowdown_factor`
+on safety-car laps. Here `offset_d = i * gap`
 for the driver at index `i`, `fuel` is negative (the car gets lighter), `wear[c]` is the
 degradation in seconds per lap on compound `c`, `eps ~ Normal(0, noise_sd)` is i.i.d. noise and
 `start(d) = 3.0 + 0.2 * i` on lap 1 (a standing start costs time), or `3.0 + 5.0` for a pit-lane
@@ -16,7 +17,13 @@ lap 1 starts at the race clock's zero (lights out).
 Around every virtual-safety-car lap `v` the track status goes "6" (VSC deployed) one second after
 the earliest lap-`v` start, "7" (VSC ending) one second before the latest lap-`v` end and "1"
 (green) twelve seconds later; race control mirrors these messages and adds a pre-race green light
-and the chequered flag. Weather is one sample a minute from five minutes before lights out with
+and the chequered flag. A safety car deployed on lap `D` for `k` laps (`sc_laps`,
+`sc_duration_laps`) writes status "4" one second after the earliest lap-`D` start and "1" one
+second after the latest end of lap `D + k - 1`, so the leader completes exactly `k` laps between
+the two rows. SC windows are a deterministic function of the spec: no random number is drawn for
+them, so races without a safety car are byte-identical to earlier versions.
+
+Weather is one sample a minute from five minutes before lights out with
 small Gaussian noise (drawn after all lap noise, so lap times do not depend on it). Results rank
 cars by laps completed (descending) and then by final lap end (ascending); a retired car gets
 no final position.
@@ -72,10 +79,39 @@ class SyntheticRaceSpec:
     start_tyre_age: int = 0
     vsc_laps: tuple[int, ...] = ()
     vsc_slowdown_factor: float = 1.4
+    sc_laps: tuple[int, ...] = ()
+    sc_duration_laps: int = 4
+    sc_slowdown_factor: float = 1.4
     retired_driver_index: int | None = None
     retire_after_lap: int | None = None
     pit_lane_start_index: int | None = None
     race_start_utc: datetime | None = None
+
+    def sc_windows(self) -> tuple[tuple[int, int], ...]:
+        """(first lap, last lap) of every safety-car period, validated.
+
+        Raises:
+            ValueError: for a duration below 1, a deployment outside 1..n_laps, a deployment inside
+                an earlier SC window, or an SC window that touches a VSC lap.
+        """
+        if not self.sc_laps:
+            return ()
+        if self.sc_duration_laps < 1:
+            raise ValueError(f"sc_duration_laps must be at least 1, got {self.sc_duration_laps}")
+        windows: list[tuple[int, int]] = []
+        for lap in sorted(self.sc_laps):
+            if not 1 <= lap <= self.n_laps:
+                raise ValueError(f"SC lap {lap} is outside 1..{self.n_laps}")
+            if windows and lap <= windows[-1][1]:
+                raise ValueError(
+                    f"SC lap {lap} overlaps the SC that started on lap {windows[-1][0]}"
+                )
+            windows.append((lap, lap + self.sc_duration_laps - 1))
+        for first, last in windows:
+            for v in self.vsc_laps:
+                if first <= v <= last:
+                    raise ValueError(f"SC window {first}-{last} overlaps VSC lap {v}")
+        return tuple(windows)
 
     @property
     def start_utc(self) -> datetime:
@@ -97,6 +133,7 @@ class SyntheticTruth:
     pit_loss_s: float
     pit_laps: Mapping[int, tuple[int, ...]]
     vsc_laps: tuple[int, ...]
+    sc_laps: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -138,9 +175,26 @@ def _vsc_events(spec: SyntheticRaceSpec, laps: pd.DataFrame) -> list[tuple[float
     return sorted(events, key=lambda e: e[0])
 
 
+def _sc_events(spec: SyntheticRaceSpec, laps: pd.DataFrame) -> list[tuple[float, str, str]]:
+    """(time, status code, message) pairs for every safety-car period, in time order."""
+    events: list[tuple[float, str, str]] = []
+    for first, last in spec.sc_windows():
+        start = laps[laps["lap_number"] == first]
+        end = laps[laps["lap_number"] == last]
+        if start.empty or end.empty:
+            continue
+        events.append((float(start["lap_start_s"].min()) + 1.0, "4", "SAFETY CAR DEPLOYED"))
+        events.append((float(end["lap_end_s"].max()) + 1.0, "1", "TRACK CLEAR"))
+    return events
+
+
+def _status_events(spec: SyntheticRaceSpec, laps: pd.DataFrame) -> list[tuple[float, str, str]]:
+    return sorted(_vsc_events(spec, laps) + _sc_events(spec, laps), key=lambda e: e[0])
+
+
 def _track_status_table(spec: SyntheticRaceSpec, ref: RaceRef, laps: pd.DataFrame) -> pd.DataFrame:
     rows = [{"race_id": ref.race_id, "seq": 0, "t_s": 0.0, "status": "1", "message": "GREEN LIGHT"}]
-    for seq, (t, code, message) in enumerate(_vsc_events(spec, laps), start=1):
+    for seq, (t, code, message) in enumerate(_status_events(spec, laps), start=1):
         rows.append(
             {"race_id": ref.race_id, "seq": seq, "t_s": t, "status": code, "message": message}
         )
@@ -171,7 +225,7 @@ def _race_control_table(
         return base
 
     rows = [row(0, -600.0, "Flag", "GREEN LIGHT - PIT EXIT OPEN", flag="GREEN", scope="Track")]
-    for t, code, message in _vsc_events(spec, laps):
+    for t, code, message in _status_events(spec, laps):
         if code == "1":
             continue
         rows.append(row(len(rows), t, "SafetyCar", message, scope="Track"))
@@ -244,6 +298,7 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
     laps_done: dict[int, int] = {}
     final_end: dict[int, float] = {}
 
+    sc_windows = spec.sc_windows()
     for i in range(spec.n_drivers):
         number = 10 + i
         offset = i * spec.driver_gap_s_per_lap
@@ -296,6 +351,8 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
                 pit_duration = spec.pit_stationary_s
             if lap in spec.vsc_laps:
                 time_s *= spec.vsc_slowdown_factor
+            if any(first <= lap <= last for first, last in sc_windows):
+                time_s *= spec.sc_slowdown_factor
 
             lap_rows.append(
                 {
@@ -343,6 +400,7 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
         pit_loss_s=spec.pit_loss_s,
         pit_laps=pit_laps,
         vsc_laps=spec.vsc_laps,
+        sc_laps=spec.sc_laps,
     )
     return SyntheticRace(spec=spec, truth=truth, race=NormalizedRace(ref=ref, tables=tables))
 

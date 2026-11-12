@@ -1,14 +1,21 @@
 """The synthetic generator and its RaceSource."""
 
+import hashlib
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
+import duckdb
+import numpy as np
 import pandas as pd
 import pytest
 
+from f1si import paths
 from f1si.data import schema
+from f1si.data.loader import load_races
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.rng import DEFAULT_SEED, make_rng
-from f1si.synthetic import SyntheticRace, default_specs, generate_dataset
+from f1si.synthetic import SyntheticRace, SyntheticRaceSpec, default_specs, generate_dataset
 
 
 @pytest.fixture(scope="module")
@@ -149,3 +156,107 @@ def test_first_lap_follows_the_documented_model(races: list[SyntheticRace]) -> N
     laps = _race(races, "alpha-2023").race.tables["laps"]
     first = laps[(laps["driver_number"] == 10) & (laps["lap_number"] == 1)].iloc[0]
     assert first["lap_time_s"] == pytest.approx(90.0 + 3.0 - 0.03 * 0 + 0.07 * 1, abs=1.0)
+
+
+# --- safety-car spec (Phase 3, D-06) -------------------------------------------------------------
+
+# SHA-256 over every table of every race, computed BEFORE the safety-car edit of the generator.
+DEFAULT_DATASET_DIGEST = "40e9cf6d9563f7b83e6d83f180145ed601a78c51066190bb7b400c71314258d4"
+LONG_RACE_DIGEST = "d092644939068b0c84e687620d54de052efc6c3e932dd117d056ed2eff30e85d"
+
+
+def _digest(generated: list[SyntheticRace]) -> str:
+    h = hashlib.sha256()
+    for r in generated:
+        for name in sorted(r.race.tables):
+            h.update(name.encode())
+            h.update(
+                np.asarray(pd.util.hash_pandas_object(r.race.tables[name], index=True)).tobytes()
+            )
+    return h.hexdigest()
+
+
+def test_default_fixtures_are_byte_identical(races: list[SyntheticRace]) -> None:
+    assert _digest(races) == DEFAULT_DATASET_DIGEST
+    long = (
+        SyntheticRaceSpec(2023, 1, "Long Grand Prix", n_drivers=20, n_laps=57, start_tyre_age=3),
+    )
+    assert _digest(generate_dataset(long, rng=make_rng(DEFAULT_SEED))) == LONG_RACE_DIGEST
+
+
+def test_empty_sc_laps_equals_omitted_fields() -> None:
+    base = SyntheticRaceSpec(2023, 1, "Alpha Grand Prix", vsc_laps=(8,))
+    explicit = SyntheticRaceSpec(2023, 1, "Alpha Grand Prix", vsc_laps=(8,), sc_laps=())
+    assert base == explicit
+    assert _digest(generate_dataset([base], rng=make_rng(1))) == _digest(
+        generate_dataset([explicit], rng=make_rng(1))
+    )
+
+
+def _sc_pair(**kwargs: Any) -> tuple[SyntheticRace, SyntheticRace]:
+    plain = SyntheticRaceSpec(2023, 1, "Sc Grand Prix", n_laps=20, **kwargs)
+    with_sc = SyntheticRaceSpec(
+        2023, 1, "Sc Grand Prix", n_laps=20, sc_laps=(10,), sc_duration_laps=4, **kwargs
+    )
+    return (
+        generate_dataset([plain], rng=make_rng(3))[0],
+        generate_dataset([with_sc], rng=make_rng(3))[0],
+    )
+
+
+def test_sc_status_rows_and_lap_time_effect() -> None:
+    plain, sc = _sc_pair()
+    assert sc.truth.sc_laps == (10,)
+    track = sc.race.tables["track_status"].sort_values("seq")
+    assert track["status"].tolist() == ["1", "4", "1"]
+    assert track["message"].tolist() == ["GREEN LIGHT", "SAFETY CAR DEPLOYED", "TRACK CLEAR"]
+    a = plain.race.tables["laps"].set_index(["driver_number", "lap_number"])["lap_time_s"]
+    b = sc.race.tables["laps"].set_index(["driver_number", "lap_number"])["lap_time_s"]
+    for lap in range(1, 21):
+        factor = 1.4 if 10 <= lap <= 13 else 1.0
+        assert b.xs(lap, level="lap_number").to_numpy() == pytest.approx(
+            a.xs(lap, level="lap_number").to_numpy() * factor
+        )
+    laps = sc.race.tables["laps"]
+    deployed = track[track["status"] == "4"]["t_s"].iloc[0]
+    assert deployed == pytest.approx(laps[laps["lap_number"] == 10]["lap_start_s"].min() + 1.0)
+    clear = track["t_s"].iloc[-1]
+    assert clear == pytest.approx(laps[laps["lap_number"] == 13]["lap_end_s"].max() + 1.0)
+
+
+def test_sc_race_control_row() -> None:
+    _, sc = _sc_pair()
+    rc = sc.race.tables["race_control"]
+    rows = rc[rc["message"] == "SAFETY CAR DEPLOYED"]
+    assert len(rows) == 1
+    assert rows["category"].iloc[0] == "SafetyCar"
+
+
+def test_sc_duration_convention_through_the_database(tmp_path: Path) -> None:
+    spec = SyntheticRaceSpec(
+        2023, 1, "Sc Grand Prix", n_laps=20, sc_laps=(5, 12), sc_duration_laps=3
+    )
+    db = paths.db_path(tmp_path)
+    load_races(
+        SyntheticSource([spec], rng=make_rng(4)),
+        db,
+        (2023,),
+        now=datetime(2026, 10, 22, tzinfo=UTC),
+        echo=lambda _line: None,
+    )
+    with duckdb.connect(str(db), read_only=True) as con:
+        track = con.execute("SELECT t_s, status FROM track_status ORDER BY t_s, seq").df()
+        cutoffs = con.execute("SELECT cutoff_s FROM lap_cutoffs").df()["cutoff_s"].to_numpy()
+    rows = track.to_dict("records")
+    durations = []
+    for k, row in enumerate(rows):
+        if row["status"] == "4":
+            end = rows[k + 1]["t_s"]
+            durations.append(int((cutoffs <= end).sum() - (cutoffs <= row["t_s"]).sum()))
+    assert durations == [3, 3]
+
+
+def test_overlapping_sc_laps_raise() -> None:
+    spec = SyntheticRaceSpec(2023, 1, "Sc Grand Prix", n_laps=20, sc_laps=(5, 7))
+    with pytest.raises(ValueError, match="SC lap 7"):
+        generate_dataset([spec], rng=make_rng(1))
