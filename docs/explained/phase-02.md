@@ -32,6 +32,7 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 - `src/f1si/pace/linear.py` fits one least-squares line per race: each driver's own base pace, one fuel effect shared by everyone and one wear rate per tyre compound. It reports an interval for each number, says plainly when a number cannot be told apart from another (for example before anyone has pitted), and measures the pit loss from green-flag stops.
 - `src/f1si/plots/wear.py` draws the tyre-wear picture written by `f1si wear`: one panel per compound, each point a clean lap with fuel and driver pace taken out, the fitted line and the 95% band of its slope.
 - `src/f1si/state.py` is `RaceState` and `CarState`: frozen plain data with exact JSON round trip and checks on every value, plus `build_race_state`, the one pure builder that turns a race snapshot and a fitted tyre-wear model into a state at any lap (unknown values stay empty, never invented).
+- `src/f1si/strategy/free_track.py` is the pit-plan optimizer: it checks every legal 1-stop and 2-stop plan (two different dry tyres, stints of at least 5 laps), prices each with the fitted tyre model plus the measured pit loss, and ranks them. It assumes an empty track, so its answer is a lower bound on race time, not a forecast.
 
 ### Tests
 

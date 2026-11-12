@@ -24,8 +24,9 @@ from f1si.interfaces import (
     SimulatorBackend,
     StrategyPolicy,
 )
-from f1si.pace.linear import fit_linear_pace
-from f1si.state import CarState, RaceState
+from f1si.pace.linear import fit_linear_pace, measure_pit_loss
+from f1si.state import CarState, RaceState, build_race_state
+from f1si.strategy.free_track import FreeTrackOptimizer
 from tests.conformance.suites import PaceProbe, PolicyCase, SimCase
 
 
@@ -139,6 +140,21 @@ def _hold_policy(long_db: Path) -> tuple[StrategyPolicy, PolicyCase]:
     return HoldPolicy(), case
 
 
+def _free_track(long_db: Path) -> tuple[StrategyPolicy, PolicyCase]:
+    """The brute-force optimizer on the long synthetic race, planned from lap 0."""
+    accessor = AsOfAccessor(long_db)
+    end = accessor.snapshot(AsOf("2023-01", RACE_END))
+    fit = fit_linear_pace(end)
+    pit = measure_pit_loss(end, fit)
+    state = build_race_state(
+        accessor.snapshot(AsOf("2023-01", 0)), fit, laps_total=57, pit_loss_s=pit.median_s
+    )
+    fitted = frozenset(fit.fitted_compounds)
+    driver = next(c.driver for c in state.cars if c.compound in fitted)
+    optimizer = FreeTrackOptimizer(fit, compounds=fit.fitted_compounds)
+    return optimizer, PolicyCase(state, driver, fitted)
+
+
 def _noisy_simulator(long_db: Path) -> tuple[SimulatorBackend, SimCase]:
     return NoisySimulator(), SimCase(example_state(), 64)
 
@@ -149,6 +165,7 @@ PACE_MODELS: Final[dict[str, Callable[[Path], tuple[PaceModel, PaceProbe]]]] = {
 }
 POLICIES: Final[dict[str, Callable[[Path], tuple[StrategyPolicy, PolicyCase]]]] = {
     "hold_policy": _hold_policy,
+    "free_track": _free_track,
 }
 SIMULATORS: Final[dict[str, Callable[[Path], tuple[SimulatorBackend, SimCase]]]] = {
     "noisy_simulator": _noisy_simulator,
