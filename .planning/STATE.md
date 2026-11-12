@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 2 context gathered
-last_updated: "2026-11-12T03:38:55.254Z"
+last_updated: "2026-11-12T03:39:02.521Z"
 last_activity: 2026-11-12
 progress:
   total_phases: 8
@@ -60,6 +60,7 @@ Progress: [████████░░] 81%
 | Phase 01 P10 | 35min | 2 tasks | 3 files |
 | Phase 01 P11 | 50min | 2 tasks | 5 files |
 | Phase 02 P01 | 35min | 3 tasks | 14 files |
+| Phase 02 P02 | 35min | 3 tasks | 16 files |
 
 ### Decisions
 
@@ -77,6 +78,7 @@ Progress: [████████░░] 81%
 - [Phase 01-11]: DEC-051 plain-language explainer per phase kept complete by tests/test_docs.py (D-17)
 - [Phase 02]: DEC-061: Protocol signatures; RaceState imported under TYPE_CHECKING only
 - [Phase 02]: DEC-062: RaceState None-not-NaN JSON; regime and pit_loss_s are placeholders
+- [Phase 02]: DEC-063..066: joint OLS fuel/wear fit refuses unidentified parameters; shared clean laps; no compound offset; pit loss from in/out laps
 
 ### Pending Todos
 
