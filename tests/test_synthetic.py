@@ -260,3 +260,15 @@ def test_overlapping_sc_laps_raise() -> None:
     spec = SyntheticRaceSpec(2023, 1, "Sc Grand Prix", n_laps=20, sc_laps=(5, 7))
     with pytest.raises(ValueError, match="SC lap 7"):
         generate_dataset([spec], rng=make_rng(1))
+
+
+def test_sc_window_past_the_last_lap_raises() -> None:
+    spec = SyntheticRaceSpec(2023, 1, "Sc Grand Prix", n_laps=12, sc_laps=(10,), sc_duration_laps=4)
+    with pytest.raises(ValueError, match="after the last lap"):
+        spec.sc_windows()
+
+
+def test_non_positive_sc_slowdown_raises() -> None:
+    spec = SyntheticRaceSpec(2023, 1, "Sc Grand Prix", sc_laps=(3,), sc_slowdown_factor=0.0)
+    with pytest.raises(ValueError, match="sc_slowdown_factor"):
+        spec.sc_windows()

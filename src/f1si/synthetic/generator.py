@@ -91,17 +91,25 @@ class SyntheticRaceSpec:
         """(first lap, last lap) of every safety-car period, validated.
 
         Raises:
-            ValueError: for a duration below 1, a deployment outside 1..n_laps, a deployment inside
-                an earlier SC window, or an SC window that touches a VSC lap.
+            ValueError: for a duration below 1, a slowdown factor that is not positive, a
+                deployment outside 1..n_laps, a window that ends after the last lap, a deployment
+                inside an earlier SC window, or an SC window that touches a VSC lap.
         """
         if not self.sc_laps:
             return ()
         if self.sc_duration_laps < 1:
             raise ValueError(f"sc_duration_laps must be at least 1, got {self.sc_duration_laps}")
+        if not self.sc_slowdown_factor > 0.0:
+            raise ValueError(f"sc_slowdown_factor must be positive, got {self.sc_slowdown_factor}")
         windows: list[tuple[int, int]] = []
         for lap in sorted(self.sc_laps):
             if not 1 <= lap <= self.n_laps:
                 raise ValueError(f"SC lap {lap} is outside 1..{self.n_laps}")
+            if lap + self.sc_duration_laps - 1 > self.n_laps:
+                raise ValueError(
+                    f"SC starting on lap {lap} lasts {self.sc_duration_laps} laps and would end "
+                    f"after the last lap {self.n_laps}"
+                )
             if windows and lap <= windows[-1][1]:
                 raise ValueError(
                     f"SC lap {lap} overlaps the SC that started on lap {windows[-1][0]}"
