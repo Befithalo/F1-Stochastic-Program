@@ -1,11 +1,13 @@
 """Honest implementations pass; every planted single-defect stub is rejected (D-11, INT-02)."""
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from f1si.interfaces import PaceModel
+from f1si.interfaces import PaceModel, Plan, PlanSource, SimulationResult
+from f1si.state import RaceState
 from tests.conformance import stubs
 from tests.conformance.registry import (
     PACE_MODELS,
@@ -42,6 +44,7 @@ POLICY_KEYS = {
 }
 SIM_KEYS = {
     "WrongShapeSim": "shape",
+    "WrongDiagnosticsShapeSim": "diagnostics",
     "NanSim": "finite",
     "NotPermutationSim": "permutation",
     "IgnoresSeedSim": "reproducible",
@@ -115,3 +118,40 @@ def test_doubles_behave() -> None:
     assert HoldPolicy().decide(example_state(), driver="ALO").pit_now is False
     res = NoisySimulator().simulate(example_state(), n_races=3, rng=np.random.default_rng(1))
     assert res.finish_positions.shape == (3, 4)
+
+
+def test_simulation_result_optional_fields_default_and_pass(long_synthetic_db: Path) -> None:
+    pos = np.array([[1, 2]], dtype=np.int64)
+    tot = np.array([[1.0, 2.0]])
+    bare = SimulationResult(pos, tot)
+    assert bare.sc_lap_mask is None
+    assert bare.stop_laps is None
+    assert bare.pit_loss_paid_s is None
+    assert bare.clock_s is None
+    assert bare.plan_sources == ()
+    assert bare.diagnostics == ()
+
+    _, case = SIMULATORS["noisy_simulator"](long_synthetic_db)
+
+    class Rich(NoisySimulator):
+        def simulate(
+            self,
+            state: RaceState,
+            *,
+            n_races: int,
+            rng: np.random.Generator,
+            plans: Mapping[str, Plan] | None = None,
+        ) -> SimulationResult:
+            res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+            n, c = res.finish_positions.shape
+            return SimulationResult(
+                res.finish_positions,
+                res.total_time_s,
+                sc_lap_mask=np.zeros((n, 5), dtype=np.bool_),
+                stop_laps=np.full((n, c, 2), -1, dtype=np.int64),
+                pit_loss_paid_s=np.zeros((n, c)),
+                plan_sources=(PlanSource("VER", "forced", ""),),
+                clock_s=np.zeros((n, 5, c)),
+            )
+
+    check_simulator_backend(Rich(), case)

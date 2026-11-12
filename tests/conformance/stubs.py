@@ -101,6 +101,20 @@ class WrongShapeSim(NoisySimulator):
         return SimulationResult(res.finish_positions[:, :-1], res.total_time_s[:, :-1])
 
 
+class WrongDiagnosticsShapeSim(NoisySimulator):
+    def simulate(
+        self,
+        state: RaceState,
+        *,
+        n_races: int,
+        rng: np.random.Generator,
+        plans: Mapping[str, Plan] | None = None,
+    ) -> SimulationResult:
+        res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+        mask = np.zeros((n_races - 1, 3), dtype=np.bool_)
+        return SimulationResult(res.finish_positions, res.total_time_s, sc_lap_mask=mask)
+
+
 class NanSim(NoisySimulator):
     def simulate(
         self,

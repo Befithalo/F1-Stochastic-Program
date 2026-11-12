@@ -171,6 +171,17 @@ def check_simulator_backend(sim: object, case: SimCase) -> None:
     assert state.to_json() == before and state == RaceState.from_json(before), (
         "mutation: simulate changed the input RaceState"
     )
+    for name in ("sc_lap_mask", "stop_laps", "pit_loss_paid_s", "clock_s"):
+        extra = getattr(result, name)
+        if extra is None:
+            continue
+        assert extra.shape[0] == case.n_races, (
+            f"diagnostics: {name} has {extra.shape[0]} rows, expected {case.n_races}"
+        )
+        if name in ("stop_laps", "pit_loss_paid_s"):
+            assert extra.shape[1] == n_cars, (
+                f"diagnostics: {name} has {extra.shape[1]} cars, expected {n_cars}"
+            )
     again = sim.simulate(state, n_races=case.n_races, rng=make_rng(7))
     assert np.array_equal(pos, again.finish_positions) and np.array_equal(
         tot, again.total_time_s

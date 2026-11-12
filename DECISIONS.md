@@ -826,3 +826,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A plain frequency (zero or huge on small history). Non-SC laps as exposure (more exact, but needs per-lap status joins for a 4% effect). A per-circuit rate (too few races per circuit).
 **Consequences:** Recovery test: 24 races x 100 laps x 4 drivers with one-lap SCs at a known 2.5% per lap, 5 seeds; the 90% interval contains the truth in 5 of 5 seeds. An earlier design with 40-lap races covered only 3 of 5, because the prior (mean 1%, weight 300 laps) still pulled the posterior down with 920 laps of data; this is shrinkage, not a bug, so the test uses a sample large enough for the prior to matter little. Estimates for real seasons stay prior-heavy until about 10 races are in the history.
 **Refs:** D-01, D-02, D-03, D-06
+
+## DEC-076 — Regime at the cutoff, SC laps elapsed and the SC pit-loss placeholder
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** The simulator must start from the true situation: a safety car may be out at the cutoff, and a stop under it costs less time. Phase 8 (REG-03) will measure SC pit loss, but success criterion 3 of Phase 3 needs a value now.
+**Decision:** `build_race_state` sets `regime = {"sc": 1.0}` only while status "4" is the latest visible track-status row, else `{"green": 1.0}`. `RaceState.sc_laps_elapsed` is a new optional field (default 0, optional JSON key written only when nonzero; precedent DEC-073): the leader laps since the first row of the final run of "4" rows, with leader laps at time t counted as lap numbers whose earliest lap end is at or before t (the same convention as the estimator's lap cutoffs). `pit_loss_s["sc"] = SC_PIT_LOSS_RATIO (0.5) x` the green value, an explicit placeholder until Phase 8. VSC and red flags are not modelled; tyre wear under SC is not reduced.
+**Why:** RESEARCH Pitfall 6 offered two options (assume the SC just started, or carry the elapsed laps); carrying the field keeps the lap-31 story exact at the cost of one optional int. The ratio is defined in `f1si.state`, not `f1si.sim`, to avoid an import cycle (DEC-061).
+**Alternatives rejected:** Assuming the SC just started (wrong mid-period). Probabilistic regime mixture at the cutoff (the cutoff status is observed, not uncertain). Maximum lap end over drivers as the lap clock (counts the slowest car, so elapsed laps came out one too high).
+**Consequences:** A state with no SC differs from before only by the new `pit_loss_s["sc"]` key. Real SC pit loss replaces the ratio in Phase 8.
+**Refs:** D-02, D-04, D-05
+
+## DEC-077 — Parameter uncertainty plumbing: offset SE, shared per-compound wear draw
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** The simulator samples parameter uncertainty (D-12) and reports diagnostics (D-19); both need plumbing through the fit, the state and the result.
+**Decision:** `FitReport.driver_offset_se` (last field, defaulted) holds the standard error of each driver intercept, and `LinearPaceFit.pace_offset_se(number)` returns it, None for an unknown driver. `CarState.pace_offset_sd` is an optional field (optional JSON key) filled from it. This is the SE of the raw intercept, not of the intercept minus the mean intercept; the raw value is the conservative per-driver choice. Per-compound wear SEs reach the simulator through its constructor from `fit.wear_se`. This REFINES D-12: the wear rate is one shared parameter per compound in the fit, so the simulator draws one normal per compound per race (shared by all cars) and one offset normal per car, not an independent wear rate per car (Pitfall 3). Independent draws ignore the fit's covariance between offsets, fuel and wear, a documented simplification. `SimulationResult` keeps `finish_positions` and `total_time_s` first and unchanged and gains defaulted `sc_lap_mask`, `stop_laps`, `pit_loss_paid_s`, `plan_sources`, `diagnostics` and `clock_s`; the conformance suite checks their leading dimensions.
+**Why:** Sharing the wear draw across cars reproduces the actual correlation in the fit; independent per-car draws would understate the spread of relative outcomes. Defaulted fields keep every existing backend and stub valid.
+**Alternatives rejected:** Independent wear rate per car (wrong correlation). Sampling from the full covariance (needs the covariance in the state; deferred). SE of the mean-centred offset (needs the covariance of the mean).
+**Consequences:** Plans 03-03 and 03-04 need no further cross-cutting edits to state, fit or result.
+**Refs:** D-12, D-19, WR-02, WR-04

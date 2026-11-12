@@ -18,8 +18,8 @@ random stream.
 Convention: `tire_age` is the number of laps on the tyres at the END of the lap (a fresh set
 that has just completed its first lap has age 1), and `lap` is 1-based.
 
-Status: `SimulatorBackend.simulate` and `SimulationResult` are provisional in shape. Phase 3 may
-add fields to the result but must not change `finish_positions` and `total_time_s`.
+Status: `SimulationResult` keeps `finish_positions` and `total_time_s` first and unchanged (D-19);
+Phase 3 added defaulted diagnostics after them (DEC-077).
 
 `RaceState` is imported only under `TYPE_CHECKING`, so this module never imports
 `f1si.state` at run time and the two can never form an import cycle (DEC-061).
@@ -107,16 +107,41 @@ class PitDecision:
             raise ValueError("best_plan must equal ranked_plans[0]")
 
 
+@dataclass(frozen=True)
+class PlanSource:
+    """Where one driver's plan came from in a simulation: `source` is "forced", "optimizer" or
+    "fallback"; `reason` is free text (empty for forced and optimizer)."""
+
+    driver: str
+    source: str
+    reason: str
+
+
 @dataclass(frozen=True, eq=False)
 class SimulationResult:
-    """Outcome of simulating many race continuations (provisional shape).
+    """Outcome of simulating many race continuations.
 
     `finish_positions` has shape (n_races, n_cars) and each row is a permutation of 1..n_cars;
-    `total_time_s` has the same shape. Column order is `RaceState.cars` order.
+    `total_time_s` has the same shape. These two fields are final (D-19). Column order is
+    `RaceState.cars` order everywhere.
+
+    The remaining fields are optional diagnostics, None or empty by default:
+    `sc_lap_mask` (n_races, n_laps) bool, True where the simulated lap ran under the safety car;
+    `stop_laps` (n_races, n_cars, max_stops) int64, the lap of each stop taken, -1 padded;
+    `pit_loss_paid_s` (n_races, n_cars) float64, total pit loss paid;
+    `plan_sources` one `PlanSource` per driver; `diagnostics` free-text notes (borrowed compounds,
+    retired or lapped cars placed last, fallbacks); `clock_s` (n_races, n_laps, n_cars) float64,
+    cumulative time at each lap end, filled only on request.
     """
 
     finish_positions: NDArray[np.int64]
     total_time_s: NDArray[np.float64]
+    sc_lap_mask: NDArray[np.bool_] | None = None
+    stop_laps: NDArray[np.int64] | None = None
+    pit_loss_paid_s: NDArray[np.float64] | None = None
+    plan_sources: tuple[PlanSource, ...] = ()
+    diagnostics: tuple[str, ...] = ()
+    clock_s: NDArray[np.float64] | None = None
 
 
 @runtime_checkable
