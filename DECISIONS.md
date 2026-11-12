@@ -815,3 +815,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Pure NumPy masks (too slow). Cython or Rust (out of stack; Rust is M5). A hand-written Sobol (direction numbers are easy to get wrong).
 **Consequences:** The first call compiles (about 1 s, excluded by warm-up in the benchmark). `pytest --cov` cannot trace inside jitted bodies, so a `py_func` equivalence test gives real coverage. Determinism is per environment.
 **Refs:** D-13, D-18, SIM-02, SIM-03
+
+## DEC-075 — Safety-car rate: Beta-Binomial on earlier races, edge-rule deployments, fixed median duration
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** REG-01 needs a per-lap safety-car probability and a duration that use earlier in-sample races only, and that work for the first race of the history.
+**Decision:** The per-lap rate is the Beta-Binomial posterior mean with prior Beta(3, 297) (mean 1%, weight about 300 laps, five races; an assumed literature prior, assumption A3, that only matters for early races), with a 90% interval from `scipy.stats.beta.ppf`. Deployments are counted with an edge rule: a status "4" row after None, "1", "2", "6" or "7" (the cache has 50 naive "4" starts but 44 true deployments across the 70 in-sample races, because 6 SC rows follow red flags). Exposure laps are the maximum lap of `lap_cutoffs` per race with track-status rows. The duration is the lower median of measured lengths (leader laps from deployment to the next non-"4" row; red-flag ends and never-ending SCs excluded) when at least 5 exist, else 4 laps. The measured in-sample median over 39 usable events is 3; the owner-set fallback of 4 is kept. A first race returns the prior alone with `is_prior_only`. VSC and red flags are not modelled and are deferred to Phase 8.
+**Why:** A conjugate prior gives an honest interval with a tiny history and no fitting code. The edge rule avoids counting restarts as new events. The denominator is race laps, not non-SC laps; an SC can only start on a green lap, so the hazard is biased low by about 4% of the rate with real data, which is accepted for simplicity.
+**Alternatives rejected:** A plain frequency (zero or huge on small history). Non-SC laps as exposure (more exact, but needs per-lap status joins for a 4% effect). A per-circuit rate (too few races per circuit).
+**Consequences:** Recovery test: 24 races x 100 laps x 4 drivers with one-lap SCs at a known 2.5% per lap, 5 seeds; the 90% interval contains the truth in 5 of 5 seeds. An earlier design with 40-lap races covered only 3 of 5, because the prior (mean 1%, weight 300 laps) still pulled the posterior down with 920 laps of data; this is shrinkage, not a bug, so the test uses a sample large enough for the prior to matter little. Estimates for real seasons stay prior-heavy until about 10 races are in the history.
+**Refs:** D-01, D-02, D-03, D-06

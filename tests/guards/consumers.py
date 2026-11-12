@@ -15,6 +15,7 @@ from f1si.data.asof import AsOf, AsOfAccessor
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
 from f1si.plots.wear import prepare_wear_plot_data
+from f1si.regime.sc_rate import estimate_sc_rate
 from f1si.state import build_race_state
 from tests.guards.scramble import Consumer
 
@@ -94,6 +95,11 @@ def wear_plot_data(db_path: Path, at: AsOf) -> object:
     return prepare_wear_plot_data(snapshot, fit_linear_pace(snapshot))
 
 
+def sc_rate(db_path: Path, at: AsOf) -> object:
+    """The safety-car rate and duration estimated from the earlier races."""
+    return estimate_sc_rate(AsOfAccessor(db_path).history(at))
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -105,6 +111,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "pit_loss": pit_loss,
     "race_state": race_state,
     "wear_plot_data": wear_plot_data,
+    "sc_rate": sc_rate,
 }
 
 
@@ -120,6 +127,7 @@ DESIGNATED_MODULES: Final = (
     "f1si.pace.linear",
     "f1si.state",
     "f1si.plots.wear",
+    "f1si.regime.sc_rate",
 )
 
 # qualified name -> name of the registered consumer that calls it
@@ -136,6 +144,7 @@ CONSUMED: Final[dict[str, str]] = {
     "f1si.state.RaceState.to_json_dict": "race_state",
     "f1si.state.RaceState.car": "race_state",
     "f1si.state.RaceState.to_arrays": "race_state",
+    "f1si.regime.sc_rate.estimate_sc_rate": "sc_rate",
 }
 
 # qualified name -> why no scramble consumer is needed
