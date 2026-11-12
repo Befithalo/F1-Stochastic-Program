@@ -771,3 +771,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Keeping `fillna(0)` (fabricates stints). Inferring the stint from pit events (a second source of truth that can disagree; no real case needs it, Bahrain 2023 and the synthetic generator always carry a stint).
 **Consequences:** Data with no stint column at all fits nothing and says "no stint" in the dropped counts. Order of drop reasons: lap time, fade or status, compound or age, stint, wet.
 **Refs:** D-01, D-03, D-25
+
+## DEC-071 — Coefficient covariance from the SVD; condition limit 1e6
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Code review WR-02. Standard errors came from `inv(X'X)`, while the identification check allowed cond(X) up to 1e8, so cond(X'X) could reach 1e16 and the inverse could be meaningless or raise `LinAlgError` although the fit promises never to raise on shortage.
+**Decision:** The covariance is `s^2 V diag(1/S^2) V'` from the thin SVD `X = U S V'` that the identification check already computes, so no inverse is formed. `COND_LIMIT` drops from 1e8 to 1e6, which keeps cond(X'X) = cond(X)^2 at or below 1e12, about four digits above double-precision breakdown. An SVD that fails to converge returns an unidentified fit with a message. The point estimates are unchanged (still `lstsq`).
+**Why:** The SVD route is the stable way to get (X'X)^-1 and costs nothing extra; a tighter limit makes "identified" mean "the standard errors are numerically reliable".
+**Alternatives rejected:** Keeping `inv` and catching `LinAlgError` (still unreliable below the error threshold). A pseudo-inverse with a cutoff (a silent minimum-norm answer, which the fit forbids). Ridge (biases the wear and fuel numbers).
+**Consequences:** A design with condition number between 1e6 and 1e8 that was reported before is now reported as unidentified. Real Bahrain 2023 and the synthetic races sit far below 1e6, so their numbers are unchanged. Supersedes the 1e8 value in the module docstring only; no earlier DEC pinned it.
+**Refs:** D-01, D-03, D-04

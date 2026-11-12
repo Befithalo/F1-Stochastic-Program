@@ -28,9 +28,13 @@ clean laps from at least `MIN_STINTS_PER_COMPOUND` stints, otherwise it is liste
 data" and its laps leave the fit. After a first solve, laps with a residual further than
 `MAD_K` robust standard deviations (1.4826 * median absolute deviation) from the median are
 trimmed, up to `MAX_TRIM_ITERATIONS` passes. Laps with no stint number are dropped with the
-reason "no stint" (they must not share one invented stint; DEC-070). Standard errors are classical:
+reason "no stint" (they must not share one invented stint; DEC-070). Standard errors are
+classical, with the covariance taken from the thin SVD X = U S V' (no matrix inverse; DEC-071),
+and `COND_LIMIT` = 1e6 so that cond(X'X) = cond(X)^2 stays far below double-precision
+breakdown (1e16):
 
-    s^2 = RSS / (n - p),    SE = sqrt(diag(s^2 (X'X)^-1)),    interval = estimate +/- 1.96 SE
+    s^2 = RSS / (n - p),    cov = s^2 V diag(1 / S^2) V',    SE = sqrt(diag(cov)),
+    interval = estimate +/- 1.96 SE
 
 The wear slope SE is what fills `RaceState` `wear_sd` (D-04).
 
@@ -63,7 +67,7 @@ MIN_RESID_DF: Final = 30
 MAD_K: Final = 3.0
 MAX_TRIM_ITERATIONS: Final = 5
 CI_Z: Final = 1.96
-COND_LIMIT: Final = 1e8
+COND_LIMIT: Final = 1e6
 FUEL_SANITY_RANGE: Final = (-0.06, -0.03)
 DEFAULT_PIT_LOSS_S: Final = 22.0
 _NULL_LOADING: Final = 1e-6
@@ -378,7 +382,18 @@ def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
                 n_trimmed=n_trimmed,
             )
         names = _param_names(design)
-        sv = np.linalg.svd(design.x, compute_uv=False)
+        try:
+            _, sv, vt_thin = np.linalg.svd(design.x, full_matrices=False)
+        except np.linalg.LinAlgError:
+            return _unidentified(
+                n,
+                _dropped(final_reason, design),
+                tuple(design.not_enough),
+                tuple(nm for nm in names if not nm.startswith("driver ")),
+                "the least-squares solver did not converge on the laps visible so far",
+                df_resid=n - p,
+                n_trimmed=n_trimmed,
+            )
         rank = int(np.sum(sv > sv[0] * max(design.x.shape) * np.finfo(float).eps))
         cond = float(sv[0] / sv[-1]) if sv[-1] > 0 else float("inf")
         if rank < p or cond > COND_LIMIT:
@@ -430,7 +445,7 @@ def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
     n, p = design.x.shape
     rss = float(resid @ resid)
     s2 = rss / (n - p)
-    cov = s2 * np.linalg.inv(design.x.T @ design.x)
+    cov = s2 * (vt_thin.T / sv**2) @ vt_thin
     se = np.sqrt(np.diag(cov))
     nd = len(design.drivers)
     fuel = float(coef[nd])
