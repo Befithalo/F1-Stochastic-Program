@@ -6,7 +6,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
 
 ## Phases
 
-- [x] **Phase 1: Foundation & Data** - Repo, CI, seeded randomness, DuckDB cache, lap-time-by-stint plot, as-of accessor with look-ahead test (completed 2026-10-22)
+- [x] **Phase 1: Foundation & Data** - Repo, CI, seeded randomness, DuckDB cache, lap-time-by-stint plot, as-of accessor with look-ahead test (completed 2026-10-22)
 - [ ] **Phase 2: Interfaces, Linear Tire Wear & Free-Track Optimizer** - Protocols and RaceState, fuel-corrected linear wear, brute-force 1/2-stop plan
 - [ ] **Phase 3: Monte Carlo Simulator** - Vectorized NumPy simulator, 50,000 races under 10 s, variance reduction, constant SC probability
 - [ ] **Phase 4: Kalman Tire Filter** - Hidden tire wear estimated per car with uncertainty, verified on synthetic stints
