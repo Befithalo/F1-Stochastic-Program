@@ -163,7 +163,8 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=50000,
         metavar="N",
-        help=f"number of simulated races, 2 to {MAX_RACES} (default 50000)",
+        help=f"number of simulated races, 2 to {MAX_RACES} (default 50000); memory grows "
+        "with N, about 1 GB at the maximum",
     )
     simulate.add_argument(
         "--seed",

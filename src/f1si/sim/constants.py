@@ -19,6 +19,8 @@ fitted per circuit only in Phase 6. The reasoning is logged in DEC-078 to DEC-08
 - `DRAW_COMPOUNDS`: fixed slot layout of the per-compound wear draws, independent of the plans, so
   a forced plan that adds a compound cannot move anyone's common random numbers (DEC-087).
 - `MAX_CARS`, `MAX_LAPS`, `MAX_RACES`: input bounds used for validation (denial-of-service guard).
+  The draw block alone is about `8 * n * (laps + cars + 5)` bytes, so 200,000 races of a full
+  race is roughly 0.2 GB before the per-lap arrays (WR-03).
 """
 
 from typing import Final
@@ -33,7 +35,7 @@ SC_STOP_WINDOW_LAPS: Final[int] = 5  # DEC-079, assumption A2
 START_SPACING_S: Final[float] = 0.8  # DEC-079, assumption A2
 MAX_CARS: Final[int] = 30  # DEC-080 input bound
 MAX_LAPS: Final[int] = 120  # DEC-080 input bound
-MAX_RACES: Final[int] = 1_000_000  # DEC-080 input bound
+MAX_RACES: Final[int] = 200_000  # DEC-080 input bound
 DRAW_COMPOUNDS: Final[tuple[str, ...]] = (
     "SOFT",
     "MEDIUM",
