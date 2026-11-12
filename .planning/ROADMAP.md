@@ -83,7 +83,7 @@ Plans:
   4. User sees a fitted wear rate (seconds per lap) for each compound on Bahrain 2023, from fuel-corrected lap times
   5. User gets the best 1-stop and 2-stop plan with total race time, found by checking every combination
 
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 **Wave 1**
@@ -96,7 +96,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md — RaceState builder at any lap and the wear PNG (wave 3)
+- [x] 02-03-PLAN.md — RaceState builder at any lap and the wear PNG (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -206,7 +206,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
-| 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 2/5 | In Progress|  |
+| 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 3/5 | In Progress|  |
 | 3. Monte Carlo Simulator | 0/0 | Not started | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
