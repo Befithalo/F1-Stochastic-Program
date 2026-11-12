@@ -120,7 +120,7 @@ Plans:
   4. A test shows Sobol plus antithetic sampling has lower variance than plain Monte Carlo at the same N
   5. The same seed reproduces identical results
 
-**Plans:** 2/7 plans executed
+**Plans:** 3/7 plans executed
 
 Plans:
 **Wave 1**
@@ -133,7 +133,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 03-03-PLAN.md — Constants, Sobol/antithetic/CRN draws and the Numba lap kernel (passing, SC, pit loss) (wave 3)
+- [x] 03-03-PLAN.md — Constants, Sobol/antithetic/CRN draws and the Numba lap kernel (passing, SC, pit loss) (wave 3)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -236,7 +236,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
-| 3. Monte Carlo Simulator | 2/7 | In Progress|  |
+| 3. Monte Carlo Simulator | 3/7 | In Progress|  |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
