@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 66
+MIN_ENTRIES = 67
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -147,3 +147,9 @@ def test_race_state_entry_exists_by_title() -> None:
 )
 def test_wear_decisions_exist_by_title(title: str) -> None:
     assert sum(1 for _, t, _ in _entries() if t == title) == 1, title
+
+
+def test_race_state_builder_entry_exists_by_title() -> None:
+    matches = [body for _, title, body in _entries() if title.startswith("RaceState builder rules")]
+    assert len(matches) == 1
+    assert "laps_total" in matches[0]

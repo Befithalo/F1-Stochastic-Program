@@ -727,3 +727,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** The mean (pulled by slow stops). Pit-lane duration from timing data (leaves out the lap-time cost). A fixed constant (not measured).
 **Consequences:** The default is a placeholder that is always labeled as such.
 **Refs:** D-05
+
+## DEC-067 — RaceState builder rules and laps_total
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** Simulators and policies need one trusted state object at any lap, and model code must not hold the as-of accessor. `races.scheduled_laps` is NULL for all 87 cached races because the OpenF1 adapter hard-codes None.
+**Decision:** One pure builder, `build_race_state(snapshot, fit, *, laps_total, pit_loss_s)`, turns a `RaceSnapshot` and a `LinearPaceFit` into a `RaceState`. It is typed to `LinearPaceFit` because the `PaceModel` Protocol exposes only `predict`, while the builder needs per-compound rate and SE; Phases 4 and 7 will fill the same fields from their own estimators. `laps_total` is an explicit keyword argument, supplied by the CLI from the race-end maximum lap as public pre-race knowledge; fixing the adapter is the named follow-up (D-21). Position and gap are None when unknown. The gap to the car ahead is the time gap on the last lap both cars completed; it is None for the leader, when laps done differ by more than 1 (lapped), when a lap end is missing, or when the computed gap is <= 0 because the car ahead finished that lap later or together (position swaps in timing data) (D-14, D-23). The lap-0 state uses the entry's start compound and start tyre age; `tire_age` means laps already on the tyres.
+**Why:** It keeps the accessor out of model code and the schema stable, and an approximate gap that says None beats an invented or negative one.
+**Alternatives rejected:** `scheduled_laps` from the adapter now (touches Phase 1 code, scramble tests and a cache reload). The maximum lap of the cutoff snapshot (equals the cutoff, wrong).
+**Consequences:** A red-flag-shortened race would have a smaller race distance than scheduled; Bahrain 2023 is unaffected. Import-cycle rule: `interfaces.py` imports `RaceState` only under TYPE_CHECKING, `pace.linear` never imports `f1si.state`, and a fresh-subprocess test covers both import orders.
+**Refs:** D-12, D-13, D-14, D-21, D-23, DEC-042
