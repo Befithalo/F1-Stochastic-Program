@@ -14,7 +14,12 @@ def _run(code: str) -> subprocess.CompletedProcess[str]:
 
 @pytest.mark.parametrize(
     "code",
-    ["import f1si.state, f1si.interfaces", "import f1si.interfaces, f1si.state"],
+    [
+        "import f1si.state, f1si.interfaces",
+        "import f1si.interfaces, f1si.state",
+        "import f1si.state, f1si.pace.linear",
+        "import f1si.pace.linear, f1si.state",
+    ],
 )
 def test_both_import_orders_work(code: str) -> None:
     result = _run(code)

@@ -13,9 +13,20 @@ JSON shape::
 The only addition to the BUILD_PLAN keys is the documented key `driver_number` (the stable
 database key that `PaceModel.predict` takes). Fields are never removed or renamed later.
 
-State is plain frozen data. It is built from a race snapshot by one pure builder that arrives in
-plan 02-03; this module imports only NumPy and the standard library and never touches the data
-accessor.
+State is plain frozen data. It is built from a race snapshot and a fitted `LinearPaceFit` by one
+pure builder, `build_race_state`. This module imports NumPy, pandas, the standard library, the
+snapshot type and `f1si.pace.linear`; it never touches the data accessor, so model and strategy
+code that receives a `RaceState` cannot reach the cache.
+
+Builder rules (D-14, D-21, D-23)
+--------------------------------
+`laps_total` is an explicit argument (races.scheduled_laps is NULL in the cache). Position and
+gap are None when unknown. The gap to the car ahead is the time gap on the last lap both cars
+completed, which is what is knowable at the cutoff (leader N laps, others at most N-1, DEC-042).
+It is an approximation and is None for the leader, for lapped cars (laps done differ by more than
+1), when a lap-end is missing, and when the computed gap is <= 0 (the car ahead finished that lap
+later than or together with the car behind, which happens around position swaps in the timing
+data). `tire_age` is the laps already on the tyres; the next lap has age `tire_age + 1`.
 
 Placeholders (D-13)
 -------------------
@@ -41,7 +52,11 @@ from types import MappingProxyType
 from typing import Any, Final
 
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
+
+from f1si.data.asof import RaceSnapshot
+from f1si.pace.linear import LinearPaceFit
 
 _CODE: Final = re.compile(r"^[A-Z]{3}$")
 _CAR_KEYS: Final = (
@@ -353,3 +368,146 @@ def _check_keys(where: str, data: Mapping[str, Any], expected: tuple[str, ...]) 
     extra = sorted(str(k) for k in data if k not in expected)
     if extra:
         raise ValueError(f"{where}: unknown key(s) {', '.join(extra)}")
+
+
+def _upper_or_none(value: object) -> str | None:
+    return value.upper() if isinstance(value, str) else None
+
+
+def _gap_ahead(
+    ends: Mapping[tuple[int, int], float],
+    behind: tuple[int, int],
+    ahead: tuple[int, int],
+) -> float | None:
+    """Time gap on the last lap both cars completed, or None if unknown or not positive."""
+    (num_b, done_b), (num_a, done_a) = behind, ahead
+    if abs(done_b - done_a) > 1:
+        return None
+    common = min(done_b, done_a)
+    end_b = ends.get((num_b, common))
+    end_a = ends.get((num_a, common))
+    if end_b is None or end_a is None:
+        return None
+    gap = end_b - end_a
+    return gap if math.isfinite(gap) and gap > 0 else None
+
+
+def build_race_state(
+    snapshot: RaceSnapshot, fit: LinearPaceFit, *, laps_total: int, pit_loss_s: float
+) -> RaceState:
+    """Build the `RaceState` for the cutoff of `snapshot` (pure; reads only its arguments).
+
+    Rules:
+      * `lap` is `snapshot.at.lap` when it is an int, else (race end) the maximum laps_done.
+        `laps_total` is an argument because races.scheduled_laps is NULL for every cached race
+        (D-21); a `laps_total` below `lap` raises ValueError.
+      * `regime` is {"green": 1.0} and `pit_loss_s` is {"green": pit_loss_s}: placeholders until
+        Phases 3 and 8 (D-13).
+      * One car per row of `snapshot.cars`, ordered by (position unknown last, position, number).
+      * Compound and tire age come from the car's latest visible stint; at lap 0 they come from
+        the entry's start compound and start tyre age (0 if unknown). `tire_age` is laps already
+        on the tyres. `compounds_used` lists compounds in stint order, start compound first.
+      * Wear rate, wear SD and pace offset come from `fit`; they are None when the compound is
+        unknown or unfitted, the driver is not in the fit, or the fit is unidentified.
+      * Gap to the car ahead: time gap on the last lap both cars completed (see module
+        docstring); None for the leader, lapped cars, missing lap ends and gaps <= 0.
+        `gap_behind_s` of a car is the next car's `gap_ahead_s`.
+
+    Raises:
+        ValueError: if `laps_total` is smaller than the lap.
+    """
+    cars = snapshot.cars
+    at_lap = snapshot.at.lap
+    max_done = int(cars["laps_done"].max()) if len(cars) else 0
+    lap = at_lap if isinstance(at_lap, int) else max_done
+    if laps_total < lap:
+        raise ValueError(
+            f"laps_total {laps_total} is smaller than the lap {lap}; pass the race distance (D-21)"
+        )
+    entries = snapshot.entries.set_index("driver_number")
+    stints = snapshot.stints.sort_values(["driver_number", "stint"])
+    stints_by_driver = {int(str(n)): grp for n, grp in stints.groupby("driver_number", sort=True)}
+    ended = snapshot.laps[snapshot.laps["lap_end_s"].notna()]
+    ends: dict[tuple[int, int], float] = {
+        (int(n), int(k)): float(t)
+        for n, k, t in zip(
+            ended["driver_number"], ended["lap_number"], ended["lap_end_s"], strict=True
+        )
+    }
+
+    rows: list[dict[str, Any]] = []
+    for _, row in cars.iterrows():
+        number = int(row["driver_number"])
+        position = None if pd.isna(row["position"]) else int(row["position"])
+        mine = stints_by_driver.get(number)
+        start_compound: str | None = None
+        start_age = 0
+        if number in entries.index:
+            entry = entries.loc[number]
+            start_compound = _upper_or_none(entry["start_compound"])
+            raw_age = entry["start_tyre_age"]
+            start_age = 0 if pd.isna(raw_age) else int(raw_age)
+        used: list[str] = []
+        if start_compound is not None:
+            used.append(start_compound)
+        compound: str | None
+        if mine is not None and len(mine):
+            for value in mine["compound"].astype("object"):
+                name = _upper_or_none(value)
+                if name is not None and name not in used:
+                    used.append(name)
+            latest = mine.iloc[-1]
+            compound = _upper_or_none(latest["compound"])
+            tire_age = 0 if pd.isna(latest["tyre_life_now"]) else int(latest["tyre_life_now"])
+        else:
+            compound, tire_age = start_compound, start_age
+        rows.append(
+            {
+                "driver": str(row["driver_code"]),
+                "number": number,
+                "position": position,
+                "done": int(row["laps_done"]),
+                "compound": compound,
+                "tire_age": tire_age,
+                "stops": int(row["stops_done"]),
+                "used": tuple(used),
+            }
+        )
+    rows.sort(key=lambda r: (r["position"] is None, r["position"] or 0, r["number"]))
+
+    gap_ahead: list[float | None] = []
+    for i, r in enumerate(rows):
+        prev = rows[i - 1] if i > 0 else None
+        if r["position"] is None or prev is None or prev["position"] is None:
+            gap_ahead.append(None)
+        else:
+            gap_ahead.append(
+                _gap_ahead(ends, (r["number"], r["done"]), (prev["number"], prev["done"]))
+            )
+
+    states: list[CarState] = []
+    for i, r in enumerate(rows):
+        name = r["compound"]
+        states.append(
+            CarState(
+                driver=r["driver"],
+                driver_number=r["number"],
+                position=r["position"],
+                gap_ahead_s=gap_ahead[i],
+                gap_behind_s=gap_ahead[i + 1] if i + 1 < len(rows) else None,
+                compound=name,
+                tire_age=r["tire_age"],
+                wear_rate_s_per_lap=None if name is None else fit.wear_rate(name),
+                wear_sd=None if name is None else fit.wear_se(name),
+                pace_offset_s=fit.pace_offset(r["number"]),
+                stops_done=r["stops"],
+                compounds_used=r["used"],
+            )
+        )
+    return RaceState(
+        lap=lap,
+        laps_total=laps_total,
+        regime={"green": 1.0},
+        pit_loss_s={"green": pit_loss_s},
+        cars=tuple(states),
+    )

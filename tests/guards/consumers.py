@@ -14,6 +14,7 @@ import numpy as np
 from f1si.data.asof import AsOf, AsOfAccessor
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
+from f1si.state import build_race_state
 from tests.guards.scramble import Consumer
 
 
@@ -69,6 +70,23 @@ def pit_loss(db_path: Path, at: AsOf) -> object:
     return measure_pit_loss(snapshot, fit_linear_pace(snapshot))
 
 
+def race_state(db_path: Path, at: AsOf) -> object:
+    """The RaceState built from the snapshot and its own fit, as JSON text and arrays."""
+    snapshot = AsOfAccessor(db_path).snapshot(at)
+    fit = fit_linear_pace(snapshot)
+    pit = measure_pit_loss(snapshot, fit)
+    lap = at.lap if isinstance(at.lap, int) else 12
+    state = build_race_state(snapshot, fit, laps_total=max(12, lap), pit_loss_s=pit.median_s)
+    first = state.cars[0].driver if state.cars else None
+    arrays = state.to_arrays()
+    return (
+        state.to_json(),
+        state.to_json_dict(),
+        None if first is None else state.car(first),
+        arrays.position.tolist(),
+    )
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -78,6 +96,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "stint_plot_data": stint_plot_data,
     "linear_fit": linear_fit,
     "pit_loss": pit_loss,
+    "race_state": race_state,
 }
 
 
@@ -87,7 +106,12 @@ CONSUMERS: Final[dict[str, Consumer]] = {
 # one of these modules therefore forces a decision here. A module outside this list that reads
 # race data must not hold the accessor at all: the import scan allows `AsOfAccessor` and
 # `RACE_END` only in the replay drivers and the CLI.
-DESIGNATED_MODULES: Final = ("f1si.data.asof", "f1si.plots.stints", "f1si.pace.linear")
+DESIGNATED_MODULES: Final = (
+    "f1si.data.asof",
+    "f1si.plots.stints",
+    "f1si.pace.linear",
+    "f1si.state",
+)
 
 # qualified name -> name of the registered consumer that calls it
 CONSUMED: Final[dict[str, str]] = {
@@ -97,6 +121,11 @@ CONSUMED: Final[dict[str, str]] = {
     "f1si.pace.linear.fit_linear_pace": "linear_fit",
     "f1si.pace.linear.measure_pit_loss": "pit_loss",
     "f1si.pace.linear.LinearPaceFit.predict": "linear_fit",
+    "f1si.state.build_race_state": "race_state",
+    "f1si.state.RaceState.to_json": "race_state",
+    "f1si.state.RaceState.to_json_dict": "race_state",
+    "f1si.state.RaceState.car": "race_state",
+    "f1si.state.RaceState.to_arrays": "race_state",
 }
 
 # qualified name -> why no scramble consumer is needed
