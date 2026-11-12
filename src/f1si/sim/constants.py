@@ -22,8 +22,8 @@ fitted per circuit only in Phase 6. The reasoning is logged in DEC-078 to DEC-08
 from typing import Final
 
 MIN_GAP_S: Final[float] = 0.5  # DEC-078, assumption A1
-THRESHOLD_S: Final[float] = 0.3  # DEC-078, assumption A1
-SCALE_S: Final[float] = 0.25  # DEC-078, assumption A1
+THRESHOLD_S: Final[float] = 0.4  # DEC-078, assumption A1
+SCALE_S: Final[float] = 0.2  # DEC-078, assumption A1
 PASS_COST_S: Final[float] = 0.3  # DEC-078, assumption A1
 SC_SLOWDOWN: Final[float] = 1.4  # DEC-079, assumption A2
 RESTART_SPACING_S: Final[float] = 1.0  # DEC-079, assumption A2

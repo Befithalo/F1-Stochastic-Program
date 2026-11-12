@@ -18,7 +18,7 @@ def test_monotone_and_anchor_values() -> None:
     values = [_p(float(d)) for d in grid]
     assert all(b >= a for a, b in itertools.pairwise(values))
     assert _p(2.0) > 0.99
-    assert _p(0.0) < 0.25  # 0.231 with the fixed constants (plan said 0.2)
+    assert _p(0.0) < 0.2  # equal pace rarely passes (D-08); 0.119
     assert _p(-2.0) < 0.01
     assert _p(THRESHOLD_S) == 0.5
 

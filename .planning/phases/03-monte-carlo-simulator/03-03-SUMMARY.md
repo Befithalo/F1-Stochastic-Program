@@ -44,8 +44,8 @@ Scrambled-Sobol/antithetic draw layer with plan-independent per-lap streams, and
 
 ## Deviations from Plan
 
-**1. [Rule 1 - plan inconsistency] p(0) bound relaxed from 0.2 to 0.25**
-- The fixed constants (THRESHOLD_S 0.3, SCALE_S 0.25) give p(0) = 0.231, so the plan's "< 0.2" cannot hold. The constants are checked by acceptance criteria, so the test bound was relaxed; noted in DEC-078.
+**1. [Rule 1 - plan inconsistency] Pass-curve constants moved to keep p(0) < 0.2 (orchestrator fix)**
+- The plan's constants (THRESHOLD_S 0.3, SCALE_S 0.25) give p(0) = 0.231, so its "< 0.2" test could not hold. The executor first relaxed the test bound to 0.25; the orchestrator then reverted that and moved the curve instead (THRESHOLD_S 0.4, SCALE_S 0.2, p(0) = 0.119), because D-08 says equal pace rarely passes. Recorded in DEC-078; plan text updated.
 - Files: tests/sim/test_overtaking.py
 
 **2. [Minor] Kernel signature fixed by the executor**
