@@ -44,8 +44,8 @@
 ### Simulator
 
 - [x] **SIM-01**: A vectorized NumPy `SimulatorBackend` simulates N races from a `RaceState` with pit loss, overtaking chance from pace gap, and regime events
-- [ ] **SIM-02**: 50,000 races run in under 10 seconds
-- [ ] **SIM-03**: Sobol sequences and antithetic variates reduce variance, with a test showing lower variance than plain Monte Carlo at equal N
+- [x] **SIM-02**: 50,000 races run in under 10 seconds
+- [x] **SIM-03**: Sobol sequences and antithetic variates reduce variance, with a test showing lower variance than plain Monte Carlo at equal N
 
 ### Strategy
 
@@ -108,8 +108,8 @@
 | PAC-01 | Phase 2 | Complete |
 | PAC-02 | Phase 2 | Complete |
 | SIM-01 | Phase 3 | Complete |
-| SIM-02 | Phase 3 | Pending |
-| SIM-03 | Phase 3 | Pending |
+| SIM-02 | Phase 3 | Complete |
+| SIM-03 | Phase 3 | Complete |
 | REG-01 | Phase 3 | Complete |
 | PAC-03 | Phase 4 | Pending |
 | PAC-04 | Phase 4 | Pending |
