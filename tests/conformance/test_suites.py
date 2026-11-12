@@ -51,26 +51,26 @@ LEGAL = frozenset({"SOFT", "MEDIUM", "HARD"})
 
 
 @pytest.mark.parametrize("name", sorted(PACE_MODELS))
-def test_honest_pace_models_pass(name: str, tmp_path: Path) -> None:
-    model, probe = PACE_MODELS[name](tmp_path)
+def test_honest_pace_models_pass(name: str, long_synthetic_db: Path) -> None:
+    model, probe = PACE_MODELS[name](long_synthetic_db)
     check_pace_model(model, probe)
 
 
 @pytest.mark.parametrize("name", sorted(POLICIES))
-def test_honest_policies_pass(name: str, tmp_path: Path) -> None:
-    policy, case = POLICIES[name](tmp_path)
+def test_honest_policies_pass(name: str, long_synthetic_db: Path) -> None:
+    policy, case = POLICIES[name](long_synthetic_db)
     check_strategy_policy(policy, case)
 
 
 @pytest.mark.parametrize("name", sorted(SIMULATORS))
-def test_honest_simulators_pass(name: str, tmp_path: Path) -> None:
-    sim, case = SIMULATORS[name](tmp_path)
+def test_honest_simulators_pass(name: str, long_synthetic_db: Path) -> None:
+    sim, case = SIMULATORS[name](long_synthetic_db)
     check_simulator_backend(sim, case)
 
 
 @pytest.mark.parametrize("name", sorted(PACE_KEYS))
-def test_bad_pace_stub_is_rejected(name: str, tmp_path: Path) -> None:
-    _, probe = PACE_MODELS["constant_pace"](tmp_path)
+def test_bad_pace_stub_is_rejected(name: str, long_synthetic_db: Path) -> None:
+    _, probe = PACE_MODELS["constant_pace"](long_synthetic_db)
     stub: object = getattr(stubs, name)()
     with pytest.raises(AssertionError, match=f"^{PACE_KEYS[name]}"):
         check_pace_model(stub, probe)

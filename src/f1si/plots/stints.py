@@ -37,6 +37,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
 from f1si.data.asof import RaceSnapshot
+from f1si.laps import fade_reason
 
 COMPOUND_COLORS: Final[dict[str, str]] = {
     "SOFT": "#da291c",
@@ -48,7 +49,6 @@ COMPOUND_COLORS: Final[dict[str, str]] = {
 UNKNOWN_COLOR: Final = "#888888"
 EDGE_COLOR: Final = "#333333"
 FADED_ALPHA: Final = 0.25
-FADE_TRACK_CODES: Final = frozenset({"4", "5", "6", "7"})
 _STINT_LINE_COLOR: Final = "#999999"
 _HEADROOM_S: Final = 0.3
 _POINT_COLUMNS: Final = (
@@ -87,19 +87,6 @@ class StintPlotData:
     y_limits: tuple[float, float]
     skipped_laps: int
     stint_starts: Mapping[str, tuple[int, ...]]
-
-
-def _fade_reason(lap_number: int, pit_in: bool, pit_out: bool, track_status: object) -> str | None:
-    """First matching reason a lap is faded, or None for a clean lap."""
-    if lap_number == 1:
-        return "lap 1"
-    if pit_in:
-        return "pit in"
-    if pit_out:
-        return "pit out"
-    if isinstance(track_status, str) and any(c in FADE_TRACK_CODES for c in track_status):
-        return "safety car/VSC/red"
-    return None
 
 
 def _grid_order(entries: pd.DataFrame) -> pd.DataFrame:
@@ -185,7 +172,7 @@ def prepare_stint_plot_data(
         )
 
     reasons = [
-        _fade_reason(int(lap), bool(pin), bool(pout), ts)
+        fade_reason(int(lap), bool(pin), bool(pout), ts)
         for lap, pin, pout, ts in zip(
             laps["lap_number"],
             laps["is_pit_in_lap"].fillna(False),

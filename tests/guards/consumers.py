@@ -9,7 +9,10 @@ registered below.
 from pathlib import Path
 from typing import Final
 
+import numpy as np
+
 from f1si.data.asof import AsOf, AsOfAccessor
+from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
 from tests.guards.scramble import Consumer
 
@@ -44,6 +47,28 @@ def stint_plot_data(db_path: Path, at: AsOf) -> object:
     return prepare_stint_plot_data(AsOfAccessor(db_path).snapshot(at))
 
 
+def linear_fit(db_path: Path, at: AsOf) -> object:
+    """The joint fuel/wear fit and a few predictions (early cutoffs give an unidentified report)."""
+    fit = fit_linear_pace(AsOfAccessor(db_path).snapshot(at))
+    if not fit.is_identified:
+        return fit.report, ()
+    driver = np.array(sorted(fit.report.driver_offsets)[:2], dtype=np.int64)
+    compound = np.array([fit.fitted_compounds[0]] * len(driver), dtype=np.str_)
+    mean, sd = fit.predict(
+        driver=driver,
+        compound=compound,
+        tire_age=np.array([3, 4], dtype=np.int64)[: len(driver)],
+        lap=np.array([5, 6], dtype=np.int64)[: len(driver)],
+    )
+    return fit.report, tuple(float(v) for v in (*mean, *sd))
+
+
+def pit_loss(db_path: Path, at: AsOf) -> object:
+    """The pit-loss estimate from the visible stops."""
+    snapshot = AsOfAccessor(db_path).snapshot(at)
+    return measure_pit_loss(snapshot, fit_linear_pace(snapshot))
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -51,6 +76,8 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "pit_events": pit_events,
     "cars": cars,
     "stint_plot_data": stint_plot_data,
+    "linear_fit": linear_fit,
+    "pit_loss": pit_loss,
 }
 
 
@@ -60,13 +87,16 @@ CONSUMERS: Final[dict[str, Consumer]] = {
 # one of these modules therefore forces a decision here. A module outside this list that reads
 # race data must not hold the accessor at all: the import scan allows `AsOfAccessor` and
 # `RACE_END` only in the replay drivers and the CLI.
-DESIGNATED_MODULES: Final = ("f1si.data.asof", "f1si.plots.stints")
+DESIGNATED_MODULES: Final = ("f1si.data.asof", "f1si.plots.stints", "f1si.pace.linear")
 
 # qualified name -> name of the registered consumer that calls it
 CONSUMED: Final[dict[str, str]] = {
     "f1si.data.asof.AsOfAccessor.snapshot": "snapshot",
     "f1si.data.asof.AsOfAccessor.history": "history",
     "f1si.plots.stints.prepare_stint_plot_data": "stint_plot_data",
+    "f1si.pace.linear.fit_linear_pace": "linear_fit",
+    "f1si.pace.linear.measure_pit_loss": "pit_loss",
+    "f1si.pace.linear.LinearPaceFit.predict": "linear_fit",
 }
 
 # qualified name -> why no scramble consumer is needed
@@ -75,5 +105,8 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.data.asof.resolve_slug": "maps a name to a race id using the calendar only",
     "f1si.plots.stints.build_figure": "pure drawing of already-prepared StintPlotData",
     "f1si.plots.stints.render_stint_plot": "writes a figure of prepared StintPlotData to disk",
+    "f1si.pace.linear.LinearPaceFit.wear_rate": "pure lookup of already fitted values",
+    "f1si.pace.linear.LinearPaceFit.wear_se": "pure lookup of already fitted values",
+    "f1si.pace.linear.LinearPaceFit.pace_offset": "pure lookup of already fitted values",
     "f1si.plots.stints.plot_file_name": "string function of a slug and driver codes",
 }

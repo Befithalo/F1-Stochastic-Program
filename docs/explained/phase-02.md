@@ -28,6 +28,8 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 ### The package `src/f1si`
 
 - `src/f1si/interfaces.py` is the three plug-in slots plus the small result types `Plan`, `PitDecision` and `SimulationResult`.
+- `src/f1si/laps.py` is the shared clean-lap rule: lap 1, pit in/out and safety-car, virtual-safety-car and red-flag laps are not clean. The stint plot fades exactly these laps and the tyre-wear fit leaves them out.
+- `src/f1si/pace/linear.py` fits one least-squares line per race: each driver's own base pace, one fuel effect shared by everyone and one wear rate per tyre compound. It reports an interval for each number, says plainly when a number cannot be told apart from another (for example before anyone has pitted), and measures the pit loss from green-flag stops.
 - `src/f1si/state.py` is `RaceState` and `CarState`: frozen plain data with exact JSON round trip and checks on every value.
 
 ### Tests

@@ -15,6 +15,7 @@ from typing import Final
 import numpy as np
 from numpy.typing import NDArray
 
+from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.interfaces import (
     PaceModel,
     PitDecision,
@@ -23,6 +24,7 @@ from f1si.interfaces import (
     SimulatorBackend,
     StrategyPolicy,
 )
+from f1si.pace.linear import fit_linear_pace
 from f1si.state import CarState, RaceState
 from tests.conformance.suites import PaceProbe, PolicyCase, SimCase
 
@@ -118,6 +120,20 @@ def _constant_pace(long_db: Path) -> tuple[PaceModel, PaceProbe]:
     return ConstantPace(), _pace_probe()
 
 
+def _linear_fit(long_db: Path) -> tuple[PaceModel, PaceProbe]:
+    """The joint fuel/wear fit of the long synthetic race at the end of the race."""
+    fit = fit_linear_pace(AsOfAccessor(long_db).snapshot(AsOf("2023-01", RACE_END)))
+    drivers = sorted(fit.report.driver_offsets)[:4]
+    compounds = list(fit.fitted_compounds)
+    n = 12
+    return fit, PaceProbe(
+        driver=np.array([drivers[i % len(drivers)] for i in range(n)], dtype=np.int64),
+        compound=np.array([compounds[i % len(compounds)] for i in range(n)], dtype=np.str_),
+        tire_age=np.arange(1, n + 1, dtype=np.int64),
+        lap=np.arange(2, n + 2, dtype=np.int64),
+    )
+
+
 def _hold_policy(long_db: Path) -> tuple[StrategyPolicy, PolicyCase]:
     case = PolicyCase(example_state(), "ALO", frozenset({"SOFT", "MEDIUM", "HARD"}))
     return HoldPolicy(), case
@@ -129,6 +145,7 @@ def _noisy_simulator(long_db: Path) -> tuple[SimulatorBackend, SimCase]:
 
 PACE_MODELS: Final[dict[str, Callable[[Path], tuple[PaceModel, PaceProbe]]]] = {
     "constant_pace": _constant_pace,
+    "linear_fit": _linear_fit,
 }
 POLICIES: Final[dict[str, Callable[[Path], tuple[StrategyPolicy, PolicyCase]]]] = {
     "hold_policy": _hold_policy,
