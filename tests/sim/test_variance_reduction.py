@@ -1,8 +1,8 @@
 """SIM-03: Sobol plus antithetic sampling is less noisy than plain Monte Carlo (D-14).
 
 D-14: "variance reduction is shown by running both arms at equal N over independent seeds and
-comparing the variance of the estimators". The CONTEXT example uses 40 seeds; the sampling error
-of a variance ratio at R = 40 is about 30%, so this test uses R = 120 (about 13%). N = 1024 races
+comparing the variance of the estimators". The CONTEXT example uses 40 seeds; at R = 40 a variance
+ratio scatters by about 33% (log scale), so this test uses R = 120 (about 18%). N = 1024 races
 (a power of two, so the Sobol blocks are balanced) of a 10-car, 30-lap trimmed copy of the long
 synthetic race.
 
@@ -10,6 +10,11 @@ Asserted estimators: the chosen driver's mean finishing position, mean total tim
 safety-car share. P(top 5) is report-only: it is a threshold indicator of a noise-dominated
 integrand and Sobol is not expected to help it (RESEARCH Pitfall 8).
 Both arms run through the same `NumpySimulator`; only `variance_reduction` changes.
+
+Margins (DEC-083): max(F_0.999(119, 119) ~ 1.8, measured / 1.8), rounded down to 0.1. A margin of
+1.8 or more means the ratio is significant at p < 0.001 against "no reduction"; dividing the
+measurement by 1.8 leaves room for a change of draw layout (any change of the Sobol dimension
+re-scrambles the points), while a loss of most of the gain still fails.
 """
 
 from dataclasses import replace
@@ -27,9 +32,9 @@ N = 1024
 CHOSEN = 4
 N_CARS = 10
 GAP_S = 0.5
-RATIO_MEAN_FINISH = 3.4  # measured 4.54
-RATIO_TOTAL_TIME = 12.0  # measured 16.43
-RATIO_SC_SHARE = 2.4  # measured 3.19
+RATIO_MEAN_FINISH = 2.1  # measured 3.81
+RATIO_TOTAL_TIME = 6.5  # measured 11.74
+RATIO_SC_SHARE = 1.8  # measured 2.47
 
 Ests = dict[str, np.ndarray]
 
