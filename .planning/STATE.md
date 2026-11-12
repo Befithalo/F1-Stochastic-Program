@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context gathered
-last_updated: "2026-11-12T17:53:11.134Z"
+last_updated: "2026-11-12T17:53:17.082Z"
 last_activity: 2026-11-12
 progress:
   total_phases: 8
@@ -46,6 +46,7 @@ Progress: [████████░░] 78%
 |-------|-------|-------|----------|
 | 02 | 5 | - | - |
 | Phase 03 P01 | 1h | 3 tasks | 13 files |
+| Phase 03 P02 | 1h | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,7 @@ Progress: [████████░░] 78%
 - [Phase 02]: DEC-063..066: joint OLS fuel/wear fit refuses unidentified parameters; shared clean laps; no compound offset; pit loss from in/out laps
 - [Phase 02]: DEC-068 free-track plan rules; DEC-069 plan cutoff policy and analytic ground truth
 - [Phase 03]: DEC-074/075: scipy+numba locked; SC rate Beta(3,297) on earlier races, edge-rule deployments, median duration (fallback 4)
+- [Phase 03]: DEC-076/077: SC regime at cutoff, shared per-compound wear draw, SimulationResult diagnostics
 
 ### Pending Todos
 
