@@ -4,13 +4,13 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Phase 3 context gathered
-last_updated: "2026-11-12T08:39:26.422Z"
-last_activity: 2026-11-12 -- Phase 3 planning complete
+last_updated: "2026-11-12T08:57:54.806Z"
+last_activity: 2026-11-12
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 23
-  completed_plans: 16
+  completed_plans: 17
   percent: 25
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-22)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 3 — monte carlo simulator
+**Current focus:** Phase 3 — monte-carlo-simulator
 
 ## Current Position
 
-Phase: 3
-Plan: Not started
+Phase: 3 (monte-carlo-simulator) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-11-12 -- Phase 3 planning complete
+Last activity: 2026-11-12
 
-Progress: [██████████] 100%
+Progress: [███████░░░] 74%
 
 ## Performance Metrics
 
@@ -45,6 +45,7 @@ Progress: [██████████] 100%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 02 | 5 | - | - |
+| Phase 03 P01 | 1h | 3 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,7 @@ Progress: [██████████] 100%
 - [Phase 02]: DEC-062: RaceState None-not-NaN JSON; regime and pit_loss_s are placeholders
 - [Phase 02]: DEC-063..066: joint OLS fuel/wear fit refuses unidentified parameters; shared clean laps; no compound offset; pit loss from in/out laps
 - [Phase 02]: DEC-068 free-track plan rules; DEC-069 plan cutoff policy and analytic ground truth
+- [Phase 03]: DEC-074/075: scipy+numba locked; SC rate Beta(3,297) on earlier races, edge-rule deployments, median duration (fallback 4)
 
 ### Pending Todos
 
@@ -95,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-12T07:28:46.952Z
+Last session: 2026-11-12T08:57:47.064Z
 Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-monte-carlo-simulator/03-CONTEXT.md
+Resume file: None
