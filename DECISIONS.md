@@ -903,3 +903,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Refusing states with unfitted tyres or absent drivers (fails on the first real race). Dropping retired cars (changes the column contract). Per-compound wear differences for unfitted tyres (not identified by the data).
 **Consequences:** The borrowed pace for SOFT at Bahrain is an average of HARD and SOFT behaviour, not a measurement; Phase 6 recalibration may replace it. Followers' catch-up lap carries no noise, so their first-lap luck is not simulated.
 **Refs:** D-09, D-12, DEC-073
+
+## DEC-083 — Variance reduction: Sobol plus antithetic, measured against plain Monte Carlo
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** SIM-03 requires that the variance-reduced sampling is measurably less noisy than plain Monte Carlo at equal N, not just that it is implemented.
+**Decision:** The same `NumpySimulator` is run with `variance_reduction` set to `none` and `sobol_antithetic` over R = 120 independent seeds (`make_rng(1000 + s)`), N = 1024 races, on a 10-car, 30-lap trimmed copy of the long synthetic race with cars 0.5 s apart, mixed pace offsets (SD 0.2 s) and a safety-car rate of 0.03 per lap (duration 3). Measured variance ratios var(none)/var(sobol_antithetic) for the car in grid slot 5: mean finishing position 4.54, mean total time 16.43, safety-car share 3.19. The report-only P(top 5) ratio is 4.22. Asserted margins are about 75% of the measured values: 3.4, 12.0 and 2.4. The test also checks that the two arms agree on the mean within 4 standard errors (no bias) and that the whole comparison is deterministic by seed (scipy and numpy versions pinned in uv.lock).
+**Why:** R = 120 puts the sampling error of a variance ratio near 13% (R = 40 gives about 30%), so the 75% margins are safe yet still fail if the reduction disappears. A first attempt used the default synthetic grid, where the pace offsets are sorted by grid slot and nobody ever passes: finishing positions were deterministic and the estimator carried no information, so the test state was made contested on purpose.
+**Alternatives rejected:** Asserting on P(top 5) (RESEARCH Pitfall 8 expected little gain; here it was 4.22, so it stays report-only because a threshold indicator can change with the model). R = 40 (ratio noise too large).
+**Consequences:** The explainer can quote 16x for total time and 3 to 5x for the discrete estimators. The gain depends on the state: with a field that never reshuffles the finishing estimator is constant and the ratio is meaningless.
+**Refs:** D-13, D-14, SIM-03
+
+## DEC-084 — Benchmark: 50,000 x 20 x 57 under 10 s with the Numba warm-up excluded
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** SIM-02 requires 50,000 simulated races within 10 s; CI runners are slower than the development PC.
+**Decision:** `tests/sim/test_benchmark.py` simulates 50,000 races of the full 57-lap, 20-car long synthetic state (default `sobol_antithetic`, safety-car rate 0.01, `record_clocks=False`) after a 64-race warm-up call. Three local timings: 1.45 s, 1.38 s and 1.49 s, so the 10 s budget has about 6x headroom locally. The warm-up is excluded because `cache=True` compiles on the first CI run (about 1 s) and loads from cache afterwards. No `benchmark` marker or skip: the test stays in the default selection on Ubuntu and Windows. The two result arrays take 16 MB each at 50,000 x 20 (the sum is asserted below 40 MB), no per-lap tensors are kept and `clock_s` is None.
+**Why:** The warm-up makes first and later CI runs equal; the 10 s limit is never raised, headroom absorbs slower runners.
+**Alternatives rejected:** A `benchmark` marker that CI deselects (the gate would not prove SIM-02). Timing the compile (varies with cache state).
+**Consequences:** No simulator optimisation was needed in this plan; the 20 optimizer calls per simulate stay uncached.
+**Refs:** D-18, SIM-02
