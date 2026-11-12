@@ -205,3 +205,16 @@ def test_parser_lists_simulate() -> None:
     assert "simulate" in parser.format_help()
     ns = parser.parse_args(["simulate", "x-2023", "--driver", "ALO"])
     assert (ns.n, ns.seed, ns.lap) == (50000, 0, None)
+
+
+def test_lower_case_driver_code_is_accepted(
+    long_synthetic_data_dir: Path,
+    long_synthetic_db: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """IN-03: `simulate` upper-cases --driver like `plan` does."""
+    code = _code(long_synthetic_db, LONG_RACE_ID)
+    args = ("simulate", LONG_SLUG, "--driver", code.lower(), "--n", "200")
+    assert _run(long_synthetic_data_dir, tmp_path, *args) == 0
+    assert code in capsys.readouterr().out

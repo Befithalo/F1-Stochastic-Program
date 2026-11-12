@@ -148,7 +148,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     simulate.add_argument("slug", metavar="SLUG", help="race slug (for example bahrain-2023)")
     simulate.add_argument(
-        "--driver", required=True, metavar="CODE", help="driver code, for example ALO"
+        "--driver",
+        required=True,
+        metavar="CODE",
+        help="driver code, for example ALO (any case). Unlike plan, a driver on wet or "
+        "intermediate tyres is simulated with borrowed dry pace",
     )
     simulate.add_argument(
         "--lap",
@@ -589,6 +593,7 @@ def _cmd_simulate(
 ) -> int:
     """Simulate n_races continuations and print one driver's finishing-position distribution."""
     try_line = f"Try: uv run f1si simulate {slug} --driver CODE --lap 20"
+    driver = driver.upper()
     if not _DRIVER_CODE.fullmatch(driver):
         return _refuse(
             f"Driver codes are three capital letters, like VER; got {driver}. {try_line}"
