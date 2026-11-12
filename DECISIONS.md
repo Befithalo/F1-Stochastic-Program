@@ -782,3 +782,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Keeping `inv` and catching `LinAlgError` (still unreliable below the error threshold). A pseudo-inverse with a cutoff (a silent minimum-norm answer, which the fit forbids). Ridge (biases the wear and fuel numbers).
 **Consequences:** A design with condition number between 1e6 and 1e8 that was reported before is now reported as unidentified. Real Bahrain 2023 and the synthetic races sit far below 1e6, so their numbers are unchanged. Supersedes the 1e8 value in the module docstring only; no earlier DEC pinned it.
 **Refs:** D-01, D-03, D-04
+
+## DEC-072 — Residual variance corrected for the 3-MAD trimming
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Code review WR-04. Up to five passes of re-fit and trim at 3 robust sigma cut the tails of the residuals, and the final `s^2 = RSS / (n - p)` was taken on the trimmed sample as if it were complete. That understates the noise: on 40 synthetic races with Gaussian noise of 0.15 s the reported `sigma_s` averaged 2.7% low, against 1.2% low with no trimming at all (the remaining 1.2% is a property of the generator and the fit, not of trimming). `sigma_s` is the predictive spread and the wear SE fills `wear_sd`, so both were too small.
+**Decision:** When any lap was trimmed, `sigma_s` is the root of `sigma^2 * v(c / sigma) = RSS / (n - p)` where `v(k) = 1 - 2 k phi(k) / (2 Phi(k) - 1)` is the variance of a standard normal cut at +/- k (v(3) = 0.9733) and `c` is the cutoff the last pass applied, or the largest kept deviation if that is larger. The SEs use the same corrected sigma: `cov = sigma^2 (X'X)^-1`. With no trimming nothing changes. Solved by bisection (no new dependency). The trimming rule itself (symmetric, 3 MAD, up to 5 passes) is unchanged; DEC-065 and earlier decisions are not contradicted.
+**Why:** It makes the reported spread unbiased under Gaussian noise, which is the honest-uncertainty goal. Inflating the SE as well is deliberately conservative: the trimmed estimator picks its own sample, which the naive formula ignores.
+**Alternatives rejected:** The pre-trim robust sigma (MAD of the first-pass residuals), which is biased by the first-pass fit and by contamination. Multiplying by a fixed 1/sqrt(0.9733) (wrong when the iterated cutoff is tighter than 3 sigma). Asymmetric trimming of slow laps only (a behaviour change that needs its own evidence).
+**Consequences:** On real Bahrain 2023 (41 laps trimmed, more than a Gaussian would give) sigma_s rises about 3% and wear SEs about 3%. Real data are contaminated by traffic, so the correction assumes the bulk is Gaussian and the trimmed laps are outliers; heavy tails remain a known limit.
+**Refs:** D-01, D-04, D-25

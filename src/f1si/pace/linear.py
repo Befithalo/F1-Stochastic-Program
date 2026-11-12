@@ -36,6 +36,15 @@ breakdown (1e16):
     s^2 = RSS / (n - p),    cov = s^2 V diag(1 / S^2) V',    SE = sqrt(diag(cov)),
     interval = estimate +/- 1.96 SE
 
+Trimming at +/- c cuts the tails, so RSS / (n - p) understates the noise variance. If the noise
+is Normal(0, sigma^2) cut at +/- c, the kept variance is sigma^2 * v(c / sigma) with
+
+    v(k) = 1 - 2 k phi(k) / (2 Phi(k) - 1)        (v(3) = 0.9733)
+
+and `sigma_s` is the root of sigma^2 v(c / sigma) = RSS / (n - p), with c the cutoff actually
+applied in the last pass (or the largest kept deviation if larger). `sigma_s` and the SEs use that
+corrected sigma (DEC-072).
+
 The wear slope SE is what fills `RaceState` `wear_sd` (D-04).
 
 Pit loss (D-05). For a green-flag stop, loss = (in-lap + out-lap time) - (the model's clean
@@ -47,6 +56,7 @@ The module sees only a `RaceSnapshot` (plain data), so at lap N it uses only lap
 
 from __future__ import annotations
 
+import math
 from collections import Counter
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -354,6 +364,38 @@ def _param_names(design: _Design) -> list[str]:
     )
 
 
+def truncated_variance_factor(k: float) -> float:
+    """Variance of a standard normal cut at +/- k: v(k) = 1 - 2 k phi(k) / (2 Phi(k) - 1)."""
+    pdf = math.exp(-0.5 * k * k) / math.sqrt(2.0 * math.pi)
+    mass = math.erf(k / math.sqrt(2.0))  # 2 Phi(k) - 1
+    return 1.0 - 2.0 * k * pdf / mass
+
+
+def untruncated_sigma(s: float, cutoff: float) -> float:
+    """Normal sigma whose +/- `cutoff` truncation has standard deviation `s`.
+
+    Solves sigma^2 * v(cutoff / sigma) = s^2 for sigma >= s. If no root exists (the sample is
+    spread out almost as much as a uniform on the cut), it returns `s` unchanged.
+    """
+    if s <= 0.0 or cutoff <= 0.0:
+        return s
+
+    def gap(sigma: float) -> float:
+        return sigma**2 * truncated_variance_factor(cutoff / sigma) - s**2
+
+    upper = 4.0 * s
+    if gap(upper) <= 0.0:
+        return s
+    low, high = s, upper
+    for _ in range(100):  # bisection; gap is increasing in sigma
+        mid = 0.5 * (low + high)
+        if gap(mid) < 0.0:
+            low = mid
+        else:
+            high = mid
+    return 0.5 * (low + high)
+
+
 def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
     """Fit fuel and per-compound wear on the clean laps of `snapshot` (never raises on shortage).
 
@@ -368,6 +410,7 @@ def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
     final_reason = np.array(reason_col, dtype=object)
     active = np.array([r is None for r in reason_col], dtype=bool)
     n_trimmed = 0
+    cutoff: float | None = None
     design = _build(table, active)
     for iteration in range(MAX_TRIM_ITERATIONS + 1):
         design = _build(table, active)
@@ -435,7 +478,8 @@ def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
         sigma_rob = 1.4826 * float(np.median(np.abs(resid - centre)))
         if sigma_rob <= 0.0:
             break
-        out = np.abs(resid - centre) > MAD_K * sigma_rob
+        cutoff = MAD_K * sigma_rob
+        out = np.abs(resid - centre) > cutoff
         if not out.any():
             break
         for idx in design.rows[out]:
@@ -445,6 +489,9 @@ def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
     n, p = design.x.shape
     rss = float(resid @ resid)
     s2 = rss / (n - p)
+    if n_trimmed > 0 and cutoff is not None:
+        c_eff = max(cutoff, float(np.max(np.abs(resid - np.median(resid)))))
+        s2 = untruncated_sigma(float(np.sqrt(s2)), c_eff) ** 2
     cov = s2 * (vt_thin.T / sv**2) @ vt_thin
     se = np.sqrt(np.diag(cov))
     nd = len(design.drivers)

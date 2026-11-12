@@ -151,4 +151,6 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.plots.wear.render_wear_plot": "writes a figure of prepared WearPlotData to disk",
     "f1si.plots.wear.wear_file_name": "string function of a validated slug",
     "f1si.plots.stints.plot_file_name": "string function of a slug and driver codes",
+    "f1si.pace.linear.truncated_variance_factor": "pure math of a number, reads no race data",
+    "f1si.pace.linear.untruncated_sigma": "pure math of two numbers, reads no race data",
 }
