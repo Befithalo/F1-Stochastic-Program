@@ -881,3 +881,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Sobol over all dimensions (poor quality and a huge engine). A single stream consumed in race order (a forced plan would shift other drivers' draws).
 **Consequences:** Plan 03-04 assembles the simulator from these blocks; the variance comparison against plain MC is tested in plan 03-05.
 **Refs:** D-13, D-14, D-15, SIM-03
+
+## DEC-081 — Plan resolution for every car, fallback rule, opportunistic SC stops
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** The simulator must give every car a pit plan, while a caller (Phase 5) prices a specific plan for one driver and needs exactly that plan simulated.
+**Decision:** `resolve_plans` uses a forced plan unchanged (stop laps must lie in `(laps_done, laps_total]`, unknown codes raise the friendly `state.car` error). Every other car gets `FreeTrackOptimizer.rank_plans(state, driver=code)[0]`, computed once per call. Only `PlanRefusedError` is caught; the fallback is one stop at `laps_done + round(remaining / 2)` onto the first fitted compound (sorted) the car has not used, with stints of at least `MIN_STINT_LAPS` on both sides and at most `MAX_TOTAL_STOPS - stops_done` stops, else no stop. Fallback plans carry `Plan.total_time_s = 0.0` because they are not priced. The opportunistic safety-car stop applies only to cars not named in `plans`, so a forced plan is simulated exactly as asked. A safety car already active at the cutoff counts as starting on the first simulated lap. Every car's plan source ("forced", "optimizer", "fallback") and the refusal reason are returned in `plan_sources`.
+**Why:** Pricing a plan means simulating that plan, not a version the simulator improved on; a car the optimizer cannot price (unknown or unfitted tyre) still has to race.
+**Alternatives rejected:** Letting forced cars also take opportunistic stops (the priced plan would differ from the requested one). A bare `except` (would hide real bugs). Dropping cars the optimizer refuses (breaks the one-column-per-car contract).
+**Consequences:** Plan 03-05 may cache the optimizer plans if profiling shows the 20 brute-force calls matter. The fallback ignores the car's pace.
+**Refs:** D-10, D-11, D-12
+
+## DEC-082 — Starting a simulation from a real RaceState: catch-up lap, spacing, retired cars, borrowed pace
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Real states are cut at the leader's line crossing: the leader has `lap` laps, others usually `lap - 1`, some cars have retired, and a whole-race fit may lack tyres or drivers (Bahrain 2023 whole-race fit has only HARD and SOFT; PIA retired on lap 13 and is absent from the fit).
+**Decision:** Clocks are relative to the leader's line crossing at lap `state.lap`. The leader holds its predicted lap time; the others the cumulative `gap_ahead_s` down the position order, `START_SPACING_S` where a gap is None (cars without a position sort last by number). A follower with `laps_done < lap` runs one noise-free catch-up lap first (age +1, plan stop and pit loss applied, slowed to `SC_SLOWDOWN` times the leader's lap under a cutoff safety car) and the order is re-sorted by clock. A car more than one lap behind (retired or lapped) gets a penalty of the missing laps times the leader's lap time and is then forced behind every other car, with a diagnostics line "driver X: retired or lapped, placed last", so results stay a permutation (D-09). An unknown start tyre is assigned the first fitted compound. Pace is wrapped in `BorrowedPace`: an unfitted compound gets the mean of the fitted compounds' means (max SD), a driver absent from the fit the field-average of the fitted drivers; the pace-offset SD of an absent driver is the standard deviation of the state's `pace_offset_s` values (0 with fewer than two). All substitutions are listed in diagnostics. Inputs are capped (`MAX_RACES`, `MAX_CARS`, `MAX_LAPS`) and validated before the compiled kernel runs.
+**Why:** These are the smallest rules that let the simulator start from any real state without refusing cars, and they say loudly when they approximate.
+**Alternatives rejected:** Refusing states with unfitted tyres or absent drivers (fails on the first real race). Dropping retired cars (changes the column contract). Per-compound wear differences for unfitted tyres (not identified by the data).
+**Consequences:** The borrowed pace for SOFT at Bahrain is an average of HARD and SOFT behaviour, not a measurement; Phase 6 recalibration may replace it. Followers' catch-up lap carries no noise, so their first-lap luck is not simulated.
+**Refs:** D-09, D-12, DEC-073
