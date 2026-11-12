@@ -14,6 +14,7 @@ import numpy as np
 from f1si.data.asof import AsOf, AsOfAccessor
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
+from f1si.plots.wear import prepare_wear_plot_data
 from f1si.state import build_race_state
 from tests.guards.scramble import Consumer
 
@@ -87,6 +88,12 @@ def race_state(db_path: Path, at: AsOf) -> object:
     )
 
 
+def wear_plot_data(db_path: Path, at: AsOf) -> object:
+    """The wear plot's prepared data (points, lines, panels)."""
+    snapshot = AsOfAccessor(db_path).snapshot(at)
+    return prepare_wear_plot_data(snapshot, fit_linear_pace(snapshot))
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -97,6 +104,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "linear_fit": linear_fit,
     "pit_loss": pit_loss,
     "race_state": race_state,
+    "wear_plot_data": wear_plot_data,
 }
 
 
@@ -111,6 +119,7 @@ DESIGNATED_MODULES: Final = (
     "f1si.plots.stints",
     "f1si.pace.linear",
     "f1si.state",
+    "f1si.plots.wear",
 )
 
 # qualified name -> name of the registered consumer that calls it
@@ -121,6 +130,7 @@ CONSUMED: Final[dict[str, str]] = {
     "f1si.pace.linear.fit_linear_pace": "linear_fit",
     "f1si.pace.linear.measure_pit_loss": "pit_loss",
     "f1si.pace.linear.LinearPaceFit.predict": "linear_fit",
+    "f1si.plots.wear.prepare_wear_plot_data": "wear_plot_data",
     "f1si.state.build_race_state": "race_state",
     "f1si.state.RaceState.to_json": "race_state",
     "f1si.state.RaceState.to_json_dict": "race_state",
@@ -137,5 +147,8 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.pace.linear.LinearPaceFit.wear_rate": "pure lookup of already fitted values",
     "f1si.pace.linear.LinearPaceFit.wear_se": "pure lookup of already fitted values",
     "f1si.pace.linear.LinearPaceFit.pace_offset": "pure lookup of already fitted values",
+    "f1si.plots.wear.build_wear_figure": "pure drawing of already-prepared WearPlotData",
+    "f1si.plots.wear.render_wear_plot": "writes a figure of prepared WearPlotData to disk",
+    "f1si.plots.wear.wear_file_name": "string function of a validated slug",
     "f1si.plots.stints.plot_file_name": "string function of a slug and driver codes",
 }

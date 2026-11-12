@@ -58,3 +58,14 @@ def test_wear_unknown_slug(
 ) -> None:
     assert _run(long_synthetic_data_dir, tmp_path, "wear", "nowhere-2023") == 1
     assert capsys.readouterr().err.strip()
+
+
+def test_wear_writes_the_png(
+    long_synthetic_data_dir: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert _run(long_synthetic_data_dir, tmp_path, "wear", LONG_SLUG) == 0
+    png = tmp_path / f"wear-{LONG_SLUG}.png"
+    assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    wrote = [line for line in capsys.readouterr().out.splitlines() if line.startswith("Wrote ")]
+    assert len(wrote) == 1
+    assert wrote[0].endswith("Open it to see fuel-corrected lap time against tyre age.")

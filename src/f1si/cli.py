@@ -30,6 +30,7 @@ from f1si.pace.linear import (
     measure_pit_loss,
 )
 from f1si.plots.stints import plot_file_name, prepare_stint_plot_data, render_stint_plot
+from f1si.plots.wear import prepare_wear_plot_data, render_wear_plot, wear_file_name
 from f1si.rng import DEFAULT_SEED, make_rng
 
 _FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan"})
@@ -189,7 +190,6 @@ def _cmd_plot(data_dir: Path, reports_dir: Path, slug: str, drivers: Sequence[st
 
 def _cmd_wear(data_dir: Path, reports_dir: Path, slug: str, lap: int | None) -> int:
     """Print fitted wear per compound, the fuel effect, the pit loss and what was dropped."""
-    del reports_dir  # the wear plot (plan 02-03) is written there
     db = paths.db_path(data_dir)
     race_id = asof.resolve_slug(db, slug)
     if lap is not None and lap < 0:
@@ -270,6 +270,9 @@ def _cmd_wear(data_dir: Path, reports_dir: Path, slug: str, lap: int | None) -> 
         "Note: compound pace offsets are not modeled; "
         "compound choice among near-ties is not meaningful."
     )
+    out = reports_dir / wear_file_name(race.slug)
+    render_wear_plot(prepare_wear_plot_data(snapshot, fit), out)
+    print(f"Wrote {out}. Open it to see fuel-corrected lap time against tyre age.")
     return 0
 
 
