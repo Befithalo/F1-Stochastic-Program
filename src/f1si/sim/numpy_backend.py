@@ -134,7 +134,11 @@ class NumpySimulator:
         if not self._compounds:
             raise ValueError("compounds must list at least one fitted compound")
         self._optimizer = optimizer or FreeTrackOptimizer(model, compounds=self._compounds)
-        self._wear_sd = None if wear_sd_by_compound is None else dict(wear_sd_by_compound)
+        self._wear_sd = (
+            None
+            if wear_sd_by_compound is None
+            else {str(k).upper(): v for k, v in wear_sd_by_compound.items()}
+        )
         if fitted_drivers is None:
             report = getattr(model, "report", None)
             offsets = getattr(report, "driver_offsets", None)
@@ -412,7 +416,7 @@ class NumpySimulator:
     def _wear_sd_array(self, comp_names: list[str], diagnostics: list[str]) -> NDArray[np.float64]:
         table = self._wear_sd or {}
         fitted_values = [
-            float(v) for k, v in table.items() if k.upper() in self._compounds and v is not None
+            float(v) for k, v in table.items() if k in self._compounds and v is not None
         ]
         out = np.zeros(len(comp_names), dtype=np.float64)
         for i, name in enumerate(comp_names):

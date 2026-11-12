@@ -109,3 +109,25 @@ def test_forced_new_compound_leaves_other_draws_alone() -> None:
     _, mask_b = run("SOFT", 0.15)
     assert mask_a.any()
     assert np.array_equal(mask_a, mask_b)
+
+
+def test_wear_sd_keys_are_case_insensitive() -> None:
+    """WR-04: 'Hard' and 'HARD' give the same wear uncertainty."""
+    state = hand_state(2, lap=0, laps_total=6, spacing_s=60.0)
+
+    def run(key: str) -> NDArray[np.float64]:
+        sim = NumpySimulator(
+            NoisyPace(),
+            sc=SafetyCarModel(0.0, 3),
+            compounds=("HARD",),
+            wear_sd_by_compound={key: 0.05},
+        )
+        return sim.simulate(state, n_races=32, rng=make_rng(5)).total_time_s
+
+    assert np.array_equal(run("Hard"), run("HARD"))
+    sim0 = NumpySimulator(
+        NoisyPace(), sc=SafetyCarModel(0.0, 3), compounds=("HARD",), wear_sd_by_compound={}
+    )
+    assert not np.array_equal(
+        sim0.simulate(state, n_races=32, rng=make_rng(5)).total_time_s, run("Hard")
+    )
