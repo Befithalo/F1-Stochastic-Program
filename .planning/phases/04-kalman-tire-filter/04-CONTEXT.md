@@ -123,6 +123,22 @@ Requirements: PAC-03, PAC-04.
   - Add DEC entries from DEC-088 for every method choice, and bump `MIN_ENTRIES` (87 now).
   - Every new module goes into the explainer tour in the same task that creates it.
 
+### Decided after research (2026-11-12)
+- **D-17: PAC-04 accuracy target restated** *(owner's decision, answered after the research)*.
+  - **The finding.** Research (04-RESEARCH.md § Feasibility) shows that "within 10% by stint lap 8" cannot be reached honestly. At generator noise 0.15 s, with a prior wide enough to matter and fuel known, the mean absolute relative error at stint lap 8 is about 19% (SOFT), 28% (MEDIUM) and 35% (HARD). With a fuel prior it is 22%, 31% and 37%.
+  - **The owner chose "Test optimal accuracy":**
+    - a gated test proves the filter reaches the best accuracy the data allows, meaning its posterior SD and Monte Carlo error match the closed-form Bayes-optimal values within Monte Carlo error;
+    - the 10% figure is reported against (printed and documented), not gated;
+    - error at stint lap 8 must be below error at lap 0;
+    - coverage and narrowing stay gated (D-11).
+  - **Phase 7.** The target is revisited there, where pooling across cars can get closer.
+  - **Records.** Log a DEC entry. REQUIREMENTS.md PAC-04 and ROADMAP criterion 2 are annotated, not silently rewritten.
+- **D-18: three-state filter** *(Claude's pick, from research)*. Refines D-01. The state is [level, wear rate, fuel deviation]. The fuel deviation is a nuisance state with the fuel-prior SD, so the reported wear SD is the exact marginal posterior SD including fuel uncertainty (D-06). Ages are re-centred at the first measured lap of the stint.
+- **D-19: when the Phase 2 fit becomes the prior** *(Claude's pick, research OQ2)*.
+  - **Condition.** Use the as-of fit only when it is identified and the compound is fitted.
+  - **Between-car spread.** Inflate the fit's SE with a between-car spread `tau_car` (about 0.03 s/lap, ASSUMED, logged in a DEC entry). Add no extra "not before lap N" rule.
+  - **Demo.** The real-data demo reports the Bahrain prior at laps 14, 20 and 30, so the early-fit bias is visible.
+
 ### Claude's Discretion
 - Module layout, for example `f1si/pace/kalman.py` with the CLI in `cli.py` and the plot in `plots/wear_filter.py`.
 - Exact generic prior values and the gate threshold, within D-05 and D-08, logged in DEC entries.

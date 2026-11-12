@@ -160,7 +160,7 @@ Plans:
 **Success Criteria** (what must be TRUE):
 
   1. User runs the filter on a real stint and sees a wear-rate estimate with a band that narrows over the first laps
-  2. On synthetic stints the estimate is within 10% of the true wear by lap 8
+  2. On synthetic stints the estimate is within 10% of the true wear by lap 8 *(restated, Phase 4 D-17: gated as "reaches the Bayes-optimal accuracy the data allows"; 10% is reported against, about 19-35% is attainable at stint lap 8; revisit in Phase 7)*
   3. On synthetic stints the 95% intervals contain the true value about 95% of the time
   4. The filter's wear mean and sd populate the `RaceState` fields the simulator reads
 
