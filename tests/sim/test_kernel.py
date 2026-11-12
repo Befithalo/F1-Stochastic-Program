@@ -192,6 +192,7 @@ def test_sc_pit_loss_and_opportunistic_stop() -> None:
         stop_lap=[[7, BIG], [7, BIG], [BIG, BIG]],
         u_sc=0.0,
         opportunistic=[True, False, False],
+        ages=[10, 10, 10],
     )
     st = case.build()
     run(st, lap=5, sc_rate=1.0)
@@ -201,6 +202,24 @@ def test_sc_pit_loss_and_opportunistic_stop() -> None:
     st2 = Case(1, 2, [90.0, 90.0], [0.0, 10.0], stop_lap=[[5, BIG], [BIG, BIG]], sc_left=2).build()
     run(st2, lap=5)
     assert st2["pit_paid"][0, 0] == 11.0
+
+
+def test_opportunistic_stop_needs_a_long_enough_current_stint() -> None:
+    """WR-05: the stint being ended must itself have at least `min_stint` laps."""
+    case = Case(
+        1,
+        2,
+        [90.0, 90.0],
+        [0.0, 10.0],
+        stop_lap=[[7, BIG], [BIG, BIG]],
+        u_sc=0.0,
+        opportunistic=[True, False],
+        ages=[2, 2],
+    )
+    st = case.build()
+    run(st, lap=5, sc_rate=1.0)
+    assert st["pit_paid"][0].tolist() == [0.0, 0.0]
+    assert st["stops_done"][0].tolist() == [0, 0]
 
 
 def test_sc_fresh_counts_as_start() -> None:
@@ -213,6 +232,7 @@ def test_sc_fresh_counts_as_start() -> None:
         opportunistic=[True, False],
         sc_left=3,
         sc_fresh=True,
+        ages=[10, 10],
     )
     st = case.build()
     run(st, lap=5)

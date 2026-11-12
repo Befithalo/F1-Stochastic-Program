@@ -35,7 +35,7 @@ def _sim(rate: float, duration: int = 3, **kw: object) -> NumpySimulator:
 
 
 def test_opportunistic_stop_moves_to_the_sc_lap_but_forced_does_not() -> None:
-    state = hand_state(2, lap=0, laps_total=10, spacing_s=60.0)
+    state = hand_state(2, lap=0, laps_total=10, spacing_s=60.0, tire_age=6)
     optimizer = _FixedOptimizer(ZeroNoisePace(), compounds=("HARD", "MEDIUM"))
     free = _sim(1.0, optimizer=optimizer).simulate(state, n_races=8, rng=make_rng(1))
     assert free.stop_laps is not None

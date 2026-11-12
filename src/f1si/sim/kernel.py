@@ -21,8 +21,9 @@ Rules, per race and lap, in this order:
 2. Free times `T` per car.
 3. Pit decisions. A planned stop happens when `lap == stop_lap[c, stops_done[c]]`. On a lap an
    SC starts, an `opportunistic` car whose next planned stop lies within
-   `[lap, lap + sc_window]`, and whose following stop (if any) is at least `min_stint` laps
-   later, takes that stop now (the stop is consumed, the rest of the plan is untouched). The pit
+   `[lap, lap + sc_window]`, whose following stop (if any) is at least `min_stint` laps later
+   and whose stint being ended has at least `min_stint` laps (`age + 1`), takes that stop now
+   (the stop is consumed, the rest of the plan is untouched). The pit
    loss is `pit_loss_sc` on an SC lap, else `pit_loss_green`. The in-lap uses the old tyre; the
    age then resets to 0 and the compound becomes `next_comp[c, k]`; otherwise `age += 1`.
 4. Arrival `arr[c] = clock[c] + T_eff + pit_loss`, with `T_eff = sc_slowdown * T[leader]` for
@@ -149,8 +150,12 @@ def lap_step(
                 if nxt == lap:
                     pitted[c] = True
                 elif sc_started and opportunistic[c] and nxt >= lap and nxt <= lap + sc_window:
-                    following_ok = True
-                    if k_stop + 1 < n_stops and stop_lap[c, k_stop + 1] - lap < min_stint:
+                    following_ok = age[r, c] + 1 >= min_stint  # stint being ended is long enough
+                    if (
+                        following_ok
+                        and k_stop + 1 < n_stops
+                        and stop_lap[c, k_stop + 1] - lap < min_stint
+                    ):
                         following_ok = False
                     if following_ok:
                         pitted[c] = True
