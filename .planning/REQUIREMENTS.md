@@ -22,9 +22,9 @@
 
 ### Interfaces
 
-- [ ] **INT-01**: `f1si/interfaces.py` defines typed Protocols `PaceModel`, `StrategyPolicy` and `SimulatorBackend`
-- [ ] **INT-02**: A shared test suite runs against every implementation of each Protocol
-- [ ] **INT-03**: A shared `RaceState` object (per the BUILD_PLAN schema) is the single input to simulator and policy
+- [x] **INT-01**: `f1si/interfaces.py` defines typed Protocols `PaceModel`, `StrategyPolicy` and `SimulatorBackend`
+- [x] **INT-02**: A shared test suite runs against every implementation of each Protocol
+- [x] **INT-03**: A shared `RaceState` object (per the BUILD_PLAN schema) is the single input to simulator and policy
 
 ### Pace and Tire Model
 
@@ -102,9 +102,9 @@
 | DAT-04 | Phase 1 | Complete |
 | DAT-05 | Phase 1 | Complete |
 | UI-03 | Phase 1 (recurs every phase) | Complete |
-| INT-01 | Phase 2 | Pending |
-| INT-02 | Phase 2 | Pending |
-| INT-03 | Phase 2 | Pending |
+| INT-01 | Phase 2 | Complete |
+| INT-02 | Phase 2 | Complete |
+| INT-03 | Phase 2 | Complete |
 | PAC-01 | Phase 2 | Pending |
 | PAC-02 | Phase 2 | Pending |
 | SIM-01 | Phase 3 | Pending |
