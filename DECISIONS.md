@@ -936,3 +936,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A default of the mid-race lap (hides that the fit uses the future). Silent clipping of `--n` (hides the cap). Letting argparse parse-errors stand for `--n abc` (kept: argparse exits with code 2 and a one-line usage message, no traceback).
 **Consequences:** The distribution is a single driver's view; the finishing rows can be fully concentrated on one position when the synthetic or real field never reshuffles in the simulation.
 **Refs:** D-16, D-17, D-18
+
+## DEC-086 — Clock and order stay consistent: a dirty-air sweep and finishing places from the order
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Code review CR-01. After a successful pass the kernel added the pass cost to the passer and stopped, so the passer's clock could land below the clock of a car that was still ahead of it in `order`. The simulator then ranked cars by clock, and the next lap's gap checks used `order`, so the two views of the race disagreed and a car could gain two places in one lap.
+**Decision:** After the front-to-back green-lap loop, the kernel sweeps positions `p = 1 .. C - 1` and enforces `arr[order[p]] >= arr[order[p - 1]] + min_gap_s`: a car cannot cross the line closer than the dirty-air gap behind the car now ahead, so it is held. Safety-car laps already sort by arrival, so the invariant (clocks strictly increasing along `order`) holds after every lap. `NumpySimulator.simulate` takes `finish_positions` from the final `order` and keeps `total_time_s` as the clock. A seeded property test runs random races through `lap_step` and `lap_step.py_func` and checks the invariant after every lap; another checks that places equal clock ranks.
+**Why:** The sweep is the smallest rule that keeps "at most one pass per car per lap" true and costs one extra pass over the cars.
+**Alternatives rejected:** Re-checking the passer against the next car ahead in a loop (allows several passes per lap). Ranking by clock only (hides the inconsistency).
+**Consequences:** A few pass outcomes now cost the passer a small hold; measured variance ratios and the benchmark are re-run after this change.
+**Refs:** DEC-078, SIM-01

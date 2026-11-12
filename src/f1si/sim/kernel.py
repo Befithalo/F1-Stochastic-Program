@@ -33,7 +33,10 @@ Rules, per race and lap, in this order:
    ahead; otherwise (ii) a pass is attempted with `delta = T[a] - T[c]`, succeeding iff
    `pu[r, c] < pass_probability(delta)`. Success swaps the pair, `arr[c] += pass_cost_s` and
    `arr[a] = max(arr[a], arr[c] + min_gap_s)`; failure holds `c` at `arr[a] + min_gap_s` (dirty
-   air). One uniform per car per lap, at most one pass per car per lap.
+   air). One uniform per car per lap, at most one pass per car per lap. A final sweep over positions
+   `p = 1 .. C - 1` then enforces `arr[order[p]] >= arr[order[p - 1]] + min_gap_s` (a car is
+   held rather than crossing the line closer than the dirty-air gap behind the car now ahead),
+   so after every lap the clocks are strictly increasing along `order` (DEC-086).
 6. Safety-car lap: no passing; stable sort of positions by arrival (only pit stops reorder).
    If `sc_left == 1` this is the restart lap: afterwards `arr[order[p]] = arr[order[0]] +
    restart_spacing_s * p`.
@@ -183,6 +186,12 @@ def lap_step(
                     else:
                         arr[c] = arr[a] + min_gap_s
                     break
+            # clock/order invariant (CR-01): a car cannot cross the line closer than the
+            # dirty-air gap behind the car now ahead of it; it is held
+            for p in range(1, n_cars):
+                floor = arr[order[r, p - 1]] + min_gap_s
+                if arr[order[r, p]] < floor:
+                    arr[order[r, p]] = floor
         else:
             # 6. safety car: stable insertion sort by arrival
             for p in range(1, n_cars):

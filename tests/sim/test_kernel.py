@@ -283,3 +283,23 @@ def test_invariants_over_many_laps() -> None:
         order: NDArray[np.int64] = st["order"]
         assert (np.sort(order, axis=1) == np.arange(5)).all()
         assert np.isfinite(st["clock"]).all()
+
+
+@pytest.mark.parametrize("python", [False, True])
+def test_clocks_increase_along_order_after_every_green_lap(python: bool) -> None:
+    """CR-01: after any lap `clock` is strictly increasing along `order` (DEC-086)."""
+    rng = np.random.default_rng(2024)
+    n, c = 300, 8
+    for _ in range(3 if python else 12):
+        base = rng.uniform(88.0, 92.0, size=c).tolist()
+        clock0 = np.sort(rng.uniform(0.0, 3.0, size=c)).tolist()
+        stops = [[int(rng.integers(1, 6)), BIG] for _ in range(c)]
+        st = Case(n, c, base, clock0, stop_lap=stops, pu=0.0).build()
+        st["order"] = np.tile(np.arange(c, dtype=np.int64), (n, 1))
+        for lap in range(1, 7):
+            st["pu"] = rng.random((n, c))
+            st["eps"] = rng.normal(0.0, 0.3, size=(n, c))
+            run(st, lap=lap, python=python, sc_rate=0.0)
+            along = np.take_along_axis(st["clock"], st["order"], axis=1)
+            assert (np.diff(along, axis=1) > 0.0).all()
+            assert (np.sort(st["order"], axis=1) == np.arange(c)).all()

@@ -295,8 +295,15 @@ class NumpySimulator:
                 clocks[:, j, :] = clock
 
         total = np.array(clock, dtype=np.float64)
-        ranks = np.argsort(np.argsort(total, axis=1, kind="stable"), axis=1, kind="stable")
-        positions = (ranks + 1).astype(np.int64)
+        # finishing positions come from the running order, which the kernel keeps consistent with
+        # the clocks (DEC-086); position p (0 = leader) of `order[r]` is finishing place p + 1
+        positions = np.empty_like(order)
+        np.put_along_axis(
+            positions,
+            order,
+            np.broadcast_to(np.arange(1, n_cars + 1, dtype=np.int64), order.shape),
+            axis=1,
+        )
         return SimulationResult(
             finish_positions=positions,
             total_time_s=total,

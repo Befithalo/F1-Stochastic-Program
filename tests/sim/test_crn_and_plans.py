@@ -70,3 +70,12 @@ def test_common_random_numbers_across_forced_plans() -> None:
     _, sc_b = run(0.15, plan_b)
     assert sc_a.any()
     assert np.array_equal(sc_a, sc_b)
+
+
+def test_finish_positions_agree_with_clock_ranks() -> None:
+    """CR-01: places come from the running order, which matches the clock ranking."""
+    state = hand_state(8, lap=0, laps_total=12, spacing_s=0.3)
+    sim = NumpySimulator(NoisyPace(), sc=SafetyCarModel(0.05, 3), compounds=("HARD", "MEDIUM"))
+    res = sim.simulate(state, n_races=400, rng=make_rng(21))
+    ranks = np.argsort(np.argsort(res.total_time_s, axis=1, kind="stable"), axis=1) + 1
+    assert (res.finish_positions == ranks).all()
