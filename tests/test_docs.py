@@ -8,6 +8,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 EXPLAINERS = sorted((ROOT / "docs" / "explained").glob("phase-*.md"))
 PHASE1 = ROOT / "docs" / "explained" / "phase-01.md"
+PHASE2 = ROOT / "docs" / "explained" / "phase-02.md"
 README = ROOT / "README.md"
 
 HEADINGS = (
@@ -79,7 +80,30 @@ def test_readme_commands_and_links() -> None:
         "uv run f1si load",
         "uv run f1si races",
         "uv run f1si plot bahrain-2023",
+        "uv run f1si wear bahrain-2023",
+        "uv run f1si plan bahrain-2023",
         "docs/explained/phase-01.md",
+        "docs/explained/phase-02.md",
+        "lower bound",
+        "Hindsight plan",
+        "compared against",
         "DECISIONS.md",
     ):
         assert needle in readme, needle
+
+
+def test_phase2_tour_names_new_modules_and_tests() -> None:
+    tour = _section(_text(PHASE2), "## File-by-file tour")
+    for path in (
+        "src/f1si/interfaces.py",
+        "src/f1si/state.py",
+        "src/f1si/laps.py",
+        "src/f1si/pace/linear.py",
+        "src/f1si/strategy/free_track.py",
+        "src/f1si/plots/wear.py",
+        "tests/conformance",
+        "tests/guards/consumers.py",
+        "tests/test_cli_wear_plan.py",
+        "tests/real/test_wear_bahrain.py",
+    ):
+        assert path in tour, path
