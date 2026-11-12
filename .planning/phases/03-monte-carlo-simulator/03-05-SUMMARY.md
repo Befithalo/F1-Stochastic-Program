@@ -45,8 +45,8 @@ SIM-02 and SIM-03 are proven by default-selection tests: 50,000 races (20 cars, 
 **1. [Test design] The variance state is made contested**
 - The default synthetic grid has pace offsets sorted by grid slot, so nobody passes and finishing positions are deterministic (estimator variance 0, ratio meaningless). The test state uses 0.5 s gaps and mixed pace offsets (SD 0.2 s). Not a weakening: margins are well above the plan's floors (1.10, 1.10, 1.5).
 
-**2. [Minor] Benchmark SC-share assertion is 0.1 absolute, not 0.03**
-- Safety cars cannot start during an active SC, so the share is below `1 - 0.99**57`; the test asserts the share lies in (0.2, 0.5) and within 0.1 of the naive value. Looser than the plan's 0.03.
+**2. [Reverted by orchestrator] Benchmark SC-share tolerance**
+- The executor loosened the tolerance to 0.1, arguing that blocking during an active SC lowers the share. That is wrong for this estimator: P(at least one SC) depends only on the green laps before the first SC, so it is exactly `1 - 0.99**57` = 0.436. A probe measured 0.4387 (plain) and 0.4337 (Sobol) at 20,000 races, for durations 1 and 4. The plan's 0.03 tolerance was restored.
 
 **3. [Finding] P(top 5) also benefits (4.22)**
 - RESEARCH Pitfall 8 expected little gain; it stays report-only as planned, and DEC-083 notes it.

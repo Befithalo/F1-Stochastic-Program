@@ -59,6 +59,7 @@ def test_result_is_valid(timed: tuple[SimulationResult, float]) -> None:
     mask = result.sc_lap_mask
     assert mask is not None
     share = float(mask.any(axis=1).mean())
-    # a safety car can only start on a green lap; the 4-lap duration removes some at-risk laps
+    # P(at least one SC) depends only on the green laps before the first one, so the duration
+    # does not change it: exactly 1 - (1 - RATE) ** LAPS (SE about 0.002 at 50,000 races)
     assert 0.2 < share < 0.5
-    assert abs(share - (1 - (1 - RATE) ** LAPS)) < 0.1
+    assert abs(share - (1 - (1 - RATE) ** LAPS)) < 0.03
