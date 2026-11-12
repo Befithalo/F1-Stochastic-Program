@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 60
+MIN_ENTRIES = 62
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -119,3 +119,18 @@ def test_stint_plot_conventions_entry_exists_by_title() -> None:
     assert len(matches) == 1
     assert "stint-boundary" in matches[0]
     assert "D-15" in matches[0]
+
+
+def test_interface_signature_entry_exists_by_title() -> None:
+    matches = [body for _, title, body in _entries() if title == "Plug-in interface signatures"]
+    assert len(matches) == 1
+    assert "TYPE_CHECKING" in matches[0]
+    assert "D-11" in matches[0]
+
+
+def test_race_state_entry_exists_by_title() -> None:
+    title = "RaceState layout, JSON and placeholders"
+    matches = [body for _, t, body in _entries() if t == title]
+    assert len(matches) == 1
+    assert "allow_nan=False" in matches[0]
+    assert "driver_number" in matches[0]

@@ -3,8 +3,11 @@
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
-EXPLAINER = ROOT / "docs" / "explained" / "phase-01.md"
+EXPLAINERS = sorted((ROOT / "docs" / "explained").glob("phase-*.md"))
+PHASE1 = ROOT / "docs" / "explained" / "phase-01.md"
 README = ROOT / "README.md"
 
 HEADINGS = (
@@ -16,8 +19,8 @@ HEADINGS = (
 )
 
 
-def _text() -> str:
-    return EXPLAINER.read_text(encoding="utf-8")
+def _text(path: Path = PHASE1) -> str:
+    return path.read_text(encoding="utf-8")
 
 
 def _section(text: str, heading: str) -> str:
@@ -28,14 +31,16 @@ def _section(text: str, heading: str) -> str:
     return text[start:end]
 
 
-def test_headings_exist_in_order() -> None:
-    text = _text()
+@pytest.mark.parametrize("path", EXPLAINERS, ids=lambda p: p.name)
+def test_headings_exist_in_order(path: Path) -> None:
+    text = _text(path)
     positions = [text.index(h + "\n") for h in HEADINGS]
     assert positions == sorted(positions)
 
 
-def test_interview_questions_have_answers() -> None:
-    section = _section(_text(), "## Interview questions")
+@pytest.mark.parametrize("path", EXPLAINERS, ids=lambda p: p.name)
+def test_interview_questions_have_answers(path: Path) -> None:
+    section = _section(_text(path), "## Interview questions")
     parts = re.split(r"^### Q\d+\..*$", section, flags=re.MULTILINE)
     answers = parts[1:]
     assert 3 <= len(answers) <= 5
@@ -44,7 +49,7 @@ def test_interview_questions_have_answers() -> None:
 
 
 def test_tour_covers_every_module() -> None:
-    tour = _section(_text(), "## File-by-file tour")
+    tour = "\n".join(_section(_text(p), "## File-by-file tour") for p in EXPLAINERS)
     modules = sorted(
         p.relative_to(ROOT).as_posix()
         for p in (ROOT / "src" / "f1si").rglob("*.py")

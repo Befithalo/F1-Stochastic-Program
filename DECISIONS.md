@@ -661,3 +661,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A word-boundary match on "lock" (still matches "unlocked block"-like text and other future messages). Exit code 1 for an empty cache (it is a valid state, not an error; a missing cache file still exits 1).
 **Consequences:** If a future DuckDB version rewords its lock message, a busy cache would surface as the raw error until the phrase list is extended; the process-level lock test in `test_db_roundtrip.py` would catch that.
 **Refs:** D-14
+
+## DEC-061 — Plug-in interface signatures
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** Phases 3 to 8 plug pace models, strategy policies and simulators into the platform. Their signatures must be fixed now so later phases add implementations without changing callers (D-10, D-11).
+**Decision:** `PaceModel.predict` is keyword-only and vectorised over int64 `driver` (the driver number, the stable database key; the three-letter code stays in `RaceState`), str `compound`, int64 `tire_age` (laps on the tyres at the end of the lap) and int64 `lap` (1-based); it returns `(mean_s, sd_s)` as float64 arrays of the input shape and never samples (D-09). `StrategyPolicy.decide(state, *, driver)` has no rng parameter: the optimizer is deterministic, and a Phase 5 policy takes its rng in its constructor. `SimulatorBackend.simulate(state, *, n_races, rng, plans=None)` returns a `SimulationResult` with `finish_positions` (n_races, n_cars) and `total_time_s`; the shape is provisional (Phase 3 may add fields, not change these two). `Plan` and `PitDecision` are frozen value types validated in `__post_init__`. The Protocols are `runtime_checkable`, which checks method names only (outcome A1 confirmed: a class with the right name and a wrong signature passes `isinstance`), so the behaviour suites in `tests/conformance` carry the weight. Rejection of wrong signatures is proven by mypy itself: `tests/conformance/test_protocols.py` passes wrong stubs with `# type: ignore[arg-type]`, and strict mode reports an unused ignore if the stub were accepted (outcome A2 confirmed: removing one ignore makes `mypy` fail). `interfaces.py` imports `RaceState` only under `TYPE_CHECKING` (with `from __future__ import annotations`), keeping interfaces, state and pace.linear free of import cycles; `tests/test_import_order.py` guards it.
+**Why:** Integer driver keys vectorise cleanly and match the database. Keeping rng out of `decide` keeps the free-track optimizer a pure function. Behaviour suites catch what name checks cannot.
+**Alternatives rejected:** Passing a driver code string array to `predict` (slow, not numeric). An rng argument on `decide` (no use in a deterministic optimizer). Importing `RaceState` at run time (cycle risk once state.py imports pace.linear).
+**Consequences:** A Monte Carlo policy that needs randomness must hold its own generator. Every new implementation is one registry entry in `tests/conformance/registry.py`.
+**Refs:** D-09, D-10, D-11
+
+## DEC-062 — RaceState layout, JSON and placeholders
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** Policies and simulators share one description of the race at one lap. The BUILD_PLAN fixes its JSON shape, and D-12 forbids breaking changes later.
+**Decision:** `CarState` and `RaceState` are frozen dataclasses with tuples and read-only `MappingProxyType` mappings. The JSON keys equal the BUILD_PLAN shape plus one additive key, `driver_number`. Unknown values are `None`, never NaN, and `to_json` uses `allow_nan=False` (D-23); non-finite floats are rejected when a car is built, and `from_json` rejects NaN constants, unknown keys and bool-as-int. `regime = {"green": 1.0}` and a `pit_loss_s` with only the "green" key are placeholders until Phases 3 and 8 (D-13), and the module docstring says so. The `PaceModel` is injected into the optimizer at construction, so no per-compound rate map is added to the schema (D-10, D-12). `to_arrays()` gives a read-only struct-of-arrays view (NaN, -1 or "" for None) for Phase 3.
+**Why:** Frozen plain data cannot be changed behind a caller's back, and exact JSON round trip makes states storable and testable. None is honest about unknowns where NaN hides them.
+**Alternatives rejected:** NaN for unknowns (silently propagates and is invalid JSON). Putting a per-compound wear map in the state (the schema would change whenever a model changes).
+**Consequences:** Later phases fill the placeholders without touching the field set. A new field needs a new additive key and a DECISIONS entry.
+**Refs:** D-12, D-13, D-23
