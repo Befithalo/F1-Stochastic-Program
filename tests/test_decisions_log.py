@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 67
+MIN_ENTRIES = 69
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -153,3 +153,12 @@ def test_race_state_builder_entry_exists_by_title() -> None:
     matches = [body for _, title, body in _entries() if title.startswith("RaceState builder rules")]
     assert len(matches) == 1
     assert "laps_total" in matches[0]
+
+
+def test_free_track_decisions_exist_by_title() -> None:
+    plan_rules = [b for _, t, b in _entries() if t == "Free-track plan rules and conventions"]
+    assert len(plan_rules) == 1
+    assert "prefix sums" in plan_rules[0]
+    cutoff = [b for _, t, b in _entries() if t == "Plan cutoff policy and analytic ground truth"]
+    assert len(cutoff) == 1
+    assert "hindsight" in cutoff[0]

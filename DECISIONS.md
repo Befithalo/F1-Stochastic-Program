@@ -738,3 +738,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** `scheduled_laps` from the adapter now (touches Phase 1 code, scramble tests and a cache reload). The maximum lap of the cutoff snapshot (equals the cutoff, wrong).
 **Consequences:** A red-flag-shortened race would have a smaller race distance than scheduled; Bahrain 2023 is unaffected. Import-cycle rule: `interfaces.py` imports `RaceState` only under TYPE_CHECKING, `pace.linear` never imports `f1si.state`, and a fresh-subprocess test covers both import orders.
 **Refs:** D-12, D-13, D-14, D-21, D-23, DEC-042
+
+## DEC-068 — Free-track plan rules and conventions
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** PAC-02 needs the fastest 1- or 2-stop plan for one driver, and Phase 5 will reuse the optimizer as its baseline policy. The plan rules, lap convention and pricing method must be fixed so results are comparable and testable.
+**Decision:** State at lap N means N laps completed and a plan covers laps N+1 to the race end. A stop at lap k means lap k is the in-lap and lap k+1 is the out-lap on fresh tyres of age 1; "pit now" is k = N+1. A plan is legal when it has 1 or 2 total stops (stops already made count), uses at least two different dry compounds counting those already used, keeps the running tyre and its age fixed, gives every new stint and the final stint at least 5 laps (the running stint is exempt), and fits only compounds that have a fitted wear rate. Every legal plan is enumerated, a few thousand at lap 0 of a 57-lap race with two compounds. Each plan is priced by calling `PaceModel.predict` and taking prefix sums (one call per compound for fresh stints, one for the running stint), so any model plugs in; the optimizer never reads closed-form parameters, and a slow lap-by-lap reference is checked against it with hypothesis. The `PaceModel` is injected at construction. Total time is the predicted clean laps plus `pit_loss_s["green"]` per new stop. Ties break on total time rounded to 1e-9, then fewer stops, then earlier stop laps, then compound names. The optimizer refuses, with a message saying what to do next, for wet or intermediate tyres, an unknown or unfitted current compound, a finished race, and no legal plan.
+**Why:** Brute force over a few thousand plans is exact and cheap, and the prefix sums keep pricing model-agnostic. Fixed tie-breaks make output reproducible.
+**Alternatives rejected:** Closed-form optimum from wear slopes (ties the optimizer to one model). Dynamic programming (not needed at this size). Allowing three or more stops (outside the stated scope).
+**Consequences:** Free track means no traffic, overtaking or safety cars, so the result is a lower bound, and compound choice among near-ties is not meaningful because pace offsets are not modeled.
+**Refs:** D-05, D-06, D-07, D-10, D-19
+
+## DEC-069 — Plan cutoff policy and analytic ground truth
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** A plan can be made from data visible at a lap, or with hindsight from the whole race. The optimizer also needs a ground truth that the synthetic generator cannot give, because it makes exactly one stop per driver.
+**Decision:** With `--lap N` the fit, pit loss, state and default leader come from the snapshot at N only; the command refuses at N = 0 or when the fit is not identified (about N <= 9 at Bahrain 2023), and says which lap to try. Without `--lap` it applies a whole-race fit to the lap-0 state and labels the output as a hindsight plan with no claim of foresight (refines D-07's "pre-race plan"); it also refuses a driver who ran on wet or intermediate tyres, read from the race-end stints. The default driver is the leader of the shown snapshot, never read from final results. Optimizer ground truth is a hand-built analytic case with known slopes and pit loss: with equal slopes the one-stop optimum is lap n/2, and with a small pit loss the two-stop optimum is n/3 and 2n/3; the generator is unchanged. The line about the real strategy is worded "compared against" and never "beats".
+**Why:** The hindsight label keeps look-ahead honest and visible, and an analytic optimum can be checked by hand.
+**Alternatives rejected:** A generator change to make multi-stop races (D-24 forbids it). A silent pre-race fit that uses future laps. Wording such as "beats", which would imply the model proves the team wrong.
+**Consequences:** Mid-race plans need enough laps for the fit; the hindsight mode reads only the race-end data for the fit and the actual strategy.
+**Refs:** D-08, D-16, D-20, D-24
