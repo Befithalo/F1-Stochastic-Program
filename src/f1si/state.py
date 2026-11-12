@@ -8,10 +8,12 @@ JSON shape::
      "cars": [{"driver": "VER", "position": 1, "gap_ahead_s": null, "gap_behind_s": 4.1,
                "compound": "MEDIUM", "tire_age": 12, "wear_rate_s_per_lap": 0.07,
                "wear_sd": 0.01, "pace_offset_s": -0.3, "stops_done": 0,
-               "compounds_used": ["MEDIUM"], "driver_number": 1}, ...]}
+               "compounds_used": ["MEDIUM"], "driver_number": 1, "laps_done": 18}, ...]}
 
-The only addition to the BUILD_PLAN keys is the documented key `driver_number` (the stable
-database key that `PaceModel.predict` takes). Fields are never removed or renamed later.
+The only additions to the BUILD_PLAN keys are the documented keys `driver_number` (the stable
+database key that `PaceModel.predict` takes) and `laps_done` (the laps this car has completed,
+which is below `lap` for every car that is not the leader; DEC-073). `laps_done` may be absent in
+JSON read back, meaning "same as `lap`". Fields are never removed or renamed later.
 
 State is plain frozen data. It is built from a race snapshot and a fitted `LinearPaceFit` by one
 pure builder, `build_race_state`. This module imports NumPy, pandas, the standard library, the
@@ -26,7 +28,8 @@ completed, which is what is knowable at the cutoff (leader N laps, others at mos
 It is an approximation and is None for the leader, for lapped cars (laps done differ by more than
 1), when a lap-end is missing, and when the computed gap is <= 0 (the car ahead finished that lap
 later than or together with the car behind, which happens around position swaps in the timing
-data). `tire_age` is the laps already on the tyres; the next lap has age `tire_age + 1`.
+data). `tire_age` is the laps already on the tyres at the end of the car's own last completed
+lap (`CarState.laps_done`); that car's next lap, number `laps_done + 1`, has age `tire_age + 1`.
 
 Placeholders (D-13)
 -------------------
@@ -72,7 +75,9 @@ _CAR_KEYS: Final = (
     "stops_done",
     "compounds_used",
     "driver_number",
+    "laps_done",
 )
+_OPTIONAL_CAR_KEYS: Final = ("laps_done",)
 _STATE_KEYS: Final = ("lap", "laps_total", "regime", "pit_loss_s", "cars")
 _OPTIONAL_FLOATS: Final = (
     "gap_ahead_s",
@@ -107,7 +112,11 @@ def _check_float(name: str, value: object) -> float:
 class CarState:
     """One car at the start of the state's lap. Unknown values are None (D-23).
 
-    `tire_age` is the laps on the current tyres at the end of the last completed lap.
+    `laps_done` is the number of laps this car has completed; None means the same as
+    `RaceState.lap` (the leader, or a state built by hand). At a cutoff the leader has `lap`
+    laps and every other car at most `lap - 1`, so `compound`, `tire_age` and `stops_done`
+    describe the car after `laps_done` laps, not after `lap` (DEC-073).
+    `tire_age` is the laps on the current tyres at the end of the car's last completed lap.
     `wear_rate_s_per_lap` and `wear_sd` are the fitted wear slope and its standard error for the
     car's current compound; `pace_offset_s` is the fitted driver offset.
 
@@ -127,6 +136,7 @@ class CarState:
     pace_offset_s: float | None
     stops_done: int
     compounds_used: tuple[str, ...]
+    laps_done: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.driver, str) or not _CODE.match(self.driver):
@@ -144,6 +154,8 @@ class CarState:
             raise ValueError(f"tire_age must be >= 0, got {self.tire_age!r}")
         if _check_int("stops_done", self.stops_done) < 0:
             raise ValueError(f"stops_done must be >= 0, got {self.stops_done!r}")
+        if self.laps_done is not None and _check_int("laps_done", self.laps_done) < 0:
+            raise ValueError(f"laps_done must be >= 0 or None, got {self.laps_done!r}")
         object.__setattr__(self, "compounds_used", tuple(self.compounds_used))
         for used in self.compounds_used:
             if not isinstance(used, str):
@@ -221,6 +233,12 @@ class RaceState:
         object.__setattr__(self, "regime", regime)
         object.__setattr__(self, "pit_loss_s", pit_loss)
         object.__setattr__(self, "cars", tuple(self.cars))
+        for car in self.cars:
+            if car.laps_done is not None and car.laps_done > self.lap:
+                raise ValueError(
+                    f"{car.driver} has laps_done {car.laps_done}, more than the leader's lap "
+                    f"{self.lap}"
+                )
         codes = [car.driver for car in self.cars]
         dupes = sorted({c for c in codes if codes.count(c) > 1})
         if dupes:
@@ -239,6 +257,10 @@ class RaceState:
             f"Unknown driver code {code!r}. Codes in this state: "
             f"{', '.join(sorted(c.driver for c in self.cars))}"
         )
+
+    def laps_done_of(self, car: CarState) -> int:
+        """Laps completed by `car`: its own `laps_done`, or `lap` if that is None."""
+        return self.lap if car.laps_done is None else car.laps_done
 
     def to_arrays(self) -> CarArrays:
         """Read-only struct-of-arrays view in `cars` order (None becomes NaN, -1 or "")."""
@@ -289,6 +311,7 @@ class RaceState:
                     "stops_done": c.stops_done,
                     "compounds_used": list(c.compounds_used),
                     "driver_number": c.driver_number,
+                    "laps_done": c.laps_done,
                 }
                 for c in self.cars
             ],
@@ -315,7 +338,7 @@ class RaceState:
         for raw in raw_cars:
             if not isinstance(raw, Mapping):
                 raise ValueError("RaceState JSON: each car must be an object")
-            _check_keys("RaceState JSON car", raw, _CAR_KEYS)
+            _check_keys("RaceState JSON car", raw, _CAR_KEYS, optional=_OPTIONAL_CAR_KEYS)
             used = raw["compounds_used"]
             if not isinstance(used, list):
                 raise ValueError("RaceState JSON car: 'compounds_used' must be a list")
@@ -333,6 +356,7 @@ class RaceState:
                     pace_offset_s=raw["pace_offset_s"],
                     stops_done=raw["stops_done"],
                     compounds_used=tuple(used),
+                    laps_done=raw.get("laps_done"),
                 )
             )
         return cls(
@@ -361,9 +385,14 @@ def _reject_constant(name: str) -> float:
     raise ValueError(f"RaceState JSON: {name} is not allowed; unknown values are null")
 
 
-def _check_keys(where: str, data: Mapping[str, Any], expected: tuple[str, ...]) -> None:
+def _check_keys(
+    where: str,
+    data: Mapping[str, Any],
+    expected: tuple[str, ...],
+    optional: tuple[str, ...] = (),
+) -> None:
     for key in expected:
-        if key not in data:
+        if key not in data and key not in optional:
             raise ValueError(f"{where}: missing key {key!r}")
     extra = sorted(str(k) for k in data if k not in expected)
     if extra:
@@ -502,6 +531,7 @@ def build_race_state(
                 pace_offset_s=fit.pace_offset(r["number"]),
                 stops_done=r["stops"],
                 compounds_used=r["used"],
+                laps_done=r["done"],
             )
         )
     return RaceState(

@@ -27,6 +27,7 @@ CAR_KEYS = {
     "stops_done",
     "compounds_used",
     "driver_number",
+    "laps_done",
 }
 
 

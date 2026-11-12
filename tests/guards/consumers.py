@@ -153,4 +153,5 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.plots.stints.plot_file_name": "string function of a slug and driver codes",
     "f1si.pace.linear.truncated_variance_factor": "pure math of a number, reads no race data",
     "f1si.pace.linear.untruncated_sigma": "pure math of two numbers, reads no race data",
+    "f1si.state.RaceState.laps_done_of": "pure lookup of a value already stored in the state",
 }

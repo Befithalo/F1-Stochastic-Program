@@ -2,7 +2,11 @@
 
 Math
 ----
-State at lap N means the car has completed N laps; a plan covers laps N+1..L (L = laps_total).
+A car that has completed N laps (``RaceState.laps_done_of(car)``, which is ``state.lap`` for the
+leader and usually ``state.lap - 1`` for the other cars at a cutoff, DEC-073) is planned from its
+own next lap: a plan covers laps N+1..L (L = laps_total), with ``tire_age``, the compound and the
+stops made all read as they stood after the car's own lap N. Every car is priced through lap L,
+which assumes no car is lapped (free track), so totals of different drivers are comparable.
 A stop at "lap k" means lap k is the in-lap and lap k+1 is the out-lap on fresh tyres with tyre
 age 1; "pit now" is k = N+1. The running stint's first priced lap has age ``tire_age + 1``. With a
 `PaceModel` giving the mean clean lap time ``t(d, lap, compound, age)``::
@@ -62,7 +66,7 @@ def price_plan_slow(
     total = 0.0
     stint = 0
     age = car.tire_age
-    for lap in range(state.lap + 1, state.laps_total + 1):
+    for lap in range(state.laps_done_of(car) + 1, state.laps_total + 1):
         age += 1
         mean, _ = model.predict(
             driver=np.array([car.driver_number], dtype=np.int64),
@@ -101,10 +105,12 @@ class FreeTrackOptimizer:
     # ------------------------------------------------------------------ public API
 
     def decide(self, state: RaceState, *, driver: str) -> PitDecision:
-        """Rank every legal plan; pit now iff the best plan stops on lap ``state.lap + 1``."""
+        """Rank every legal plan; pit now iff the best plan stops on the car's next lap."""
         plans = self.rank_plans(state, driver=driver)
         best = plans[0]
-        pit_now = bool(best.stop_laps) and best.stop_laps[0] == state.lap + 1
+        pit_now = (
+            bool(best.stop_laps) and best.stop_laps[0] == state.laps_done_of(state.car(driver)) + 1
+        )
         return PitDecision(
             driver=driver,
             lap=state.lap,
@@ -124,7 +130,8 @@ class FreeTrackOptimizer:
         """
         car = state.car(driver)
         compound = self._check_car(state, car)
-        remaining = state.laps_total - state.lap
+        n = state.laps_done_of(car)
+        remaining = state.laps_total - n
         try:
             cur, fresh = self._prefix_sums(state, car, compound)
         except ValueError as err:
@@ -135,7 +142,6 @@ class FreeTrackOptimizer:
         pit = state.pit_loss_s["green"]
         used = set(car.compounds_used) | {compound}
         done = car.stops_done
-        n = state.lap
         last = state.laps_total
         rows: list[tuple[float, int, tuple[int, ...], tuple[str, ...]]] = []
 
@@ -170,7 +176,7 @@ class FreeTrackOptimizer:
                                 add(float(total), (k1, int(k2)), (c1, c2))
         if not rows:
             raise PlanRefusedError(
-                f"No legal plan for {driver} after lap {state.lap}: it needs two different dry "
+                f"No legal plan for {driver} after lap {n}: it needs two different dry "
                 f"compounds, at most {MAX_TOTAL_STOPS} stops and stints of at least {self._min} "
                 f"laps. Try: pick another driver or an earlier lap with --lap."
             )
@@ -197,16 +203,17 @@ class FreeTrackOptimizer:
         stops = [int(k) for k in stop_laps]
         if len(stops) != len(compounds):
             raise ValueError("stop_laps and compounds must have the same length")
-        prev = state.lap
+        n = state.laps_done_of(car)
+        prev = n
         for k in stops:
             if k <= prev or k > state.laps_total - 1:
                 raise ValueError(
-                    f"stop laps must increase and lie in {state.lap + 1}..{state.laps_total - 1}, "
+                    f"stop laps must increase and lie in {n + 1}..{state.laps_total - 1}, "
                     f"got {stops!r}"
                 )
             prev = k
         tyres = [car.compound, *[str(c).upper() for c in compounds]]
-        bounds = [state.lap, *stops, state.laps_total]
+        bounds = [n, *stops, state.laps_total]
         total = 0.0
         for i, tyre in enumerate(tyres):
             first_lap = bounds[i] + 1
@@ -230,9 +237,10 @@ class FreeTrackOptimizer:
                 f"{car.driver} ran on {', '.join(wet)} tyres; wet and intermediate strategy is "
                 "out of scope for the free-track optimizer. Try: plan a driver on dry tyres only."
             )
-        if state.laps_total - state.lap <= 0:
+        if state.laps_total - state.laps_done_of(car) <= 0:
             raise PlanRefusedError(
-                f"The race is over after lap {state.laps_total}, so there is nothing to plan. "
+                f"The race is over for {car.driver} after lap {state.laps_total}, so there is "
+                "nothing to plan. "
                 "Try: an earlier cutoff with --lap."
             )
         compound = car.compound.upper()
@@ -259,7 +267,7 @@ class FreeTrackOptimizer:
         self, state: RaceState, car: CarState, compound: str
     ) -> tuple[NDArray[np.float64], dict[str, NDArray[np.float64]]]:
         """Prefix sums: `cur[j]` for the running stint, `fresh[c][start, m]` for new stints."""
-        n, last = state.lap, state.laps_total
+        n, last = state.laps_done_of(car), state.laps_total
         remaining = last - n
         number = car.driver_number
         laps = np.arange(n + 1, last + 1, dtype=np.int64)

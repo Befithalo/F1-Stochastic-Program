@@ -471,7 +471,7 @@ def _print_plan_report(
     label = "Starting" if hindsight else "Current"
     print(
         f"{label} tyre: {car.compound}, {car.tire_age} laps old; stops done: {car.stops_done}; "
-        f"laps to plan: {state.lap + 1}-{state.laps_total}"
+        f"laps to plan: {state.laps_done_of(car) + 1}-{state.laps_total}"
     )
     if pit.is_default:
         print(f"Pit loss: {pit.median_s:.1f} s (default: no green-flag stop seen yet)")
