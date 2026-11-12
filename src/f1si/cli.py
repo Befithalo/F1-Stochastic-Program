@@ -652,7 +652,10 @@ def _cmd_simulate(
         compounds=fit.fitted_compounds,
         wear_sd_by_compound={c.compound: c.se for c in fit.report.compounds},
     )
-    simulator.simulate(state, n_races=64, rng=warm_rng)  # warm-up: compile time not reported
+    # warm-up: compile time not reported. Every car gets a forced no-stop plan, so the warm-up
+    # does not run the optimizer for each car a second time
+    no_stop = {c.driver: Plan((), (), 0.0) for c in state.cars}
+    simulator.simulate(state, n_races=64, rng=warm_rng, plans=no_stop)
     started = time.perf_counter()
     result = simulator.simulate(state, n_races=n_races, rng=rng)
     runtime = time.perf_counter() - started
