@@ -14,7 +14,7 @@ updated: 2026-11-12T00:00:00Z
 
 ### 1. CI green on push
 expected: After pushing main, the GitHub Actions workflow passes on both Ubuntu and Windows (CLAUDE.md quality gate).
-result: [pending]
+result: passed — CI run 43163632905 on 29648fa, checks (ubuntu-latest) and checks (windows-latest) both success
 
 ### 2. Wear PNG is readable
 expected: `uv run f1si wear bahrain-2023` writes `reports/wear-bahrain-2023.png` with one panel per compound (HARD, SOFT, MEDIUM "not enough data"), points coloured by driver, a fitted line and a band.
@@ -27,9 +27,9 @@ result: [pending]
 ## Summary
 
 total: 3
-passed: 0
+passed: 1
 issues: 0
-pending: 3
+pending: 2
 skipped: 0
 blocked: 0
 
