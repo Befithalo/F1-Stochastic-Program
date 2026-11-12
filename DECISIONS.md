@@ -760,3 +760,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A generator change to make multi-stop races (D-24 forbids it). A silent pre-race fit that uses future laps. Wording such as "beats", which would imply the model proves the team wrong.
 **Consequences:** Mid-race plans need enough laps for the fit; the hindsight mode reads only the race-end data for the fit and the actual strategy.
 **Refs:** D-08, D-16, D-20, D-24
+
+## DEC-070 — Laps with no stint number are dropped, not merged into stint 0
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Code review WR-03. `_classify` filled a missing stint with 0, so every such lap of a driver became one invented stint. That could satisfy or fail `MIN_STINTS_PER_COMPOUND` on fabricated identities and made `CompoundFit.n_stints` wrong.
+**Decision:** A lap with a lap time, a dry compound and a tyre age but no stint number is dropped with the reason "no stint", shown in `report.dropped`. Stint identity is only ever a real stint number.
+**Why:** The stint count gates which compounds are fitted and is reported to the user; an invented stint is a made-up fact. Dropping loses a few laps at worst, and the reason is visible.
+**Alternatives rejected:** Keeping `fillna(0)` (fabricates stints). Inferring the stint from pit events (a second source of truth that can disagree; no real case needs it, Bahrain 2023 and the synthetic generator always carry a stint).
+**Consequences:** Data with no stint column at all fits nothing and says "no stint" in the dropped counts. Order of drop reasons: lap time, fade or status, compound or age, stint, wet.
+**Refs:** D-01, D-03, D-25

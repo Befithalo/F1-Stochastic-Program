@@ -27,7 +27,8 @@ never falls back to a minimum-norm answer. A compound needs at least `MIN_CLEAN_
 clean laps from at least `MIN_STINTS_PER_COMPOUND` stints, otherwise it is listed as "not enough
 data" and its laps leave the fit. After a first solve, laps with a residual further than
 `MAD_K` robust standard deviations (1.4826 * median absolute deviation) from the median are
-trimmed, up to `MAX_TRIM_ITERATIONS` passes. Standard errors are classical:
+trimmed, up to `MAX_TRIM_ITERATIONS` passes. Laps with no stint number are dropped with the
+reason "no stint" (they must not share one invented stint; DEC-070). Standard errors are classical:
 
     s^2 = RSS / (n - p),    SE = sqrt(diag(s^2 (X'X)^-1)),    interval = estimate +/- 1.96 SE
 
@@ -232,7 +233,7 @@ def _classify(laps: pd.DataFrame) -> pd.DataFrame:
     pit_out = laps["is_pit_out_lap"].fillna(False).astype(bool).to_numpy()
     time_s = laps["lap_time_s"].astype("Float64").to_numpy(dtype=np.float64, na_value=np.nan)
     age = laps["tyre_life"].astype("Float64").to_numpy(dtype=np.float64, na_value=np.nan)
-    stint = laps["stint"].astype("Float64").fillna(0).to_numpy(dtype=np.float64, na_value=0.0)
+    stint = laps["stint"].astype("Float64").to_numpy(dtype=np.float64, na_value=np.nan)
     compound = [
         str(v).upper() if isinstance(v, str) else None for v in laps["compound"].astype("object")
     ]
@@ -248,6 +249,8 @@ def _classify(laps: pd.DataFrame) -> pd.DataFrame:
             if reason is None:
                 if compound[i] is None or np.isnan(age[i]):
                     reason = "no compound or tyre age"
+                elif np.isnan(stint[i]):
+                    reason = "no stint"
                 elif compound[i] not in DRY_COMPOUNDS:
                     reason = "wet compound"
         reasons.append(reason)
