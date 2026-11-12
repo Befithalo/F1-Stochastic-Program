@@ -2,11 +2,12 @@
 
 Subcommands: `load` (fill the cache), `races` (list cached races with their regulation era),
 `plot` (lap time by stint for one cached race) and `wear` (fitted tyre wear, fuel effect and pit
-loss for one cached race). Exit codes: 0 ok, 1 user-facing error, 2 some
-races failed.
+loss for one cached race) and `plan` (fastest free-track 1- and 2-stop plans for one driver).
+Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
 """
 
 import argparse
+import re
 import sys
 from collections.abc import Sequence
 from datetime import UTC, datetime
@@ -21,19 +22,29 @@ from f1si.data.sources import RaceSource, SourceError
 from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
+from f1si.interfaces import DRY_COMPOUNDS, Plan
 from f1si.pace.linear import (
     DEFAULT_PIT_LOSS_S,
     FUEL_SANITY_RANGE,
     MIN_CLEAN_LAPS_PER_COMPOUND,
     MIN_STINTS_PER_COMPOUND,
+    PitLossEstimate,
     fit_linear_pace,
     measure_pit_loss,
 )
-from f1si.plots.stints import plot_file_name, prepare_stint_plot_data, render_stint_plot
+from f1si.plots.stints import (
+    UnknownDriverError,
+    plot_file_name,
+    prepare_stint_plot_data,
+    render_stint_plot,
+)
 from f1si.plots.wear import prepare_wear_plot_data, render_wear_plot, wear_file_name
 from f1si.rng import DEFAULT_SEED, make_rng
+from f1si.state import CarState, RaceState, build_race_state
+from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 
 _FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan"})
+_DRIVER_CODE = re.compile(r"^[A-Z]{3}$")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -107,6 +118,22 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="use only laps visible after the leader's lap N, for example 20 "
         "(default: the whole race)",
+    )
+    plan = sub.add_parser("plan", help="fastest free-track 1- and 2-stop pit plans for one driver")
+    plan.add_argument("slug", metavar="SLUG", help="race slug (for example bahrain-2023)")
+    plan.add_argument(
+        "--driver",
+        default=None,
+        metavar="CODE",
+        help="driver code, for example ALO (default: the leader at the shown cutoff)",
+    )
+    plan.add_argument(
+        "--lap",
+        type=int,
+        default=None,
+        metavar="N",
+        help="plan from data visible after the leader's lap N, for example 20 "
+        "(default: hindsight plan using the whole race)",
     )
     return parser
 
@@ -276,6 +303,231 @@ def _cmd_wear(data_dir: Path, reports_dir: Path, slug: str, lap: int | None) -> 
     return 0
 
 
+_HINDSIGHT_LABEL = (
+    "Hindsight plan: priced with a fit from the whole race. It makes no claim of foresight."
+)
+_PLAN_NOTES = (
+    "Free-track plan: no traffic, overtaking or safety cars, so this is a lower bound on race "
+    "time, not a forecast.",
+    "Note: compound pace offsets are not modeled; compound choice among near-ties is not "
+    "meaningful.",
+    "A stop at lap k means you come in on lap k; lap k+1 is the first lap on the new tyres.",
+)
+
+
+def _fmt_time(seconds: float) -> str:
+    """Seconds as h:mm:ss.s."""
+    tenths = round(seconds * 10)
+    hours, rest = divmod(tenths, 36000)
+    minutes, rest = divmod(rest, 600)
+    return f"{hours}:{minutes:02d}:{rest / 10:04.1f}"
+
+
+def _print_table(header: tuple[str, ...], rows: list[tuple[str, ...]]) -> None:
+    widths = [max(len(h), *(len(row[i]) for row in rows)) for i, h in enumerate(header)]
+    for line in (header, *rows):
+        print("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(line)).rstrip())
+
+
+def _plan_rows(
+    plans: Sequence[Plan], ranked: Sequence[Plan], car: CarState
+) -> list[tuple[str, ...]]:
+    best = ranked[0].total_time_s
+    return [
+        (
+            str(ranked.index(plan) + 1),
+            str(car.stops_done + plan.n_stops),
+            ", ".join(str(k) for k in plan.stop_laps) or "none",
+            " > ".join((str(car.compound), *plan.compounds)),
+            _fmt_time(plan.total_time_s),
+            f"+{plan.total_time_s - best:.1f} s",
+        )
+        for plan in plans
+    ]
+
+
+def _wet_codes(end: asof.RaceSnapshot) -> set[str]:
+    """Driver codes that ran on a non-dry compound at any point of the race."""
+    names = end.entries.set_index("driver_number")["driver_code"]
+    wet: set[str] = set()
+    for frame in (end.stints, end.laps):
+        compounds = frame["compound"].astype("object")
+        for number, compound in zip(frame["driver_number"], compounds, strict=True):
+            if isinstance(compound, str) and compound.upper() not in DRY_COMPOUNDS:
+                wet.add(str(names.get(int(number), "")))
+    wet.discard("")
+    return wet
+
+
+def _actual_strategy(snapshot: asof.RaceSnapshot, number: int) -> tuple[list[str], list[int]]:
+    """The driver's visible compounds in stint order and the in-laps of the visible stops."""
+    stints = snapshot.stints[snapshot.stints["driver_number"] == number].sort_values("stint")
+    tyres = [str(c).upper() for c in stints["compound"].astype("object")]
+    pits = snapshot.pit_events[snapshot.pit_events["driver_number"] == number]
+    return tyres, [int(k) for k in pits.sort_values("in_lap")["in_lap"]]
+
+
+def _pick_driver(
+    shown: asof.RaceSnapshot, leader_from: asof.RaceSnapshot, driver: str | None
+) -> str:
+    """Validate the requested code (D-08) or default to the leader of `leader_from`."""
+    if driver is not None:
+        code = driver.upper()
+        if not _DRIVER_CODE.match(code):
+            raise ValueError(f"Driver codes are three letters, like VER; got {driver}")
+        codes = sorted(str(c) for c in shown.cars["driver_code"])
+        if code not in codes:
+            raise UnknownDriverError([code], codes)
+        return code
+    cars = leader_from.cars[leader_from.cars["position"] == 1]
+    if cars.empty:
+        raise ValueError("No car has completed a lap yet. Try: uv run f1si plan SLUG --lap 20")
+    return str(cars.iloc[0]["driver_code"])
+
+
+def _refuse(message: str) -> int:
+    print(message, file=sys.stderr)
+    return 1
+
+
+def _cmd_plan(data_dir: Path, slug: str, driver: str | None, lap: int | None) -> int:
+    """Print the best 1-stop, best 2-stop and top 5 free-track plans for one driver."""
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    if lap is not None and lap < 0:
+        return _refuse(
+            f"--lap must be 0 or more, got {lap}. Try: uv run f1si plan {slug} --driver CODE"
+        )
+    accessor = asof.AsOfAccessor(db)
+    try:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+        # The race distance is public (D-21), and the CLI is a replay driver, so it may read it
+        # from the completed race. In mid-race mode nothing else of `end` is used.
+        laps_total = int(end.laps["lap_number"].max())
+        if lap is None:
+            fit_snapshot = end
+            state_snapshot = accessor.snapshot(asof.AsOf(race_id, 0))
+        elif lap >= laps_total:
+            return _refuse(
+                f"Nothing to plan: the race is over after lap {laps_total}. "
+                f"Try: uv run f1si plan {slug} --driver CODE --lap {max(laps_total - 20, 20)}"
+            )
+        else:
+            fit_snapshot = state_snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+    except OutOfSampleLockedError as err:
+        return _refuse(
+            f"{err} 2026 races are out-of-sample, so they cannot be analysed in Phase 2."
+        )
+    fit = fit_linear_pace(fit_snapshot)
+    if not fit.is_identified:
+        retry = 20 if lap is None or lap < 10 else lap + 10
+        shown = "in this race" if lap is None else f"after lap {lap}"
+        return _refuse(
+            f"Cannot plan: not enough laps yet to fit wear {shown} ({fit.report.message}); "
+            f"try --lap {retry}. Example: uv run f1si plan {slug} --driver CODE --lap {retry}"
+        )
+    pit = measure_pit_loss(fit_snapshot, fit)
+    state = build_race_state(state_snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s)
+    code = _pick_driver(state_snapshot, state_snapshot if lap is not None else end, driver)
+    if lap is None:
+        wet = _wet_codes(end)
+        if code in wet:
+            others = [c.driver for c in state.cars if c.driver not in wet and c.driver != code]
+            return _refuse(
+                f"{code} ran on wet or intermediate tyres in this race; wet and intermediate "
+                "strategy is out of scope for the free-track optimizer. "
+                f"Try: uv run f1si plan {slug} --driver {others[0] if others else 'VER'}"
+            )
+    optimizer = FreeTrackOptimizer(fit, compounds=fit.fitted_compounds)
+    try:
+        ranked = optimizer.rank_plans(state, driver=code)
+    except PlanRefusedError as err:
+        return _refuse(f"{err} Try: uv run f1si plan {slug} --driver {code} --lap 20")
+    car = state.car(code)
+    race = end.race
+    print(f"{race.event_name} {race.season}: {code}")
+    print(_HINDSIGHT_LABEL if lap is None else f"Plan after lap {lap}")
+    _print_plan_report(state, car, ranked, pit, hindsight=lap is None)
+    source = end if lap is None else state_snapshot
+    tyres, stops = _actual_strategy(source, car.driver_number)
+    if lap is not None:
+        print(
+            f"Actual strategy so far: {' > '.join(tyres) or 'unknown'}, stops on laps "
+            f"{', '.join(str(k) for k in stops) or 'none'} (visible stints only; not priced)"
+        )
+    else:
+        print(_compare_line(optimizer, state, car, ranked[0], tyres, stops, fit.fitted_compounds))
+    return 0
+
+
+def _print_plan_report(
+    state: RaceState,
+    car: CarState,
+    ranked: Sequence[Plan],
+    pit: PitLossEstimate,
+    *,
+    hindsight: bool,
+) -> None:
+    label = "Starting" if hindsight else "Current"
+    print(
+        f"{label} tyre: {car.compound}, {car.tire_age} laps old; stops done: {car.stops_done}; "
+        f"laps to plan: {state.lap + 1}-{state.laps_total}"
+    )
+    if pit.is_default:
+        print(f"Pit loss: {pit.median_s:.1f} s (default: no green-flag stop seen yet)")
+    else:
+        print(f"Pit loss: {pit.median_s:.1f} s (median over {pit.n_stops} green-flag stops)")
+    for note in _PLAN_NOTES:
+        print(note)
+    time_label = "RACE TIME" if state.lap == 0 else "TIME TO FINISH"
+    header = ("RANK", "TOTAL STOPS", "STOP LAPS", "TYRES", time_label, "GAP TO BEST")
+    groups: tuple[tuple[str, list[Plan]], ...] = (
+        ("Best 1-stop", [p for p in ranked if car.stops_done + p.n_stops == 1][:1]),
+        ("Best 2-stop", [p for p in ranked if car.stops_done + p.n_stops == 2][:1]),
+        ("Top 5 overall", list(ranked[:5])),
+    )
+    for title, plans in groups:
+        print()
+        print(title)
+        if plans:
+            _print_table(header, _plan_rows(plans, ranked, car))
+        else:
+            print("none legal")
+    print()
+
+
+def _compare_line(
+    optimizer: FreeTrackOptimizer,
+    state: RaceState,
+    car: CarState,
+    best: Plan,
+    tyres: list[str],
+    stops: list[int],
+    fitted: Sequence[str],
+) -> str:
+    """One line pricing the driver's real strategy with the same model ('compared against')."""
+    text = " > ".join(tyres) or "unknown"
+    stop_text = ", ".join(str(k) for k in stops) or "none"
+    if not tyres or tyres[0] != car.compound or len(stops) != len(tyres) - 1:
+        reason = "its stints and stops do not line up with the starting tyre"
+    elif any(t not in fitted for t in tyres):
+        reason = "a compound has no fitted wear rate"
+    else:
+        try:
+            actual = optimizer.price_plan(
+                state, driver=car.driver, stop_laps=stops, compounds=tyres[1:]
+            )
+        except ValueError as err:
+            reason = str(err)
+        else:
+            return (
+                f"Compared against: {car.driver}'s actual strategy {text} with stops on laps "
+                f"{stop_text}, priced by the same model: {_fmt_time(actual)} "
+                f"({actual - best.total_time_s:+.1f} s versus the best plan above)"
+            )
+    return f"Compared against: the actual strategy could not be priced ({reason})."
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     args = build_parser().parse_args(argv)
@@ -291,6 +543,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()
             )
             return _cmd_wear(data_dir, wear_reports, args.slug, args.lap)
+        if args.command == "plan":
+            return _cmd_plan(data_dir, args.slug, args.driver, args.lap)
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
