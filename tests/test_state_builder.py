@@ -8,8 +8,8 @@ import pytest
 
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, RaceSnapshot
 from f1si.pace.linear import fit_linear_pace
-from f1si.state import RaceState, build_race_state
-from tests.conftest import LONG_RACE_ID
+from f1si.state import SC_PIT_LOSS_RATIO, RaceState, build_race_state
+from tests.conftest import LONG_RACE_ID, SC_HISTORY_CURRENT_RACE_ID
 
 LAPS_TOTAL = 57
 
@@ -62,7 +62,9 @@ def test_mid_race(long_synthetic_db: Path) -> None:
         mine = stints[stints["driver_number"] == car.driver_number].sort_values("stint")
         assert car.tire_age == int(mine.iloc[-1]["tyre_life_now"])
     assert dict(state.regime) == {"green": 1.0}
-    assert set(state.pit_loss_s) == {"green"}
+    assert set(state.pit_loss_s) == {"green", "sc"}
+    assert state.pit_loss_s["sc"] == 0.5 * state.pit_loss_s["green"]
+    assert state.sc_laps_elapsed == 0
 
 
 def test_last_lap_round_trips(long_synthetic_db: Path) -> None:
@@ -124,3 +126,36 @@ def test_pure_and_does_not_mutate(long_synthetic_db: Path) -> None:
     assert first == second
     for name, frame in before.items():
         pd.testing.assert_frame_equal(frame, getattr(snap, name))
+
+
+def test_pace_offset_sd_filled_from_fit(long_synthetic_db: Path) -> None:
+    snap = _snap(long_synthetic_db, 40)
+    fit = fit_linear_pace(snap)
+    state = build_race_state(snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0)
+    for car in state.cars:
+        assert car.pace_offset_sd == fit.pace_offset_se(car.driver_number)
+    assert any(c.pace_offset_sd is not None for c in state.cars)
+    assert RaceState.from_json(state.to_json()).cars[0].pace_offset_sd == (
+        state.cars[0].pace_offset_sd
+    )
+
+
+def _sc_state(db: Path, lap: int) -> RaceState:
+    at = AsOf(SC_HISTORY_CURRENT_RACE_ID, lap)
+    snap = AsOfAccessor(db).snapshot(at)
+    fit = fit_linear_pace(AsOfAccessor(db).snapshot(AsOf(SC_HISTORY_CURRENT_RACE_ID, RACE_END)))
+    return build_race_state(snap, fit, laps_total=40, pit_loss_s=22.0)
+
+
+def test_safety_car_regime_follows_the_cutoff(sc_history_db: Path) -> None:
+    before = _sc_state(sc_history_db, 9)
+    assert dict(before.regime) == {"green": 1.0}
+    assert before.sc_laps_elapsed == 0
+    for lap, elapsed in ((10, 1), (11, 2), (12, 3)):
+        state = _sc_state(sc_history_db, lap)
+        assert dict(state.regime) == {"sc": 1.0}
+        assert state.sc_laps_elapsed == elapsed
+        assert state.pit_loss_s["sc"] == SC_PIT_LOSS_RATIO * 22.0
+    after = _sc_state(sc_history_db, 14)
+    assert dict(after.regime) == {"green": 1.0}
+    assert after.sc_laps_elapsed == 0

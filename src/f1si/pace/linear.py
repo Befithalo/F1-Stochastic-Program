@@ -59,7 +59,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Final
 
 import numpy as np
@@ -114,6 +114,7 @@ class FitReport:
     n_trimmed: int
     dropped: Mapping[str, int]
     message: str
+    driver_offset_se: Mapping[int, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -173,6 +174,14 @@ class LinearPaceFit:
         if driver_number not in offsets:
             return None
         return offsets[driver_number] - float(np.mean(list(offsets.values())))
+
+    def pace_offset_se(self, driver_number: int) -> float | None:
+        """Standard error of the driver's raw intercept, or None for a driver not in the fit.
+
+        This is the SE of the raw offset, not of the offset minus the mean offset; the raw SE is
+        the conservative per-driver value (DEC-077).
+        """
+        return self.report.driver_offset_se.get(driver_number)
 
     def predict(
         self,
@@ -531,6 +540,7 @@ def fit_linear_pace(snapshot: RaceSnapshot) -> LinearPaceFit:
         n_trimmed=n_trimmed,
         dropped=_dropped(final_reason, design),
         message="identified",
+        driver_offset_se={d: float(se[i]) for i, d in enumerate(design.drivers)},
     )
     return LinearPaceFit(report)
 

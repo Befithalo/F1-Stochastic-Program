@@ -31,11 +31,14 @@ later than or together with the car behind, which happens around position swaps 
 data). `tire_age` is the laps already on the tyres at the end of the car's own last completed
 lap (`CarState.laps_done`); that car's next lap, number `laps_done + 1`, has age `tire_age + 1`.
 
-Placeholders (D-13)
--------------------
-`regime` is a placeholder, {"green": 1.0}, until Phases 3 and 8 estimate a track regime.
-`pit_loss_s` is a placeholder too: it holds only the "green" key until Phase 8 adds pit loss
-under safety-car and virtual-safety-car regimes.
+Regime and pit loss (D-04, D-05)
+--------------------------------
+`regime` reflects the track status at the cutoff: {"sc": 1.0} while a safety car is out (the
+latest visible track-status row is "4"), else {"green": 1.0}. `sc_laps_elapsed` is the number of
+leader laps since that safety car was deployed (0 when none; written to JSON only when nonzero).
+`pit_loss_s` always carries a "green" value and an "sc" value equal to `SC_PIT_LOSS_RATIO` times
+the green one: a documented placeholder until Phase 8 (REG-03) measures it. Virtual safety cars
+and red flags are not modelled (D-02), so the regime stays a coarse placeholder for them.
 
 Unknown values (D-23)
 ---------------------
@@ -76,15 +79,20 @@ _CAR_KEYS: Final = (
     "compounds_used",
     "driver_number",
     "laps_done",
+    "pace_offset_sd",
 )
-_OPTIONAL_CAR_KEYS: Final = ("laps_done",)
-_STATE_KEYS: Final = ("lap", "laps_total", "regime", "pit_loss_s", "cars")
+_OPTIONAL_CAR_KEYS: Final = ("laps_done", "pace_offset_sd")
+_STATE_KEYS: Final = ("lap", "laps_total", "regime", "pit_loss_s", "cars", "sc_laps_elapsed")
+_OPTIONAL_STATE_KEYS: Final = ("sc_laps_elapsed",)
+SC_PIT_LOSS_RATIO: Final = 0.5
+"""SC pit loss as a fraction of the green value: a placeholder until Phase 8 (REG-03, D-04)."""
 _OPTIONAL_FLOATS: Final = (
     "gap_ahead_s",
     "gap_behind_s",
     "wear_rate_s_per_lap",
     "wear_sd",
     "pace_offset_s",
+    "pace_offset_sd",
 )
 
 
@@ -118,7 +126,8 @@ class CarState:
     describe the car after `laps_done` laps, not after `lap` (DEC-073).
     `tire_age` is the laps on the current tyres at the end of the car's last completed lap.
     `wear_rate_s_per_lap` and `wear_sd` are the fitted wear slope and its standard error for the
-    car's current compound; `pace_offset_s` is the fitted driver offset.
+    car's current compound; `pace_offset_s` is the fitted driver offset and `pace_offset_sd` its
+    standard error (None when unknown).
 
     Raises:
         ValueError: if a value is out of range, not finite or of the wrong type.
@@ -137,6 +146,7 @@ class CarState:
     stops_done: int
     compounds_used: tuple[str, ...]
     laps_done: int | None = None
+    pace_offset_sd: float | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.driver, str) or not _CODE.match(self.driver):
@@ -202,9 +212,10 @@ class RaceState:
     """The race after `lap` laps of the leader have been completed.
 
     `lap` is the number of completed laps (0 = before the start) and `laps_total` the race
-    length. `regime` maps track regime to probability and sums to 1 (placeholder
-    {"green": 1.0} until Phases 3 and 8, D-13). `pit_loss_s` maps regime to the time lost in a
-    stop (placeholder with only "green" until Phase 8). `cars` is a tuple of `CarState`.
+    length. `regime` maps track regime to probability and sums to 1 ({"sc": 1.0} while a safety
+    car is out, else {"green": 1.0}, D-05). `pit_loss_s` maps regime to the time lost in a stop
+    (the "sc" value is a placeholder ratio until Phase 8). `sc_laps_elapsed` is the leader laps
+    since the active safety car was deployed (0 when none). `cars` is a tuple of `CarState`.
 
     Raises:
         ValueError: on a bad lap, regime, pit loss, or duplicate driver codes.
@@ -215,8 +226,11 @@ class RaceState:
     regime: Mapping[str, float]
     pit_loss_s: Mapping[str, float]
     cars: tuple[CarState, ...]
+    sc_laps_elapsed: int = 0
 
     def __post_init__(self) -> None:
+        if _check_int("sc_laps_elapsed", self.sc_laps_elapsed) < 0:
+            raise ValueError(f"sc_laps_elapsed must be >= 0, got {self.sc_laps_elapsed!r}")
         if _check_int("lap", self.lap) < 0:
             raise ValueError(f"lap must be >= 0, got {self.lap}")
         if _check_int("laps_total", self.laps_total) < 1:
@@ -292,7 +306,7 @@ class RaceState:
 
     def to_json_dict(self) -> dict[str, Any]:
         """Pure-Python dict in the BUILD_PLAN shape (plus `driver_number`)."""
-        return {
+        out: dict[str, Any] = {
             "lap": self.lap,
             "laps_total": self.laps_total,
             "regime": dict(self.regime),
@@ -312,10 +326,14 @@ class RaceState:
                     "compounds_used": list(c.compounds_used),
                     "driver_number": c.driver_number,
                     "laps_done": c.laps_done,
+                    "pace_offset_sd": c.pace_offset_sd,
                 }
                 for c in self.cars
             ],
         }
+        if self.sc_laps_elapsed:
+            out["sc_laps_elapsed"] = self.sc_laps_elapsed
+        return out
 
     def to_json(self) -> str:
         """JSON text; NaN is never written (`allow_nan=False`)."""
@@ -330,7 +348,7 @@ class RaceState:
         """
         if not isinstance(data, Mapping):
             raise ValueError(f"RaceState JSON: expected an object, got {type(data).__name__}")
-        _check_keys("RaceState JSON", data, _STATE_KEYS)
+        _check_keys("RaceState JSON", data, _STATE_KEYS, optional=_OPTIONAL_STATE_KEYS)
         raw_cars = data["cars"]
         if not isinstance(raw_cars, list):
             raise ValueError("RaceState JSON: 'cars' must be a list")
@@ -357,6 +375,7 @@ class RaceState:
                     stops_done=raw["stops_done"],
                     compounds_used=tuple(used),
                     laps_done=raw.get("laps_done"),
+                    pace_offset_sd=raw.get("pace_offset_sd"),
                 )
             )
         return cls(
@@ -365,6 +384,7 @@ class RaceState:
             regime=data["regime"],
             pit_loss_s=data["pit_loss_s"],
             cars=tuple(cars),
+            sc_laps_elapsed=data.get("sc_laps_elapsed", 0),
         )
 
     @classmethod
@@ -421,6 +441,38 @@ def _gap_ahead(
     return gap if math.isfinite(gap) and gap > 0 else None
 
 
+def _leader_laps_at(laps: pd.DataFrame, t_s: float) -> int:
+    """Leader laps done by second `t_s`: lap numbers whose first lap end (the leader) is <= t_s."""
+    ended = laps[laps["lap_end_s"].notna()]
+    if ended.empty:
+        return 0
+    per_lap = ended.groupby("lap_number")["lap_end_s"].min()
+    return int((per_lap <= t_s).sum())
+
+
+def _safety_car_state(snapshot: RaceSnapshot, lap: int) -> tuple[bool, int]:
+    """(safety car active at the cutoff, leader laps since its deployment).
+
+    Active iff the latest visible track-status row is "4". Elapsed laps run from the first row of
+    that final run of "4" rows: leader laps now minus leader laps at that row, so a deployment
+    inside lap L seen at the end of lap L gives 1 (the convention of `f1si.regime.sc_rate`).
+    """
+    status = snapshot.track_status
+    if lap == 0 or len(status) == 0:
+        return False, 0
+    ordered = status.sort_values(["t_s", "seq"], kind="stable")
+    codes = [None if pd.isna(v) else str(v) for v in ordered["status"].tolist()]
+    times = [float(v) for v in ordered["t_s"].tolist()]
+    if codes[-1] != "4":
+        return False, 0
+    start = len(codes) - 1
+    while start > 0 and codes[start - 1] == "4":
+        start -= 1
+    laps_now = _leader_laps_at(snapshot.laps, math.inf)
+    elapsed = laps_now - _leader_laps_at(snapshot.laps, times[start])
+    return True, max(0, elapsed)
+
+
 def build_race_state(
     snapshot: RaceSnapshot, fit: LinearPaceFit, *, laps_total: int, pit_loss_s: float
 ) -> RaceState:
@@ -430,8 +482,10 @@ def build_race_state(
       * `lap` is `snapshot.at.lap` when it is an int, else (race end) the maximum laps_done.
         `laps_total` is an argument because races.scheduled_laps is NULL for every cached race
         (D-21); a `laps_total` below `lap` raises ValueError.
-      * `regime` is {"green": 1.0} and `pit_loss_s` is {"green": pit_loss_s}: placeholders until
-        Phases 3 and 8 (D-13).
+      * `regime` is {"sc": 1.0} while the latest visible track-status row is "4" (safety car
+        out), else {"green": 1.0}; `sc_laps_elapsed` counts leader laps since the deployment
+        (D-05). `pit_loss_s` is {"green": pit_loss_s, "sc": SC_PIT_LOSS_RATIO * pit_loss_s}, the
+        "sc" value a placeholder until Phase 8 (REG-03). VSC and red flags are not modelled (D-02).
       * One car per row of `snapshot.cars`, ordered by (position unknown last, position, number).
       * Compound and tire age come from the car's latest visible stint; at lap 0 they come from
         the entry's start compound and start tyre age (0 if unknown). `tire_age` is laps already
@@ -532,12 +586,15 @@ def build_race_state(
                 stops_done=r["stops"],
                 compounds_used=r["used"],
                 laps_done=r["done"],
+                pace_offset_sd=fit.pace_offset_se(r["number"]),
             )
         )
+    sc_active, sc_elapsed = _safety_car_state(snapshot, lap)
     return RaceState(
         lap=lap,
         laps_total=laps_total,
-        regime={"green": 1.0},
-        pit_loss_s={"green": pit_loss_s},
+        regime={"sc": 1.0} if sc_active else {"green": 1.0},
+        pit_loss_s={"green": pit_loss_s, "sc": SC_PIT_LOSS_RATIO * pit_loss_s},
         cars=tuple(states),
+        sc_laps_elapsed=sc_elapsed,
     )

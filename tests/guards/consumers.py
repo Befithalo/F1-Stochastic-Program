@@ -156,6 +156,7 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.pace.linear.LinearPaceFit.wear_rate": "pure lookup of already fitted values",
     "f1si.pace.linear.LinearPaceFit.wear_se": "pure lookup of already fitted values",
     "f1si.pace.linear.LinearPaceFit.pace_offset": "pure lookup of already fitted values",
+    "f1si.pace.linear.LinearPaceFit.pace_offset_se": "pure lookup of already fitted values",
     "f1si.plots.wear.build_wear_figure": "pure drawing of already-prepared WearPlotData",
     "f1si.plots.wear.render_wear_plot": "writes a figure of prepared WearPlotData to disk",
     "f1si.plots.wear.wear_file_name": "string function of a validated slug",

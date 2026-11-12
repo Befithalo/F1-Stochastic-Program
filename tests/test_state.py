@@ -28,6 +28,7 @@ CAR_KEYS = {
     "compounds_used",
     "driver_number",
     "laps_done",
+    "pace_offset_sd",
 }
 
 
@@ -243,3 +244,27 @@ def test_pit_decision_best_plan_is_first() -> None:
     assert PitDecision("ALO", 10, False, None, a, (a, b)).best_plan == a
     with pytest.raises(ValueError, match="best_plan"):
         PitDecision("ALO", 10, False, None, b, (a, b))
+
+
+def test_sc_laps_elapsed_default_validation_and_json() -> None:
+    state = _state()
+    assert state.sc_laps_elapsed == 0
+    assert "sc_laps_elapsed" not in state.to_json_dict()
+    sc = _state(regime={"sc": 1.0}, sc_laps_elapsed=2)
+    assert RaceState.from_json(sc.to_json()).sc_laps_elapsed == 2
+    assert RaceState.from_json(state.to_json()).sc_laps_elapsed == 0
+    for bad in (-1, True, 1.5):
+        with pytest.raises(ValueError, match="sc_laps_elapsed"):
+            _state(sc_laps_elapsed=bad)
+
+
+def test_pace_offset_sd_round_trip_and_old_json_loads() -> None:
+    state = _state(cars=(_car(pace_offset_sd=0.04),))
+    again = RaceState.from_json(state.to_json())
+    assert again.cars[0].pace_offset_sd == 0.04
+    data = state.to_json_dict()
+    for car in data["cars"]:
+        del car["pace_offset_sd"]
+    assert RaceState.from_json_dict(data).cars[0].pace_offset_sd is None
+    with pytest.raises(ValueError, match="pace_offset_sd"):
+        _car(pace_offset_sd=float("nan"))
