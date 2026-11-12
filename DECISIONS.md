@@ -804,3 +804,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Refusing to plan for any car with `laps_done != lap` (loses `--driver X --lap N`, the main mid-race use). Shifting the state to the car's lap by re-deriving tyre age (needs the lap data the state is meant to hide). Making `laps_done` a required field (breaks every hand-built state and older JSON).
 **Consequences:** A car that pitted on leader-lap N but whose own lap N is not yet visible still shows the old tyre and `stops_done`; that is the timing data, not a pricing error. For the leader and for hand-built states nothing changes. Real Bahrain 2023 plan numbers for `--lap 0` are unchanged because every car has 0 laps done.
 **Refs:** D-12, D-14, D-23, DEC-042, DEC-068
+
+## DEC-074 — scipy, numba and scipy-stubs; the lap kernel is compiled with Numba
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Phase 3 needs scrambled Sobol sampling, normal and beta quantiles, and a simulator that runs 50,000 races in under 10 s. CLAUDE.md names SciPy and Numba in the stack. Numba was flagged by slopcheck only on name similarity to numpy (false positive: 140 releases since 2012, github.com/numba/numba).
+**Decision:** Add scipy (Sobol, norm.ppf, beta.ppf), numba (the lap-step kernel only; NumPy does draws and tables) and scipy-stubs (dev, so mypy strict passes). Versions are bounded in pyproject.toml and uv.lock is committed; CI uses `uv sync --locked`.
+**Why:** The NumPy-only prototype measured 6.4-7.5 s for 50,000 x 20 x 57 on a fast desktop, too close to the 10 s limit on CI runners; the Numba lap kernel measured 1.7-2.5 s including draws (RESEARCH).
+**Alternatives rejected:** Pure NumPy masks (too slow). Cython or Rust (out of stack; Rust is M5). A hand-written Sobol (direction numbers are easy to get wrong).
+**Consequences:** The first call compiles (about 1 s, excluded by warm-up in the benchmark). `pytest --cov` cannot trace inside jitted bodies, so a `py_func` equivalence test gives real coverage. Determinism is per environment.
+**Refs:** D-13, D-18, SIM-02, SIM-03
