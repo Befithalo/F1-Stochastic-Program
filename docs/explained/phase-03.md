@@ -30,6 +30,7 @@ Paths are relative to the repository folder.
 - `src/f1si/sim/kernel.py` is the compiled one-lap step: it applies pit losses, starts and ends safety cars (frozen order, slower laps, tight restart), holds a follower in dirty air or lets it pass with a logistic chance, and puts a car that did not pit ahead of one that did.
 - `src/f1si/sim/plans.py` decides each car's pit plan: a plan you force is used exactly, every other car gets the optimizer's best plan, and a car the optimizer cannot plan (unknown or unpriced tyre) gets a simple one-stop fallback, with the source of each plan recorded.
 - `src/f1si/sim/borrow.py` stands in for tyre and driver data the fit does not have: an unfitted tyre borrows the average of the fitted tyres, a driver missing from the fit gets the field-average pace, and both are listed in the diagnostics.
+- `src/f1si/sim/numpy_backend.py` is the simulator itself: it takes a `RaceState`, gives every car a plan, builds lap-time tables, starts from the real gaps (with a catch-up lap for cars a lap behind and retired cars placed last), then runs the compiled lap step for every remaining lap of 50,000 (or any number of) races and returns finishing positions and times, reproducible by seed.
 
 ## Interview questions
 

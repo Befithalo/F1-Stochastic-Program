@@ -12,7 +12,8 @@ from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.linear import LinearPaceFit, fit_linear_pace, measure_pit_loss
 from f1si.state import CarState, RaceState, build_race_state
 
-CODES = ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH")
+_EXTRA = tuple(f"Z{chr(65 + i // 26)}{chr(65 + i % 26)}" for i in range(64))
+CODES = ("AAA", "BBB", "CCC", "DDD", "EEE", "FFF", "GGG", "HHH", *_EXTRA)
 PIT = {"green": 22.0, "sc": 11.0}
 
 

@@ -25,6 +25,7 @@ from f1si.interfaces import (
     StrategyPolicy,
 )
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
+from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer
 from tests.conformance.suites import PaceProbe, PolicyCase, SimCase
@@ -159,6 +160,24 @@ def _noisy_simulator(long_db: Path) -> tuple[SimulatorBackend, SimCase]:
     return NoisySimulator(), SimCase(example_state(), 64)
 
 
+def _numpy_sim(long_db: Path) -> tuple[SimulatorBackend, SimCase]:
+    """The Monte Carlo simulator on the long synthetic race, simulated from lap 0."""
+    accessor = AsOfAccessor(long_db)
+    end = accessor.snapshot(AsOf("2023-01", RACE_END))
+    fit = fit_linear_pace(end)
+    pit = measure_pit_loss(end, fit)
+    state = build_race_state(
+        accessor.snapshot(AsOf("2023-01", 0)), fit, laps_total=57, pit_loss_s=pit.median_s
+    )
+    sim = NumpySimulator(
+        fit,
+        sc=SafetyCarModel(0.01, 4),
+        compounds=fit.fitted_compounds,
+        wear_sd_by_compound={c: fit.wear_se(c) for c in fit.fitted_compounds},
+    )
+    return sim, SimCase(state, 64)
+
+
 PACE_MODELS: Final[dict[str, Callable[[Path], tuple[PaceModel, PaceProbe]]]] = {
     "constant_pace": _constant_pace,
     "linear_fit": _linear_fit,
@@ -169,4 +188,5 @@ POLICIES: Final[dict[str, Callable[[Path], tuple[StrategyPolicy, PolicyCase]]]] 
 }
 SIMULATORS: Final[dict[str, Callable[[Path], tuple[SimulatorBackend, SimCase]]]] = {
     "noisy_simulator": _noisy_simulator,
+    "numpy_sim": _numpy_sim,
 }
