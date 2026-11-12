@@ -848,3 +848,36 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Independent wear rate per car (wrong correlation). Sampling from the full covariance (needs the covariance in the state; deferred). SE of the mean-centred offset (needs the covariance of the mean).
 **Consequences:** Plans 03-03 and 03-04 need no further cross-cutting edits to state, fit or result.
 **Refs:** D-12, D-19, WR-02, WR-04
+
+## DEC-078 — Overtaking: dirty-air hold plus logistic pass chance
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** The simulator must let cars interact on track (SIM-01) with a rule simple enough to hand-check and cheap enough for 50,000 races.
+**Decision:** Cars are processed front to back each green lap. A follower that would arrive less than `MIN_GAP_S` (0.5 s) behind the car ahead either passes or is held at exactly that gap (dirty air). The pass chance is `p = 1 / (1 + exp((THRESHOLD_S - delta) / SCALE_S))` with `delta` the pace gap (ahead's free lap time minus the follower's), `THRESHOLD_S = 0.3`, `SCALE_S = 0.25`. One uniform per car per lap decides it (`pu < p`), so a car gains at most one position per lap by passing. A successful passer pays `PASS_COST_S` (0.3 s) and the passed car is pushed to at least passer plus `MIN_GAP_S`. A car that did not pit moves ahead of a car that pitted this lap deterministically (no chance, no cost). No lapping, blue flags or retirements (D-09). All constants are `[ASSUMED]` engineering defaults (A1) and are fitted per circuit only in Phase 6. Sanity values: p(+2.0 s) > 0.99, p(0) = 0.23, p(-2.0 s) < 0.01, p(0.3 s) = 0.5.
+**Why:** A logistic curve is monotone, bounded and has two readable parameters; the hold reproduces the main strategic effect of traffic (undercut value, being stuck behind a slower car) without a car-following model.
+**Alternatives rejected:** Always pass when faster (no traffic cost). A fixed time penalty for being close (no chance of escape). A full gap-based Markov passing model (needs data not yet available).
+**Consequences:** The "equal pace rarely passes" target in the plan read p(0) < 0.2; the fixed constants give 0.231, so the test bound is 0.25.
+**Refs:** D-07, D-08, D-09
+
+## DEC-079 — Safety-car mechanics in the simulator
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Pit timing is the product, and a safety car changes both the cost of a stop and the field spacing.
+**Decision:** A safety car starts only on a green lap, with probability `sc_rate` per lap per race, lasts a fixed `sc_duration` laps, and the whole lap it starts on runs under it. Order is frozen (only pit stops reorder it), and every car's lap time is `SC_SLOWDOWN` (1.4) times the leader's green free time. On the last SC lap the field is compressed to `RESTART_SPACING_S` (1.0 s) between consecutive cars. A stop on an SC lap pays `pit_loss_s["sc"]` (placeholder 0.5 x green until Phase 8) instead of the green loss. On the lap an SC starts (or the first simulated lap when an SC is already active at the cutoff), cars with the opportunistic flag (free-strategy cars, never forced plans) whose next planned stop lies within `SC_STOP_WINDOW_LAPS` (5) laps and whose following stop is at least a minimum stint later take that stop now. Tyre wear under SC is not reduced. VSC and red flags are not modelled.
+**Why:** These are the smallest rules that produce the cheap-stop and bunching effects behind SC strategy calls; the 1.4 factor matches the synthetic generator so recovery tests are consistent.
+**Alternatives rejected:** Letting a new SC start during an SC (double counting). Reduced tyre wear under SC (no data yet). Restart spacing from real gaps (would need a restart model).
+**Consequences:** Constants are `[ASSUMED]` (A2). The kernel does not import the generator.
+**Refs:** D-03, D-04, D-11
+
+## DEC-080 — Draw layout: Sobol plus antithetic, per-lap streams, common random numbers
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** SIM-03 needs a low-variance estimate and Phase 5 needs plans compared on the same random luck.
+**Decision:** `rng.spawn(4)` gives `sc_params`, `passing`, `noise` and a spare stream; `passing.spawn(n_laps)` gives one stream per lap. Low-dimensional blocks (SC start, per-car offset and per-compound wear draws, one `Sobol(d=n_cars)` engine per lap for pass uniforms) use scrambled Sobol with `Sobol(..., rng=child).random_base2(m)`, `m = max(1, ceil(log2(ceil(n/2))))`, first `ceil(n/2)` rows, stacked with their antithetic `1 - u` and trimmed to `n` (odd N is padded and trimmed). Rows `i` and `i + ceil(n/2)` are mirrors across all blocks. High-dimensional per-lap noise uses plain antithetic normals `[e; -e]`, never Sobol (D-13). Every draw is generated unconditionally, in lap order, indexed by (race, car, lap), never conditioned on plans, order or SC state. SciPy's `rng=` keyword is used, not `seed=`; `random_base2` avoids the balance warning for non powers of two. A mode switch (`none`, `antithetic`, `sobol_antithetic`) runs plain MC and variance-reduced draws through one code path. Sobol dimension is bounded by 21,201 and `MAX_RACES`, `MAX_CARS`, `MAX_LAPS` cap input sizes.
+**Why:** Sobol points plus antithetic pairing reduce variance for the smooth low-dimensional integrand; plain antithetic normals stay robust in high dimension. Unconditional per-lap streams make common random numbers exact.
+**Alternatives rejected:** Sobol over all dimensions (poor quality and a huge engine). A single stream consumed in race order (a forced plan would shift other drivers' draws).
+**Consequences:** Plan 03-04 assembles the simulator from these blocks; the variance comparison against plain MC is tested in plan 03-05.
+**Refs:** D-13, D-14, D-15, SIM-03

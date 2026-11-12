@@ -27,6 +27,7 @@ Paths are relative to the repository folder.
 - `src/f1si/regime/sc_rate.py` is the safety-car estimator: it counts deployments with an edge rule (a safety-car row after a red flag is a restart, not a new deployment), measures lengths in leader laps, and returns the Beta-Binomial posterior mean, its 90% interval and the duration.
 - `src/f1si/sim/constants.py` holds the named simulator settings (dirty-air gap, pass-chance curve, safety-car slowdown, restart spacing, input limits); all are documented defaults, not fitted.
 - `src/f1si/sim/draws.py` makes the random numbers: scrambled Sobol points paired with their mirror images (antithetic), plain mirrored normals for the noisy parts, and one reproducible stream per lap so changing one driver's plan cannot change anyone else's luck.
+- `src/f1si/sim/kernel.py` is the compiled one-lap step: it applies pit losses, starts and ends safety cars (frozen order, slower laps, tight restart), holds a follower in dirty air or lets it pass with a logistic chance, and puts a car that did not pit ahead of one that did.
 
 ## Interview questions
 
