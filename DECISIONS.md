@@ -683,3 +683,47 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** NaN for unknowns (silently propagates and is invalid JSON). Putting a per-compound wear map in the state (the schema would change whenever a model changes).
 **Consequences:** Later phases fill the placeholders without touching the field set. A new field needs a new additive key and a DECISIONS entry.
 **Refs:** D-12, D-13, D-23
+
+## DEC-063 — Joint OLS fuel and wear fit
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** PAC-01 asks for tyre wear in seconds per lap after removing the lighter-car effect. Fuel and wear separate only because tyre age resets at a stop while the lap number keeps rising (D-01).
+**Decision:** One ordinary least squares fit over clean laps, `t = alpha_d + fuel*(L-1) + wear[c]*age + eps`, solved with `numpy.linalg.lstsq`, with classical standard errors `sqrt(diag(s2 (X'X)^-1))` and a normal 1.96 interval because SciPy is not installed. It needs residual degrees of freedom of at least 30. An SVD rank and condition check (`COND_LIMIT` 1e8) names the parameters that cannot be separated and the fit then reports no number for them; the minimum-norm answer is never used. A compound needs `MIN_CLEAN_LAPS_PER_COMPOUND` 30 clean laps from at least `MIN_STINTS_PER_COMPOUND` 2 stints, a driver needs `MIN_DRIVER_LAPS` 5 laps. Heteroskedasticity-robust standard errors are not used: HC3 differed by under 15% from the classical ones at Bahrain 2023.
+**Why:** A silent minimum-norm answer would look like a measurement. The refusal makes the limits of the data visible (D-03), and the wear slope SE feeds `RaceState` `wear_sd` (D-04).
+**Alternatives rejected:** A fixed fuel constant from the literature (hides the data). Robust SEs (no material change). A mixed-effects model (more machinery, same point estimates).
+**Consequences:** Before the first stop the CLI says "not enough laps yet" rather than printing a number. A 95% interval from a normal quantile is slightly narrow when residual degrees of freedom are near 30.
+**Refs:** D-01, D-03, D-04
+
+## DEC-064 — Clean laps are what the plot fades
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** The stint plot already fades lap 1, pit in-laps, pit out-laps and laps under a safety car, VSC or red flag. The fit must not disagree with what the user sees.
+**Decision:** The rule lives once in `f1si/laps.py` (`fade_reason`, `slow_status`, `FADE_TRACK_CODES`) and both the plot and the fit import it. Yellow flags (code "2") are not dropped, which overrides the word "yellow" in D-02 (D-22). After a first solve, laps with a residual more than `MAD_K` = 3 robust standard deviations (1.4826 * MAD) from the median are trimmed, for up to 5 passes, and the design matrix is rebuilt from scratch every pass. The fit reports how many laps were dropped and why.
+**Why:** One rule cannot drift between the picture and the numbers. Rebuilding the design every pass keeps compounds and drivers that fall under their minimum from staying in by accident.
+**Alternatives rejected:** A separate cleaning rule in the fit (can drift). Dropping yellow laps (removes many ordinary laps). A single trim pass (a large outlier can mask a smaller one).
+**Consequences:** `fade_reason` checks pit reasons before track status, so it cannot separate green from slow stops; pit loss uses `slow_status` directly.
+**Refs:** D-02, D-22, DEC-050
+
+## DEC-065 — No compound pace offset; fuel reported as measured
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** A fresh hard tyre may be slower than a fresh soft at age zero. Measured at Bahrain 2023, the wear slopes were SOFT 0.125 and HARD 0.121 s/lap, and a HARD offset came out at +0.26 s with standard error 0.13 s: weakly identified. The fuel estimate was -0.078 s/lap, outside the usual -0.06 to -0.03 range.
+**Decision:** No compound pace offset is modeled and the wear output says so: compound choice among near-ties is not meaningful (D-19). An additive compound-offset term is the named Phase 7 candidate. Fuel is reported as measured and never clamped; when it lies outside the literature range the output says it likely also absorbs track evolution (D-25).
+**Why:** A weakly identified extra term would widen every interval and shift wear, while clamping fuel would hide a real signal.
+**Alternatives rejected:** Fitting the offset now (SE half the estimate). Clamping fuel to the literature range (silently wrong).
+**Consequences:** Wear slopes are within-stint degradation only; the optimizer inherits the caveat.
+**Refs:** D-19, D-25
+
+## DEC-066 — Pit loss measured from in-laps and out-laps
+
+**Date:** 2026-11-11
+**Status:** Accepted
+**Context:** The optimizer needs a cost of stopping. The pit lane time alone misses the slow in-lap and out-lap.
+**Decision:** For each visible stop, loss = (in-lap + out-lap time) minus the fit's clean prediction for the same two laps. The estimate is the median with a 10-90% range. Only green-flag stops count: a stop where either lap has a safety car, VSC or red code (`slow_status`) is excluded and counted. With no usable stop, or an unidentified fit, `DEFAULT_PIT_LOSS_S` = 22.0 s is returned and flagged as a default. At Bahrain 2023 the median measured about 24 to 25 s.
+**Why:** The median resists the odd slow stop, and the spread shows how uncertain the cost is.
+**Alternatives rejected:** The mean (pulled by slow stops). Pit-lane duration from timing data (leaves out the lap-time cost). A fixed constant (not measured).
+**Consequences:** The default is a placeholder that is always labeled as such.
+**Refs:** D-05

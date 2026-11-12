@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 62
+MIN_ENTRIES = 66
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -134,3 +134,16 @@ def test_race_state_entry_exists_by_title() -> None:
     assert len(matches) == 1
     assert "allow_nan=False" in matches[0]
     assert "driver_number" in matches[0]
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        "Joint OLS fuel and wear fit",
+        "Clean laps are what the plot fades",
+        "No compound pace offset; fuel reported as measured",
+        "Pit loss measured from in-laps and out-laps",
+    ],
+)
+def test_wear_decisions_exist_by_title(title: str) -> None:
+    assert sum(1 for _, t, _ in _entries() if t == title) == 1, title

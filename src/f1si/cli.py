@@ -1,7 +1,8 @@
 """Command-line entry point for f1si.
 
-Subcommands: `load` (fill the cache), `races` (list cached races with their regulation era) and
-`plot` (lap time by stint for one cached race). Exit codes: 0 ok, 1 user-facing error, 2 some
+Subcommands: `load` (fill the cache), `races` (list cached races with their regulation era),
+`plot` (lap time by stint for one cached race) and `wear` (fitted tyre wear, fuel effect and pit
+loss for one cached race). Exit codes: 0 ok, 1 user-facing error, 2 some
 races failed.
 """
 
@@ -20,8 +21,18 @@ from f1si.data.sources import RaceSource, SourceError
 from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
+from f1si.pace.linear import (
+    DEFAULT_PIT_LOSS_S,
+    FUEL_SANITY_RANGE,
+    MIN_CLEAN_LAPS_PER_COMPOUND,
+    MIN_STINTS_PER_COMPOUND,
+    fit_linear_pace,
+    measure_pit_loss,
+)
 from f1si.plots.stints import plot_file_name, prepare_stint_plot_data, render_stint_plot
 from f1si.rng import DEFAULT_SEED, make_rng
+
+_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan"})
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,6 +93,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CODE",
         help="only these driver codes, for example VER HAM (default: all drivers)",
+    )
+
+    wear = sub.add_parser(
+        "wear", help="fitted tyre wear (s/lap per compound), fuel effect and pit loss"
+    )
+    wear.add_argument("slug", metavar="SLUG", help="race slug (for example bahrain-2023)")
+    wear.add_argument(
+        "--lap",
+        type=int,
+        default=None,
+        metavar="N",
+        help="use only laps visible after the leader's lap N, for example 20 "
+        "(default: the whole race)",
     )
     return parser
 
@@ -163,6 +187,92 @@ def _cmd_plot(data_dir: Path, reports_dir: Path, slug: str, drivers: Sequence[st
     return 0
 
 
+def _cmd_wear(data_dir: Path, reports_dir: Path, slug: str, lap: int | None) -> int:
+    """Print fitted wear per compound, the fuel effect, the pit loss and what was dropped."""
+    del reports_dir  # the wear plot (plan 02-03) is written there
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    if lap is not None and lap < 0:
+        print(
+            f"--lap must be 0 or more, got {lap}. Try: uv run f1si wear {slug} --lap 20",
+            file=sys.stderr,
+        )
+        return 1
+    at = asof.AsOf(race_id, asof.RACE_END if lap is None else lap)
+    try:
+        snapshot = asof.AsOfAccessor(db).snapshot(at)
+    except OutOfSampleLockedError as err:
+        print(
+            f"{err} 2026 races are out-of-sample, so they cannot be analysed in Phase 2.",
+            file=sys.stderr,
+        )
+        return 1
+    fit = fit_linear_pace(snapshot)
+    report = fit.report
+    if not fit.is_identified:
+        hint = "" if lap is None else f" Try: uv run f1si wear {slug} --lap {max(lap + 20, 40)}"
+        print(f"Not enough laps yet to fit tyre wear: {report.message}.{hint}", file=sys.stderr)
+        return 1
+    race = snapshot.race
+    where = "at the end of the race" if lap is None else f"after lap {lap}"
+    print(
+        f"{race.event_name} {race.season}: tyre wear {where} "
+        f"({len(report.driver_offsets)} drivers, {report.n_clean} clean laps)"
+    )
+    header = ("COMPOUND", "WEAR (s/lap)", "95% INTERVAL", "CLEAN LAPS")
+    rows = [
+        (
+            c.compound,
+            f"{c.wear_s_per_lap:+.3f}",
+            f"{c.ci_low:+.3f} to {c.ci_high:+.3f}",
+            str(c.n_laps),
+        )
+        for c in report.compounds
+    ]
+    rows += [
+        (
+            name,
+            f"not enough data (needs {MIN_CLEAN_LAPS_PER_COMPOUND} clean laps in at least "
+            f"{MIN_STINTS_PER_COMPOUND} stints)",
+            "",
+            "",
+        )
+        for name in report.not_enough_data
+    ]
+    widths = [max(len(h), *(len(row[i]) for row in rows)) for i, h in enumerate(header)]
+    for line in (header, *rows):
+        print("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(line)).rstrip())
+    assert report.fuel_s_per_lap is not None
+    assert report.fuel_ci_low is not None
+    assert report.fuel_ci_high is not None
+    low, high = FUEL_SANITY_RANGE
+    print(
+        f"Fuel effect: {report.fuel_s_per_lap:+.3f} s/lap (95% interval "
+        f"{report.fuel_ci_low:+.3f} to {report.fuel_ci_high:+.3f}); literature range about "
+        f"{low:+.3f} to {high:+.3f} s/lap (approximate; negative = car gets faster)"
+    )
+    if not low <= report.fuel_s_per_lap <= high:
+        print(
+            "Outside the literature range: this estimate likely also absorbs track evolution. "
+            "It is reported as measured, not clamped."
+        )
+    pit = measure_pit_loss(snapshot, fit)
+    if pit.is_default:
+        print(f"Pit loss: {DEFAULT_PIT_LOSS_S:.1f} s (default: no green-flag stop seen yet)")
+    else:
+        print(
+            f"Pit loss: median {pit.median_s:.1f} s over {pit.n_stops} green-flag stops "
+            f"(10-90% range {pit.p10_s:.1f} to {pit.p90_s:.1f} s)"
+        )
+    dropped = sorted(report.dropped.items(), key=lambda kv: (-kv[1], kv[0]))
+    print("Laps dropped: " + (", ".join(f"{k}={v}" for k, v in dropped) or "none"))
+    print(
+        "Note: compound pace offsets are not modeled; "
+        "compound choice among near-ties is not meaningful."
+    )
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     args = build_parser().parse_args(argv)
@@ -173,6 +283,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()
             )
             return _cmd_plot(data_dir, reports_dir, args.slug, args.drivers)
+        if args.command == "wear":
+            wear_reports: Path = (
+                args.reports_dir if args.reports_dir is not None else paths.reports_dir()
+            )
+            return _cmd_wear(data_dir, wear_reports, args.slug, args.lap)
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
@@ -191,7 +306,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
     except ValueError as err:
-        if args.debug or args.command != "plot":
+        if args.debug or args.command not in _FRIENDLY_VALUE_ERRORS:
             raise
         print(str(err), file=sys.stderr)
         return 1
