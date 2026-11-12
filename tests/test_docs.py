@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPLAINERS = sorted((ROOT / "docs" / "explained").glob("phase-*.md"))
 PHASE1 = ROOT / "docs" / "explained" / "phase-01.md"
 PHASE2 = ROOT / "docs" / "explained" / "phase-02.md"
+PHASE3 = ROOT / "docs" / "explained" / "phase-03.md"
 README = ROOT / "README.md"
 
 HEADINGS = (
@@ -87,6 +88,10 @@ def test_readme_commands_and_links() -> None:
         "lower bound",
         "Hindsight plan",
         "compared against",
+        "uv run f1si simulate bahrain-2023",
+        "docs/explained/phase-03.md",
+        "hindsight simulation",
+        "prior only",
         "DECISIONS.md",
     ):
         assert needle in readme, needle
@@ -105,5 +110,28 @@ def test_phase2_tour_names_new_modules_and_tests() -> None:
         "tests/guards/consumers.py",
         "tests/test_cli_wear_plan.py",
         "tests/real/test_wear_bahrain.py",
+    ):
+        assert path in tour, path
+
+
+def test_phase3_tour_names_new_modules_and_tests() -> None:
+    tour = _section(_text(PHASE3), "## File-by-file tour")
+    for path in (
+        "src/f1si/sim/numpy_backend.py",
+        "src/f1si/sim/kernel.py",
+        "src/f1si/sim/draws.py",
+        "src/f1si/sim/plans.py",
+        "src/f1si/sim/borrow.py",
+        "src/f1si/sim/constants.py",
+        "src/f1si/regime/sc_rate.py",
+        "src/f1si/plots/simulate.py",
+        "tests/sim",
+        "tests/regime",
+        "tests/conformance",
+        "tests/guards/consumers.py",
+        "tests/test_cli_simulate.py",
+        "tests/real/test_simulate_bahrain.py",
+        "tests/sim/test_benchmark.py",
+        "tests/sim/test_variance_reduction.py",
     ):
         assert path in tour, path
