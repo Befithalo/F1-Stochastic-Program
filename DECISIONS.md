@@ -947,3 +947,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Re-checking the passer against the next car ahead in a loop (allows several passes per lap). Ranking by clock only (hides the inconsistency).
 **Consequences:** A few pass outcomes now cost the passer a small hold; measured variance ratios and the benchmark are re-run after this change.
 **Refs:** DEC-078, SIM-01
+
+## DEC-087 — Fixed compound slots for the wear draws, so forced plans cannot move common random numbers
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** Code review CR-02. The Sobol dimension was `n_sim + n_cars + n_comp` with `n_comp` counted from the fitted compounds plus every compound used by a car or a plan. A forced plan introducing a new compound changed the dimension and shifted the compound columns, so the scrambled points, `u_sc`, `z_off` and `z_wear` changed for every car, which contradicted DEC-080.
+**Decision:** `f1si.sim.constants.DRAW_COMPOUNDS = ("SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET")` fixes the wear-draw slots. The Sobol dimension is `n_sim + n_cars + len(DRAW_COMPOUNDS)` whatever the plans are. Each simulation compound (`comp_names`, unchanged, used for the tables) takes its `z_wear` column by name from its slot; a compound outside the tuple gets a zero wear draw and a diagnostics line. A test forces a plan onto a compound outside the fitted set and checks that the safety-car lap mask and the other cars' times (cars far apart, no safety car) are identical.
+**Why:** Draws keyed by name, not by position in a plan-dependent list, are what make common random numbers hold for Phase 5, which prices many plans on the same luck.
+**Alternatives rejected:** A separate random stream for non-canonical compounds (adds a stream for names that do not occur in F1 data). Keeping the plan-dependent layout and documenting it (breaks the plan-comparison use).
+**Consequences:** The scrambled points differ from earlier runs, so every simulated number moved within sampling noise. Re-measured variance ratios (R = 120, N = 1024): mean finish 3.81, total time 11.74, safety-car share 2.47, P(top 5) 3.27, against 4.52, 16.43, 3.19, 4.25 before. The gain is real but smaller than the figures in DEC-083, which stay as the first measurement. The total-time ratio sits just under its 12.0 test margin.
+**Refs:** DEC-080, D-14, SIM-03

@@ -10,7 +10,7 @@ This page is for you, the owner. It explains what Phase 3 built, in plain words,
 
 **Pass or hold.** A follower that would end up closer than 0.5 s behind the car ahead either passes or is held at 0.5 s ("dirty air"). The pass chance is a logistic (S-shaped) curve of the pace advantage: 50% at 0.4 s faster, about 12% at equal pace and above 99% at 2 s faster (DEC-078). A successful pass costs the passer 0.3 s. These constants are documented defaults, not fitted yet.
 
-**Variance reduction.** Plain random sampling is noisy. The simulator uses scrambled Sobol points (evenly spread, not clumpy) and pairs each draw with its mirror image (antithetic). At equal sample size this cuts the noise of the estimates by a measured 3 to 16 times (see Q3).
+**Variance reduction.** Plain random sampling is noisy. The simulator uses scrambled Sobol points (evenly spread, not clumpy) and pairs each draw with its mirror image (antithetic). At equal sample size this cuts the noise of the estimates by a measured 2.5 to 12 times (see Q3).
 
 **The benchmark.** A test simulates 50,000 races of a 20-car, 57-lap race and requires it to take under 10 s. Measured on this machine: 1.45, 1.38 and 1.49 s, with the compile warm-up excluded (DEC-084).
 
@@ -77,7 +77,7 @@ The estimator counts safety-car starts in earlier races and divides by the laps,
 
 ### Q3. What are Sobol and antithetic sampling, and what did they gain?
 
-Sobol points fill the space of random draws evenly instead of clumping, and antithetic pairing runs each draw together with its mirror image so the errors cancel. Over 120 repeats of 1,024 races (DEC-083), the variance of plain Monte Carlo divided by the variance of the new scheme was 4.5 for mean finishing position, 16.4 for mean total time and 3.2 for the safety-car share. The fourth estimate, the chance of finishing in the top 5, improved by 4.2 times as well. I expected little gain there, because a threshold indicator is jumpy, but the measurement says otherwise on the test race, so it is reported and not asserted. The gain depends on the state: if nobody can ever pass, the finishing position never varies and the ratio means nothing.
+Sobol points fill the space of random draws evenly instead of clumping, and antithetic pairing runs each draw together with its mirror image so the errors cancel. Over 120 repeats of 1,024 races (DEC-083), the variance of plain Monte Carlo divided by the variance of the new scheme was 3.8 for mean finishing position, 11.7 for mean total time and 2.5 for the safety-car share. The fourth estimate, the chance of finishing in the top 5, improved by 3.3 times as well. I expected little gain there, because a threshold indicator is jumpy, but the measurement says otherwise on the test race, so it is reported and not asserted. The gain depends on the state: if nobody can ever pass, the finishing position never varies and the ratio means nothing.
 
 ### Q4. Why Numba, and how do 50,000 races fit in 10 s?
 
@@ -93,6 +93,6 @@ All randomness comes from one explicit seeded generator, so the same seed gives 
 - **The hindsight label (D-17).** Without `--lap` the fit uses the whole race, so the output says "hindsight simulation". With `--lap 20` only data known after lap 20 is used.
 - **Limits.** The safety-car pit loss of 0.5 times the green loss is a placeholder until Phase 8. The overtaking constants are documented defaults, fitted in Phase 6 (the pass curve uses a 0.4 s threshold and a 0.2 s scale, DEC-078). There are no retirements, lapping, virtual safety cars or red flags. Rivals follow the free-track best plan. Wear is not reduced under a safety car. The safety-car rate's own uncertainty is not sampled, and the parameter draws are independent, ignoring the fit's covariance.
 - **Borrowed pace.** MEDIUM tyres have too little data to fit at Bahrain 2023, so a car on them borrows the average of SOFT and HARD. Piastri (PIA, number 81) retired on lap 13 and is not in the fit, so the plan optimizer refuses him, he gets a one-stop fallback plan with field-average pace, and from lap 20 he is placed last. All of this is printed as notes.
-- **Where choices are logged.** DEC-074 to DEC-085 in `DECISIONS.md`: libraries (074), safety-car prior (075), regime and placeholder pit loss (076, 077), pass model (078), safety-car mechanics (079), draws (080), plans (081), starts and borrowing (082), variance ratios (083), benchmark (084), the command (085).
+- **Where choices are logged.** DEC-074 to DEC-087 in `DECISIONS.md`: libraries (074), safety-car prior (075), regime and placeholder pit loss (076, 077), pass model (078), safety-car mechanics (079), draws (080), plans (081), starts and borrowing (082), variance ratios (083), benchmark (084), the command (085), clock and order (086), fixed draw slots (087).
 - **Not here yet.** The Kalman filter, Longstaff-Schwartz stopping, a regime Markov model and a model of how the safety-car rate varies by circuit.
 - **Run the checks** from PowerShell: `uv run pytest`. The real-data check is `uv run pytest -m network -v tests/real/test_simulate_bahrain.py`. CI on Ubuntu and Windows must be green before the phase counts as done.

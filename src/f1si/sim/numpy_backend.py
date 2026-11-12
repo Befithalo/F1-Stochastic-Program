@@ -28,9 +28,13 @@ Common random numbers. Every draw is indexed by (race, car, lap) and generated u
 lap order, from streams spawned from the caller's generator (`f1si.sim.draws.make_streams`), so a
 forced plan for one driver cannot move another car's draws.
 
-Sobol dimension budget. One scrambled-Sobol engine of dimension `n_sim_laps + n_cars + n_compounds`
-(far below SciPy's 21,201 limit) supplies the safety-car start uniforms (one column per lap), the
-pace-offset normals and the wear normals; one `Sobol(d=n_cars)` engine per lap supplies the pass
+Sobol dimension budget. One scrambled-Sobol engine of dimension
+`n_sim_laps + n_cars + len(DRAW_COMPOUNDS)` (far below SciPy's 21,201 limit) supplies the
+safety-car start uniforms (one column per lap), the pace-offset normals and the wear normals. The
+wear normals use a fixed slot per canonical compound name (`DRAW_COMPOUNDS`), so the dimension and
+every compound's draw are the same whatever plans are forced (DEC-087); a compound outside that
+tuple gets no wear draw (zero) and a diagnostics line; one `Sobol(d=n_cars)` engine per lap
+supplies the pass
 uniforms; lap noise is plain antithetic normals (D-13). Odd `n_races` is padded to an even
 antithetic block and trimmed back.
 
@@ -55,6 +59,7 @@ from numpy.typing import NDArray
 from f1si.interfaces import PaceModel, Plan, SimulationResult
 from f1si.sim.borrow import BorrowedPace
 from f1si.sim.constants import (
+    DRAW_COMPOUNDS,
     MAX_CARS,
     MAX_LAPS,
     MAX_RACES,
@@ -225,10 +230,22 @@ class NumpySimulator:
         # draws
         d_sc = max(1, n_sim)
         sc_params, passing, noise = make_streams(rng, d_sc)
-        block = uniform_block(self._mode, n_sim + n_cars + n_comp, n, sc_params)
+        n_draw = len(DRAW_COMPOUNDS)
+        block = uniform_block(self._mode, n_sim + n_cars + n_draw, n, sc_params)
         u_sc_all = np.ascontiguousarray(block[:, :n_sim])
         z_off = np.ascontiguousarray(normal_from_uniform(block[:, n_sim : n_sim + n_cars]))
-        z_wear = np.ascontiguousarray(normal_from_uniform(block[:, n_sim + n_cars :]))
+        z_slots = normal_from_uniform(block[:, n_sim + n_cars :])
+        # wear draws are keyed by compound NAME through the fixed slot layout, so the Sobol
+        # dimension and every other compound's column never depend on the plans (DEC-087)
+        z_wear = np.zeros((n, n_comp), dtype=np.float64)
+        for i, name in enumerate(comp_names):
+            if name in DRAW_COMPOUNDS:
+                z_wear[:, i] = z_slots[:, DRAW_COMPOUNDS.index(name)]
+            else:
+                diagnostics.append(
+                    f"{name}: not a standard compound, no wear draw (wear SD unused)"
+                )
+        z_wear = np.ascontiguousarray(z_wear)
 
         order = np.ascontiguousarray(np.tile(start.order, (n, 1)))
         clock = np.ascontiguousarray(np.tile(start.clock, (n, 1)))

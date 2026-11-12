@@ -79,3 +79,33 @@ def test_finish_positions_agree_with_clock_ranks() -> None:
     res = sim.simulate(state, n_races=400, rng=make_rng(21))
     ranks = np.argsort(np.argsort(res.total_time_s, axis=1, kind="stable"), axis=1) + 1
     assert (res.finish_positions == ranks).all()
+
+
+def test_forced_new_compound_leaves_other_draws_alone() -> None:
+    """CR-02: a forced plan on a compound outside the fitted set shifts nobody's draws."""
+    state = hand_state(3, lap=0, laps_total=8, spacing_s=60.0)
+    wear = {"HARD": 0.02, "MEDIUM": 0.03}
+
+    def run(compound: str, rate: float) -> tuple[NDArray[np.float64], NDArray[np.bool_]]:
+        sim = NumpySimulator(
+            NoisyPace(),
+            sc=SafetyCarModel(rate, 3),
+            compounds=("HARD", "MEDIUM"),
+            wear_sd_by_compound=wear,
+        )
+        plan = Plan((4,), (compound,), 0.0)
+        res = sim.simulate(state, n_races=64, rng=make_rng(13), plans={"BBB": plan})
+        assert res.sc_lap_mask is not None
+        return res.total_time_s, res.sc_lap_mask
+
+    # no safety car: cars 60 s apart never interact, so the other cars' times are pure draws
+    times_a, _ = run("MEDIUM", 0.0)
+    times_b, _ = run("SOFT", 0.0)
+    for col in (0, 2):
+        assert np.array_equal(times_a[:, col], times_b[:, col])
+    assert not np.array_equal(times_a[:, 1], times_b[:, 1])
+    # with a safety car, the SC lap mask (the u_sc draws) is identical too
+    _, mask_a = run("MEDIUM", 0.15)
+    _, mask_b = run("SOFT", 0.15)
+    assert mask_a.any()
+    assert np.array_equal(mask_a, mask_b)

@@ -14,7 +14,10 @@ antithetic normals `[e; -e]` (D-13).
 
 Common random numbers. Every draw is indexed by (race, car, lap), generated unconditionally and
 in lap order, never conditioned on a plan, the running order or the safety-car state, so forcing
-one driver's plan cannot shift anyone else's draws. Streams come only from `rng.spawn`.
+one driver's plan cannot shift anyone else's draws. The per-compound wear columns follow a
+fixed slot layout (`f1si.sim.constants.DRAW_COMPOUNDS`), not the compounds a plan happens to use,
+so even a forced plan that adds a compound leaves the block unchanged (DEC-087). Streams come
+only from `rng.spawn`.
 """
 
 import math
