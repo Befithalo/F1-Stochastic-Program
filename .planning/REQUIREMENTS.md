@@ -29,7 +29,7 @@
 ### Pace and Tire Model
 
 - [x] **PAC-01**: Lap times are fuel-corrected, and a linear tire-wear rate is fitted per compound
-- [ ] **PAC-02**: User can get the free-track optimal plan by brute-forcing every 1- and 2-stop strategy for total race time
+- [x] **PAC-02**: User can get the free-track optimal plan by brute-forcing every 1- and 2-stop strategy for total race time
 - [ ] **PAC-03**: A Kalman filter estimates hidden tire wear per car from noisy lap times, with an uncertainty band
 - [ ] **PAC-04**: On synthetic stints the Kalman estimate is within 10% of truth by lap 8 and 95% intervals cover truth about 95% of the time
 - [ ] **PAC-05**: A hierarchical Bayesian (PyMC) pace model with car, driver, tire, fuel and era effects implements `PaceModel`
@@ -106,7 +106,7 @@
 | INT-02 | Phase 2 | Complete |
 | INT-03 | Phase 2 | Complete |
 | PAC-01 | Phase 2 | Complete |
-| PAC-02 | Phase 2 | Pending |
+| PAC-02 | Phase 2 | Complete |
 | SIM-01 | Phase 3 | Pending |
 | SIM-02 | Phase 3 | Pending |
 | SIM-03 | Phase 3 | Pending |
