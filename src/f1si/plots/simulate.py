@@ -26,8 +26,8 @@ from numpy.typing import NDArray
 
 from f1si.plots.stints import EDGE_COLOR
 
-_SLUG = re.compile(r"^[a-z0-9-]+$")
-_DRIVER = re.compile(r"^[A-Z]{3}$")
+_SLUG = re.compile(r"[a-z0-9-]+")
+_DRIVER = re.compile(r"[A-Z]{3}")
 _BAR_COLOR: Final = "#4c78a8"
 
 
@@ -130,9 +130,9 @@ def sim_file_name(slug: str, driver: str, lap: int) -> str:
     Raises:
         ValueError: if the slug, driver or lap has unexpected characters or values.
     """
-    if not isinstance(slug, str) or not _SLUG.match(slug):
+    if not isinstance(slug, str) or not _SLUG.fullmatch(slug):
         raise ValueError(f"Unsafe race slug for a file name: {slug!r}")
-    if not isinstance(driver, str) or not _DRIVER.match(driver):
+    if not isinstance(driver, str) or not _DRIVER.fullmatch(driver):
         raise ValueError(f"Unsafe driver code for a file name: {driver!r}")
     if isinstance(lap, bool) or not isinstance(lap, int) or lap < 0:
         raise ValueError(f"Unsafe lap for a file name: {lap!r}")

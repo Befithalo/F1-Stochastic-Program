@@ -52,7 +52,7 @@ from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 
 _FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate"})
-_DRIVER_CODE = re.compile(r"^[A-Z]{3}$")
+_DRIVER_CODE = re.compile(r"[A-Z]{3}")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -411,7 +411,7 @@ def _pick_driver(
     """Validate the requested code (D-08) or default to the leader of `leader_from`."""
     if driver is not None:
         code = driver.upper()
-        if not _DRIVER_CODE.match(code):
+        if not _DRIVER_CODE.fullmatch(code):
             raise ValueError(f"Driver codes are three letters, like VER; got {driver}")
         codes = sorted(str(c) for c in shown.cars["driver_code"])
         if code not in codes:
@@ -589,7 +589,7 @@ def _cmd_simulate(
 ) -> int:
     """Simulate n_races continuations and print one driver's finishing-position distribution."""
     try_line = f"Try: uv run f1si simulate {slug} --driver CODE --lap 20"
-    if not _DRIVER_CODE.match(driver):
+    if not _DRIVER_CODE.fullmatch(driver):
         return _refuse(
             f"Driver codes are three capital letters, like VER; got {driver}. {try_line}"
         )

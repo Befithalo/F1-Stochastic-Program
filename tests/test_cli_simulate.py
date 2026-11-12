@@ -121,7 +121,7 @@ def test_bounds_are_refused_with_a_try_line(
     assert list(tmp_path.glob("sim-*")) == []
 
 
-@pytest.mark.parametrize("driver", ["alo", "ALON", "ZZZ", "A1B"])
+@pytest.mark.parametrize("driver", ["ALON", "ZZZ", "A1B", "ALO\n"])
 def test_bad_driver_codes_are_refused(
     long_synthetic_data_dir: Path,
     tmp_path: Path,
