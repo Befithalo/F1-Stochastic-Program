@@ -471,18 +471,24 @@ Run `lap_step.py_func(...)` and `lap_step(...)` on the same small (n=16) inputs 
 | A6 | Variance ratios of the real model resemble the prototype (1.4-1.9) | Pitfall 8 | Test margin must be re-calibrated on the real implementation |
 | A7 | Heilmeier et al. 2020 uses a comparable lap-wise structure | State of the Art | Citation wording only (I did not read the paper's numbers) |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+All four were resolved during planning by adopting the recommendation (the owner delegated technical choices).
 
 1. **Shared vs per-car wear draw (D-12).**
    - Known: wear is one shared parameter per compound in the fit.
    - Unclear: whether the owner wants car-level wear scatter in addition.
    - Recommendation: shared per-compound draw (Pitfall 3); log as a refinement of D-12 in DEC-074+.
+   - **RESOLVED:** shared per-compound wear draw per race, one offset draw per car. DEC-077, plan 03-02 (plumbing) and 03-04 (sampling).
 2. **Where to put "SC laps elapsed" (D-05).**
    - Recommendation: optional `RaceState.sc_laps_elapsed` (default 0); fallback "assume just started".
+   - **RESOLVED:** optional `RaceState.sc_laps_elapsed`. DEC-076, plan 03-02.
 3. **Borrow rule for unfitted compounds/drivers.**
    - Recommendation: mean of fitted compounds' wear (SE: max of them), field-mean offset for absent drivers; flag in diagnostics and CLI. Needs one DEC entry.
+   - **RESOLVED:** borrow rule as recommended, listed in diagnostics. DEC-082, plan 03-04 (`sim/borrow.py`).
 4. **Pace-offset SE plumbing.**
    - Recommendation: `FitReport.driver_offset_se` + `CarState.pace_offset_sd` optional field (precedent DEC-073); update the CAR_KEYS pin in `tests/test_state.py`.
+   - **RESOLVED:** `FitReport.driver_offset_se` + optional `CarState.pace_offset_sd`. DEC-077, plan 03-02.
 
 ## Environment Availability
 

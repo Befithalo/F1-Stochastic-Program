@@ -120,7 +120,36 @@ Plans:
   4. A test shows Sobol plus antithetic sampling has lower variance than plain Monte Carlo at the same N
   5. The same seed reproduces identical results
 
-**Plans**: TBD
+**Plans:** 7 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Dependencies (scipy, numba, scipy-stubs), synthetic SC spec, Beta-Binomial SC rate (REG-01) with recovery test and look-ahead registration (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — RaceState SC regime and SC pit-loss placeholder, pace-offset SE, SimulationResult diagnostics (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 03-03-PLAN.md — Constants, Sobol/antithetic/CRN draws and the Numba lap kernel (passing, SC, pit loss) (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 03-04-PLAN.md — NumpySimulator end to end: plans, borrowed pace, start state, conformance, SC and CRN tests (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 03-05-PLAN.md — 50,000-race benchmark under 10 s and the Sobol+antithetic variance test (wave 5)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 03-06-PLAN.md — `f1si simulate` command and finishing-distribution PNG (wave 6)
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 03-07-PLAN.md — Phase 3 explainer, README, opt-in real Bahrain test, full gate (wave 7)
 
 ### Phase 4: Kalman Tire Filter
 
@@ -207,7 +236,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
-| 3. Monte Carlo Simulator | 0/0 | Not started | - |
+| 3. Monte Carlo Simulator | 0/7 | Planned | - |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
