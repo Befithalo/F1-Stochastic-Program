@@ -36,10 +36,10 @@ M1 must be architected so later milestones plug in without rewrites.
 - [x] Data layer: FastF1/OpenF1 2023-2025 cached in DuckDB, single as-of accessor, lap-time-by-stint plot — Validated in Phase 1: Foundation & Data
 - [x] Typed Protocols in `f1si/interfaces.py`: `PaceModel`, `StrategyPolicy`, `SimulatorBackend`, with a shared test suite every implementation must pass — Validated in Phase 2: Interfaces, Linear Tire Wear & Free-Track Optimizer
 - [x] Simple fuel-corrected linear tire wear per compound + free-track brute-force 1/2-stop optimizer — Validated in Phase 2 (Bahrain 2023: HARD +0.121, SOFT +0.125 s/lap, fuel -0.078 s/lap, pit loss 24.4 s)
+- [x] Vectorized Monte Carlo simulator (pit loss, overtaking from pace gap, safety-car probability); 50,000 races in under 10 s; Sobol + antithetic variance reduction — Validated in Phase 3: Monte Carlo Simulator (Bahrain 2023 ALO: 50,000 races in 1.7 s, variance cut 3.8x mean finish / 11.7x total time / 2.5x SC share; open flag: real P3 sits outside the 90% interval P4-P6, check coverage in Phase 6)
 
 ### Active (M1)
 
-- [ ] Vectorized Monte Carlo simulator (pit loss, overtaking from pace gap, safety-car probability); 50,000 races in under 10 s; Sobol + antithetic variance reduction
 - [ ] Kalman tire-degradation filter + lap-by-lap live-replay loop
 - [ ] Longstaff-Schwartz optimal pit timing, ranked by mean finish and CVaR@10%
 - [ ] Walk-forward backtester (2023-2025, no look-ahead) with Brier score and calibration; 10 races at MVP, at least 20 for M1 done
@@ -109,4 +109,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-12 after Phase 2 completion*
+*Last updated: 2026-11-12 after Phase 3 completion*

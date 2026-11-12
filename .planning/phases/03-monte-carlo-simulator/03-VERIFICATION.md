@@ -1,7 +1,7 @@
 ---
 phase: 03-monte-carlo-simulator
 verified: 2026-11-12T00:00:00Z
-status: human_needed
+status: passed
 score: 5/5 must-haves verified
 human_verification:
   - test: "Push the phase and confirm GitHub Actions is green on Ubuntu and Windows"
@@ -18,7 +18,7 @@ human_verification:
 # Phase 3: Monte Carlo Simulator Verification Report
 
 **Goal:** User can simulate 50,000 continuations of a race from any `RaceState` in under 10 s with a reliable, low-variance result.
-**Status:** human_needed (no gaps found)
+**Status:** passed (human verification complete)
 
 ## Observable Truths
 
@@ -78,3 +78,13 @@ No gaps. All five success criteria are verified by tests and a live run. Status 
 
 _Verified: 2026-11-12_
 _Verifier: Claude (gsd-verifier)_
+
+## Human verification outcome
+
+All three items passed (see 03-HUMAN-UAT.md, status complete):
+
+1. **CI:** run 43287052118 on cf34ebd, checks (ubuntu-latest) and checks (windows-latest) both succeeded.
+2. **PNG:** the owner viewed `reports/sim-bahrain-2023-ALO-lap0.png` and approved it.
+3. **CR-01 and WR-05:** the owner reviewed both rules in `kernel.py` and approved them.
+
+Status moved from human_needed to passed on 2026-11-12.

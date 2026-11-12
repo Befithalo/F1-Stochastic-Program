@@ -1,5 +1,5 @@
 ---
-status: partial
+status: complete
 phase: 03-monte-carlo-simulator
 source: [03-VERIFICATION.md]
 started: 2026-11-12T19:00:00Z
@@ -8,7 +8,7 @@ updated: 2026-11-12T20:00:00Z
 
 ## Current Test
 
-[awaiting owner approval of item 3]
+[testing complete]
 
 ## Tests
 
@@ -24,14 +24,14 @@ result: passed — owner viewed the PNG and approved it ("The barchart is good")
 ### 3. Kernel logic changes after the plans (CR-01, WR-05)
 expected: The order/clock sweep keeps clocks strictly increasing along the running order without allowing a second pass per lap; the opportunistic SC stop refuses to end a stint shorter than `min_stint`.
 claude_review: Diffs 39f2e40 and fc8cc82 read: the sweep only holds cars back, finishing places come from the final order, the stint check adds `age + 1 >= min_stint` without touching planned stops; both have tests that fail without the fix.
-result: [pending owner approval]
+result: passed — owner reviewed both rules in kernel.py with Claude's explanation and approved them ("approved"), 2026-11-12. Noted limitation: the simulator never takes an SC stop on tyres younger than `min_stint`, which real teams occasionally do; Phase 6 backtests will show whether it matters.
 
 ## Summary
 
 total: 3
-passed: 2
+passed: 3
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
