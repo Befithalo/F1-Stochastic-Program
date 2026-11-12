@@ -2,16 +2,20 @@
 
 Subcommands: `load` (fill the cache), `races` (list cached races with their regulation era),
 `plot` (lap time by stint for one cached race) and `wear` (fitted tyre wear, fuel effect and pit
-loss for one cached race) and `plan` (fastest free-track 1- and 2-stop plans for one driver).
+loss for one cached race), `plan` (fastest free-track 1- and 2-stop plans for one driver) and
+`simulate` (a driver's finishing-position distribution from many simulated race continuations).
 Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
 """
 
 import argparse
 import re
 import sys
+import time
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
+
+import numpy as np
 
 import f1si
 from f1si import paths
@@ -32,6 +36,7 @@ from f1si.pace.linear import (
     fit_linear_pace,
     measure_pit_loss,
 )
+from f1si.plots.simulate import prepare_sim_plot_data, render_sim_plot, sim_file_name
 from f1si.plots.stints import (
     UnknownDriverError,
     plot_file_name,
@@ -39,11 +44,14 @@ from f1si.plots.stints import (
     render_stint_plot,
 )
 from f1si.plots.wear import prepare_wear_plot_data, render_wear_plot, wear_file_name
+from f1si.regime.sc_rate import ScRateEstimate, estimate_sc_rate
 from f1si.rng import DEFAULT_SEED, make_rng
+from f1si.sim.constants import MAX_RACES
+from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 
-_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan"})
+_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate"})
 _DRIVER_CODE = re.compile(r"^[A-Z]{3}$")
 
 
@@ -134,6 +142,35 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="plan from data visible after the leader's lap N, for example 20 "
         "(default: hindsight plan using the whole race)",
+    )
+    simulate = sub.add_parser(
+        "simulate", help="finishing-position distribution of one driver from simulated races"
+    )
+    simulate.add_argument("slug", metavar="SLUG", help="race slug (for example bahrain-2023)")
+    simulate.add_argument(
+        "--driver", required=True, metavar="CODE", help="driver code, for example ALO"
+    )
+    simulate.add_argument(
+        "--lap",
+        type=int,
+        default=None,
+        metavar="N",
+        help="simulate from the state after the leader's lap N using only data known then "
+        "(default: hindsight simulation from lap 0 with a pace fit from the whole race)",
+    )
+    simulate.add_argument(
+        "--n",
+        type=int,
+        default=50000,
+        metavar="N",
+        help=f"number of simulated races, 2 to {MAX_RACES} (default 50000)",
+    )
+    simulate.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        metavar="S",
+        help="random seed, 0 or more, passed to make_rng (default 0)",
     )
     return parser
 
@@ -528,6 +565,156 @@ def _compare_line(
     return f"Compared against: the actual strategy could not be priced ({reason})."
 
 
+_SIM_NOTE = (
+    "Limitations: rivals follow the free-track best plan (D-10) and no retirements are "
+    "simulated (D-09)."
+)
+
+
+def _sc_source(est: ScRateEstimate) -> str:
+    if est.is_prior_only:
+        return "prior only: no earlier races"
+    return f"{est.n_deployments} earlier SC deployments over {est.n_laps} laps from earlier races"
+
+
+def _cmd_simulate(
+    data_dir: Path,
+    reports_dir: Path,
+    slug: str,
+    driver: str,
+    lap: int | None,
+    n_races: int,
+    seed: int,
+) -> int:
+    """Simulate n_races continuations and print one driver's finishing-position distribution."""
+    try_line = f"Try: uv run f1si simulate {slug} --driver CODE --lap 20"
+    if not _DRIVER_CODE.match(driver):
+        return _refuse(
+            f"Driver codes are three capital letters, like VER; got {driver}. {try_line}"
+        )
+    if lap is not None and lap < 0:
+        return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
+    if not 2 <= n_races <= MAX_RACES:
+        return _refuse(f"--n must be between 2 and {MAX_RACES}, got {n_races}. {try_line}")
+    try:
+        rng = make_rng(seed)
+        warm_rng = make_rng(seed)
+    except ValueError as err:
+        return _refuse(f"{err}. {try_line}")
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    accessor = asof.AsOfAccessor(db)
+    try:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+        laps_total = int(end.laps["lap_number"].max())
+        if lap is None:
+            fit_snapshot = end
+            state_snapshot = accessor.snapshot(asof.AsOf(race_id, 0))
+            history = accessor.history(asof.AsOf(race_id, 0))
+        elif lap >= laps_total:
+            return _refuse(
+                f"Nothing to simulate: the race is over after lap {laps_total}. "
+                f"Try: uv run f1si simulate {slug} --driver {driver} --lap "
+                f"{max(laps_total - 20, 20)}"
+            )
+        else:
+            fit_snapshot = state_snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+            history = accessor.history(asof.AsOf(race_id, lap))
+    except OutOfSampleLockedError as err:
+        return _refuse(
+            f"{err} 2026 races are out-of-sample, so they cannot be analysed in Phase 3."
+        )
+    fit = fit_linear_pace(fit_snapshot)
+    if not fit.is_identified:
+        retry = 20 if lap is None or lap < 10 else lap + 10
+        shown = "in this race" if lap is None else f"after lap {lap}"
+        return _refuse(
+            f"Cannot simulate: not enough laps yet to fit wear {shown} ({fit.report.message}); "
+            f"try --lap {retry}. Example: uv run f1si simulate {slug} --driver {driver} "
+            f"--lap {retry}"
+        )
+    pit = measure_pit_loss(fit_snapshot, fit)
+    state = build_race_state(state_snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s)
+    try:
+        code = _pick_driver(state_snapshot, end, driver)
+    except UnknownDriverError as err:
+        return _refuse(f"{err}. Try: uv run f1si simulate {slug} --driver CODE")
+    estimate = estimate_sc_rate(history)
+    simulator = NumpySimulator(
+        fit,
+        sc=SafetyCarModel(estimate.rate_per_lap, estimate.duration_laps),
+        compounds=fit.fitted_compounds,
+        wear_sd_by_compound={c.compound: c.se for c in fit.report.compounds},
+    )
+    simulator.simulate(state, n_races=64, rng=warm_rng)  # warm-up: compile time not reported
+    started = time.perf_counter()
+    result = simulator.simulate(state, n_races=n_races, rng=rng)
+    runtime = time.perf_counter() - started
+
+    race = end.race
+    print(
+        f"{race.event_name} {race.season}: {code}, simulated from lap {state.lap} of {laps_total}"
+    )
+    print(
+        "This is a hindsight simulation: the pace fit uses the whole race. "
+        "It makes no claim of foresight."
+        if lap is None
+        else f"Simulation after lap {lap}: only data known at that lap is used."
+    )
+    print(
+        f"Safety car rate: {estimate.rate_per_lap * 100:.2f}% per lap "
+        f"(source: {_sc_source(estimate)}), 90% interval "
+        f"[{estimate.ci_low * 100:.2f}%, {estimate.ci_high * 100:.2f}%], typical safety car "
+        f"length {estimate.duration_laps} laps"
+    )
+    sources = result.plan_sources
+    n_opt = sum(1 for s in sources if s.source == "optimizer")
+    n_fb = sum(1 for s in sources if s.source == "fallback")
+    reasons = sorted({s.reason for s in sources if s.source == "fallback" and s.reason})
+    print(
+        f"Plans: {n_opt} from the free-track optimizer, {n_fb} fallback"
+        + (f" ({'; '.join(reasons)})" if reasons else "")
+    )
+    for line in result.diagnostics:
+        print(f"Note: {line}")
+    print(_SIM_NOTE)
+    column = [c.driver for c in state.cars].index(code)
+    mine = result.finish_positions[:, column]
+    n_cars = len(state.cars)
+    shares = np.bincount(mine, minlength=n_cars + 1)[1 : n_cars + 1] / float(len(mine))
+    print()
+    print(f"Finishing position of {code} over {n_races} simulated races")
+    _print_table(
+        ("POSITION", "SHARE"),
+        [(f"P{k}", f"{share * 100:.1f}%") for k, share in enumerate(shares, start=1)],
+    )
+    low, high = (float(q) for q in np.quantile(mine, [0.05, 0.95]))
+    print(
+        f"mean {float(mine.mean()):.2f}, median {float(np.median(mine)):.1f}, "
+        f"90% interval {low:.0f} to {high:.0f}"
+    )
+    sc_share = 0.0 if result.sc_lap_mask is None else float(result.sc_lap_mask.any(axis=1).mean())
+    print(f"Safety car in {sc_share * 100:.1f}% of simulated races")
+    print(f"runtime: {runtime:.1f} s for {n_races} races")
+    out = reports_dir / sim_file_name(race.slug, code, state.lap)
+    render_sim_plot(
+        prepare_sim_plot_data(
+            mine,
+            slug=race.slug,
+            driver=code,
+            lap=state.lap,
+            n_races=n_races,
+            sc_share=sc_share,
+            sc_source=_sc_source(estimate),
+            hindsight=lap is None,
+            n_cars=n_cars,
+        ),
+        out,
+    )
+    print(f"Wrote {out}. Open it to see the finishing-position distribution.")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     args = build_parser().parse_args(argv)
@@ -545,6 +732,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_wear(data_dir, wear_reports, args.slug, args.lap)
         if args.command == "plan":
             return _cmd_plan(data_dir, args.slug, args.driver, args.lap)
+        if args.command == "simulate":
+            sim_reports: Path = (
+                args.reports_dir if args.reports_dir is not None else paths.reports_dir()
+            )
+            return _cmd_simulate(
+                data_dir, sim_reports, args.slug, args.driver, args.lap, args.n, args.seed
+            )
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)

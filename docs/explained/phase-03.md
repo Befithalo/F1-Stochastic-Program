@@ -32,6 +32,7 @@ Paths are relative to the repository folder.
 - `src/f1si/sim/borrow.py` stands in for tyre and driver data the fit does not have: an unfitted tyre borrows the average of the fitted tyres, a driver missing from the fit gets the field-average pace, and both are listed in the diagnostics.
 - `src/f1si/sim/numpy_backend.py` is the simulator itself: it takes a `RaceState`, gives every car a plan, builds lap-time tables, starts from the real gaps (with a catch-up lap for cars a lap behind and retired cars placed last), then runs the compiled lap step for every remaining lap of 50,000 (or any number of) races and returns finishing positions and times, reproducible by seed.
 - `src/f1si/plots/simulate.py` draws the finishing-position chart for one driver: one bar per position showing the share of simulated races that ended there, a dashed line at the mean, and a caption that states where the safety-car rate came from. It also builds the safe file name `sim-<race>-<DRIVER>-lap<N>.png`.
+- `src/f1si/cli.py` now has the `simulate` command: `uv run f1si simulate bahrain-2023 --driver ALO` prints the state it started from, where the safety-car rate came from, how each car's plan was chosen, the driver's chance of finishing in each position (with mean, median and 90% interval), the share of races with a safety car and the runtime, and writes the chart. Without `--lap` it is labelled a hindsight simulation.
 
 ## Interview questions
 

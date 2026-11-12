@@ -925,3 +925,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A `benchmark` marker that CI deselects (the gate would not prove SIM-02). Timing the compile (varies with cache state).
 **Consequences:** No simulator optimisation was needed in this plan; the 20 optimizer calls per simulate stay uncached.
 **Refs:** D-18, SIM-02
+
+## DEC-085 — The simulate command: hindsight rule, input bounds, what it prints
+
+**Date:** 2026-11-12
+**Status:** Accepted
+**Context:** SIM-01 needs a command that turns a replayed race, a driver and a lap into a finishing-position distribution with its inputs stated, and every command argument is untrusted text.
+**Decision:** `f1si simulate SLUG --driver CODE [--lap N] [--n 50000] [--seed 0]`. Without `--lap` the state is the lap-0 snapshot, the pace fit comes from the whole race and the run is labelled "hindsight simulation" (mirrors the Phase 2 hindsight rule); with `--lap N` the snapshot, the pace fit and the history for the safety-car rate are all taken at `AsOf(race, N)`, and an unidentified fit is refused with the Phase 2 wording and a "try --lap" hint. The safety-car rate and duration come from `estimate_sc_rate(history)` over earlier races only, printed with their source ("prior only: no earlier races" or the number of earlier deployments and laps). Bounds: `--n` in [2, 1,000,000] (`MAX_RACES`, memory grows with n), `--lap` >= 0, `--seed` >= 0 through `make_rng`, `--driver` three capital letters present in the state; each refusal is one line ending in a "Try:" line with exit code 1 and happens before any simulation. A 64-race warm-up call runs first so that Numba compile time is excluded from the printed runtime. The PNG is `reports/sim-<slug>-<DRV>-lap<N>.png`, built by `sim_file_name`, which validates slug, driver and lap. Only `f1si.cli` names the accessor; the simulator receives plain `RaceState`, `History`-derived numbers and the fit. The output prints the limitations: rivals follow the free-track best plan and no retirements are simulated.
+**Why:** The hindsight label keeps the whole-race fit from being mistaken for a forecast, and the bounds keep a mistyped argument from exhausting memory or reaching internals.
+**Alternatives rejected:** A default of the mid-race lap (hides that the fit uses the future). Silent clipping of `--n` (hides the cap). Letting argparse parse-errors stand for `--n abc` (kept: argparse exits with code 2 and a one-line usage message, no traceback).
+**Consequences:** The distribution is a single driver's view; the finishing rows can be fully concentrated on one position when the synthetic or real field never reshuffles in the simulation.
+**Refs:** D-16, D-17, D-18
