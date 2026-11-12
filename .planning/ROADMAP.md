@@ -8,7 +8,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
 
 - [x] **Phase 1: Foundation & Data** - Repo, CI, seeded randomness, DuckDB cache, lap-time-by-stint plot, as-of accessor with look-ahead test (completed 2026-10-22)
 - [x] **Phase 2: Interfaces, Linear Tire Wear & Free-Track Optimizer** - Protocols and RaceState, fuel-corrected linear wear, brute-force 1/2-stop plan (completed 2026-11-12)
-- [ ] **Phase 3: Monte Carlo Simulator** - Vectorized NumPy simulator, 50,000 races under 10 s, variance reduction, constant SC probability
+- [x] **Phase 3: Monte Carlo Simulator** - Vectorized NumPy simulator, 50,000 races under 10 s, variance reduction, constant SC probability (completed 2026-11-12)
 - [ ] **Phase 4: Kalman Tire Filter** - Hidden tire wear estimated per car with uncertainty, verified on synthetic stints
 - [ ] **Phase 5: Longstaff-Schwartz Strategy & Live Replay** - Ranked pit options with CVaR, risk setting, reasons, Bahrain 2023 replay end to end
 - [ ] **Phase 6: MVP Backtest, Streamlit View & README** - 10-race walk-forward backtest, team-call comparison, one-page view, README with real results
@@ -120,7 +120,7 @@ Plans:
   4. A test shows Sobol plus antithetic sampling has lower variance than plain Monte Carlo at the same N
   5. The same seed reproduces identical results
 
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 
 Plans:
 **Wave 1**
@@ -149,7 +149,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 03-07-PLAN.md — Phase 3 explainer, README, opt-in real Bahrain test, full gate (wave 7)
+- [x] 03-07-PLAN.md — Phase 3 explainer, README, opt-in real Bahrain test, full gate (wave 7)
 
 ### Phase 4: Kalman Tire Filter
 
@@ -236,7 +236,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
-| 3. Monte Carlo Simulator | 6/7 | In Progress|  |
+| 3. Monte Carlo Simulator | 7/7 | Complete   | 2026-11-12 |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
