@@ -120,7 +120,7 @@ Plans:
   4. A test shows Sobol plus antithetic sampling has lower variance than plain Monte Carlo at the same N
   5. The same seed reproduces identical results
 
-**Plans:** 3/7 plans executed
+**Plans:** 4/7 plans executed
 
 Plans:
 **Wave 1**
@@ -137,7 +137,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 03-04-PLAN.md — NumpySimulator end to end: plans, borrowed pace, start state, conformance, SC and CRN tests (wave 4)
+- [x] 03-04-PLAN.md — NumpySimulator end to end: plans, borrowed pace, start state, conformance, SC and CRN tests (wave 4)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -236,7 +236,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
-| 3. Monte Carlo Simulator | 3/7 | In Progress|  |
+| 3. Monte Carlo Simulator | 4/7 | In Progress|  |
 | 4. Kalman Tire Filter | 0/0 | Not started | - |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |

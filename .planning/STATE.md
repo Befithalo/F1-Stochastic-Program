@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-11-12T18:03:37.844Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-11-12T18:15:42.319Z"
 last_activity: 2026-11-12
 progress:
   total_phases: 8
   completed_phases: 2
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 25
 ---
 
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 3 (monte-carlo-simulator) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-11-12
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 87%
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [████████░░] 83%
 | Phase 03 P01 | 1h | 3 tasks | 13 files |
 | Phase 03 P02 | 1h | 2 tasks | 14 files |
 | Phase 03 P03 | ~30m | 2 tasks | 11 files |
+| Phase 03 P04 | 40min | 3 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,7 @@ Progress: [████████░░] 83%
 - [Phase 03]: DEC-074/075: scipy+numba locked; SC rate Beta(3,297) on earlier races, edge-rule deployments, median duration (fallback 4)
 - [Phase 03]: DEC-076/077: SC regime at cutoff, shared per-compound wear draw, SimulationResult diagnostics
 - [Phase 03]: DEC-078..080: logistic passing with dirty-air hold, SC mechanics, Sobol+antithetic CRN draws
+- [Phase 03]: DEC-081/082: forced plans exact, fallback for refused cars, leader-relative start with catch-up lap and borrowed pace — see DECISIONS.md
 
 ### Pending Todos
 
@@ -101,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-12T18:03:37.837Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-11-12T18:15:42.312Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None
