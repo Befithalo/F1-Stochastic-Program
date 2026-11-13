@@ -24,10 +24,12 @@ from f1si.interfaces import (
     SimulatorBackend,
     StrategyPolicy,
 )
+from f1si.pace.kalman import current_stint_snapshots, filter_stints
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer
+from f1si.strategy.longstaff import LongstaffSchwartzPolicy
 from tests.conformance.suites import PaceProbe, PolicyCase, SimCase
 
 
@@ -156,6 +158,24 @@ def _free_track(long_db: Path) -> tuple[StrategyPolicy, PolicyCase]:
     return optimizer, PolicyCase(state, driver, fitted)
 
 
+def _longstaff_schwartz(long_db: Path) -> tuple[StrategyPolicy, PolicyCase]:
+    """A supported cutoff with the real LSM policy and a small deterministic scenario set."""
+    accessor = AsOfAccessor(long_db)
+    snapshot = accessor.snapshot(AsOf("2023-01", 35))
+    fit = fit_linear_pace(snapshot)
+    pit = measure_pit_loss(snapshot, fit)
+    wear = current_stint_snapshots(filter_stints(snapshot, fit))
+    state = build_race_state(
+        snapshot, fit, laps_total=57, pit_loss_s=pit.median_s, wear_filter=wear
+    )
+    fitted = frozenset(fit.fitted_compounds)
+    driver = next(car.driver for car in state.cars if car.compound in fitted)
+    policy = LongstaffSchwartzPolicy(
+        fit, compounds=fit.fitted_compounds, n_simulations=12, seed=5202
+    )
+    return policy, PolicyCase(state, driver, fitted)
+
+
 def _noisy_simulator(long_db: Path) -> tuple[SimulatorBackend, SimCase]:
     return NoisySimulator(), SimCase(example_state(), 64)
 
@@ -185,6 +205,7 @@ PACE_MODELS: Final[dict[str, Callable[[Path], tuple[PaceModel, PaceProbe]]]] = {
 POLICIES: Final[dict[str, Callable[[Path], tuple[StrategyPolicy, PolicyCase]]]] = {
     "hold_policy": _hold_policy,
     "free_track": _free_track,
+    "longstaff_schwartz": _longstaff_schwartz,
 }
 SIMULATORS: Final[dict[str, Callable[[Path], tuple[SimulatorBackend, SimCase]]]] = {
     "noisy_simulator": _noisy_simulator,

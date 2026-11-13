@@ -11,7 +11,8 @@ from typing import Final
 
 import numpy as np
 
-from f1si.data.asof import AsOf, AsOfAccessor
+from f1si.cli import _replay_at_cutoff
+from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
@@ -131,6 +132,33 @@ def wear_filter(db_path: Path, at: AsOf) -> object:
     return results, current_stint_snapshots(results), priors
 
 
+def strategy_replay(db_path: Path, at: AsOf) -> object:
+    """The CLI's cutoff-local Longstaff recommendation and ranked evidence."""
+    accessor = AsOfAccessor(db_path)
+    snapshot = accessor.snapshot(at)
+    if snapshot.entries.empty:
+        return ("unavailable", "No entrants are available.")
+    distance = accessor.snapshot(AsOf(at.race_id, RACE_END))
+    if distance.laps.empty:
+        return ("unavailable", "No lap data are available.")
+    laps_total = int(distance.laps["lap_number"].max())
+    lap = at.lap if isinstance(at.lap, int) else laps_total
+    code = sorted(str(value) for value in snapshot.entries["driver_code"])[0]
+    result = _replay_at_cutoff(
+        accessor,
+        at.race_id,
+        laps_total,
+        code,
+        lap,
+        n_simulations=1,
+        risk=0.5,
+        seed=0,
+    )
+    if result.analysis is None:
+        return ("unavailable", result.unavailable_reason)
+    return ("available", result.analysis)
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -145,6 +173,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "wear_plot_data": wear_plot_data,
     "sc_rate": sc_rate,
     "wear_filter": wear_filter,
+    "strategy_replay": strategy_replay,
 }
 
 

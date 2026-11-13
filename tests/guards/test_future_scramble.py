@@ -16,6 +16,7 @@ from f1si.data import _db, schema
 from f1si.data.asof import RACE_END, AsOf, RaceEnd
 from f1si.data.errors import OutOfSampleLockedError
 from f1si.synthetic import default_specs
+from tests.conftest import LONG_RACE_ID
 from tests.guards.consumers import CONSUMERS
 from tests.guards.scramble import (
     JUNK_RACE_ID,
@@ -162,6 +163,21 @@ def test_consumers_ignore_the_future(
 ) -> None:
     rng = np.random.default_rng(seed)
     assert_no_lookahead(CONSUMERS[consumer], original_tables, AsOf(race, lap), rng=rng)
+
+
+def test_strategy_replay_ignores_future_at_a_supported_cutoff(
+    long_synthetic_db: Path,
+) -> None:
+    assert "strategy_replay" in CONSUMERS
+    tables = _db.read_all_tables(long_synthetic_db)
+    at = AsOf(LONG_RACE_ID, 35)
+    assert CONSUMERS["strategy_replay"](long_synthetic_db, at)[0] == "available"
+    assert_no_lookahead(
+        CONSUMERS["strategy_replay"],
+        tables,
+        at,
+        rng=np.random.default_rng(5052),
+    )
 
 
 def _full_grid() -> list[tuple[str, int | RaceEnd]]:
