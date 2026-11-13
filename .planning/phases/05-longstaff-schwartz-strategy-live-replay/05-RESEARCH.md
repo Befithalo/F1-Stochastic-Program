@@ -356,20 +356,17 @@ The app-level input and no-look-ahead controls above are phase-specific planning
 
 ## Open Questions
 
-1. **What exact checkpoint/resume surface fits the simulator best?**
-   - What we know: Future path branching must preserve running order, clocks/gaps, per-car tire/stop state, regime state, and common draw identity; terminal outcomes alone and `clock_s` alone are insufficient.
-   - What's unclear: Whether to expose a compact optional path history in `SimulationResult`, an internal resume API, or a staged path-batch callback.
-   - Recommendation: Planner should choose the smallest seam that permits same-path stop/continue comparisons and keeps full per-lap checkpoint storage opt-in; estimate memory at expected sample count.
+1. **RESOLVED — What exact checkpoint/resume surface fits the simulator best?**
+   - Decision: Use a private, opt-in checkpoint and branch seam inside `NumpySimulator`; preserve indexed common future draws between stop/continue branches and keep full per-lap checkpoint storage out of the public `SimulationResult` contract.
+   - Plan reference: `05-01-PLAN.md`, tracer task and simulator seam artifacts. This is the smallest scoped interface that carries the race state needed for same-path action comparisons without a general simulator redesign.
 
-2. **What fallback should handle an underdetermined regression?**
-   - What we know: NumPy least-squares reports effective rank; rank-deficient basis makes the fit unreliable. [CITED: https://numpy.org/doc/stable/reference/generated/numpy.linalg.lstsq.html]
-   - What's unclear: Minimum observation/rank threshold and fallback behavior are discretionary.
-   - Recommendation: Start with lower-dimensional basis reduction or a deterministic legal candidate fallback; label thresholds and cover both in synthetic tests.
+2. **RESOLVED — What fallback should handle an underdetermined regression?**
+   - Decision: When the training sample is undersized or the normalized basis is rank-deficient, reduce deterministically to an intercept-only conditional-mean continuation estimate. Keep the basis and fallback labeled as assumptions and test both rank-deficient and undersized inputs.
+   - Plan reference: `05-01-PLAN.md`, discretion choices and tracer task. This is simpler and more reproducible than trying several fallback candidates at runtime.
 
-3. **How should legal candidates behave at race boundaries?**
-   - What we know: Candidate set is fixed by context; a requested stop may be illegal when there are fewer than 1–5 laps remaining.
-   - What's unclear: Whether to omit illegal choices, collapse them to “stay out,” or explain a refusal.
-   - Recommendation: Follow existing plan legality/refusal conventions and make every output row correspond to a genuinely executable action.
+3. **RESOLVED — How should legal candidates behave at race boundaries?**
+   - Decision: Omit any `pit in 1–5 laps` action whose stop would fall outside the remaining race; do not silently collapse an illegal action into `stay out`. Keep every displayed row tied to a genuinely executable candidate and use the existing friendly refusal path if no valid candidate remains.
+   - Plan reference: `05-01-PLAN.md`, candidate-generation and legality acceptance criteria. This preserves the fixed candidate intent while making boundary behavior explicit.
 
 ## Sources
 
