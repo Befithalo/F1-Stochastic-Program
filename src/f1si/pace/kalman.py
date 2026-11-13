@@ -97,7 +97,9 @@ _H: Final[NDArray[np.float64]] = np.array([1.0, 0.0, 0.0], dtype=np.float64)
 
 
 def _finite(name: str, value: float) -> None:
-    if not isinstance(value, int | float) or isinstance(value, bool) or not math.isfinite(value):
+    """Raise ValueError unless `value` is a finite real number (numpy scalars count, bool not)."""
+    is_number = isinstance(value, int | float | np.integer | np.floating)
+    if not is_number or isinstance(value, bool | np.bool_) or not math.isfinite(value):
         raise ValueError(f"{name} must be a finite number, got {value!r}")
 
 

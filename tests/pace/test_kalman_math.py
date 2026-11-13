@@ -1,6 +1,7 @@
 """Kalman wear filter equals closed-form Bayesian regression at q = 0 (PAC-03, DEC-088)."""
 
 import math
+from typing import cast
 
 import numpy as np
 import pytest
@@ -125,3 +126,17 @@ def test_closed_form_rejects_bad_inputs() -> None:
         posterior_rate_sd(0.02, float("nan"), 0.02, 7)
     with pytest.raises(ValueError, match="n_measured"):
         posterior_rate_sd(0.02, 0.15, 0.02, 0)
+
+
+def test_numpy_scalars_are_accepted_as_numbers() -> None:
+    """IN-02: numpy integer and float32 scalars are real numbers; numpy bool is not."""
+    prior = WearPrior(
+        rate_mean=cast(float, np.float32(0.07)),
+        rate_sd=cast(float, np.float32(0.02)),
+        fuel_sd=cast(float, np.int64(0)),
+        sigma=cast(float, np.int64(1)),
+    )
+    assert prior.sigma == 1
+    assert posterior_rate_sd(cast(float, np.float32(0.02)), 0.15, 0.02, 7) > 0
+    with pytest.raises(ValueError, match="finite number"):
+        WearPrior(rate_mean=cast(float, np.bool_(True)), rate_sd=0.02, fuel_sd=0.02, sigma=0.15)
