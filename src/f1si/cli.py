@@ -3,7 +3,8 @@
 Subcommands: `load` (fill the cache), `races` (list cached races with their regulation era),
 `plot` (lap time by stint for one cached race) and `wear` (fitted tyre wear, fuel effect and pit
 loss for one cached race), `plan` (fastest free-track 1- and 2-stop plans for one driver) and
-`simulate` (a driver's finishing-position distribution from many simulated race continuations).
+`simulate` (a driver's finishing-position distribution from many simulated race continuations)
+and `wear-filter` (a driver's tyre-wear rate and 95%% band, replayed as-of every lap).
 Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
 """
 
@@ -27,6 +28,7 @@ from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
 from f1si.interfaces import DRY_COMPOUNDS, Plan
+from f1si.pace.kalman import CutoffRow, cutoff_row, filter_stints
 from f1si.pace.linear import (
     DEFAULT_PIT_LOSS_S,
     FUEL_SANITY_RANGE,
@@ -44,6 +46,11 @@ from f1si.plots.stints import (
     render_stint_plot,
 )
 from f1si.plots.wear import prepare_wear_plot_data, render_wear_plot, wear_file_name
+from f1si.plots.wear_filter import (
+    prepare_wear_filter_data,
+    render_wear_filter_plot,
+    wear_filter_file_name,
+)
 from f1si.regime.sc_rate import ScRateEstimate, estimate_sc_rate
 from f1si.rng import DEFAULT_SEED, make_rng
 from f1si.sim.constants import MAX_RACES
@@ -51,7 +58,7 @@ from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 
-_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate"})
+_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate", "wear-filter"})
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
 
 
@@ -176,6 +183,24 @@ def build_parser() -> argparse.ArgumentParser:
         default=0,
         metavar="S",
         help="random seed, 0 or more, passed to make_rng (default 0)",
+    )
+    wfilt = sub.add_parser(
+        "wear-filter",
+        help="a driver's tyre-wear rate and 95%% band, replayed as-of every lap (Kalman filter)",
+    )
+    wfilt.add_argument("slug", metavar="SLUG", help="race slug (for example bahrain-2023)")
+    wfilt.add_argument(
+        "--driver",
+        required=True,
+        metavar="CODE",
+        help="driver code, for example ALO (any case)",
+    )
+    wfilt.add_argument(
+        "--lap",
+        type=int,
+        default=None,
+        metavar="N",
+        help="replay up to the leader's lap N (default: the whole race)",
     )
     return parser
 
@@ -724,6 +749,145 @@ def _cmd_simulate(
     return 0
 
 
+_PRIOR_CHECK_LAPS = (14, 20, 30)
+
+
+def _short_source(label: str) -> str:
+    return "prior only" if label.startswith("prior only") else label
+
+
+def _prior_switch_notes(rows: Sequence[CutoffRow]) -> list[str]:
+    """One note per lap where a stint's rate-prior source label changes between cutoffs."""
+    notes: list[str] = []
+    last: dict[int, str] = {}
+    for r in sorted(rows, key=lambda x: x.row.race_lap):
+        label = r.priors.rate_source
+        before = last.get(r.stint)
+        if before is not None and before != label:
+            notes.append(
+                f"note: lap {r.row.race_lap}: rate prior source changed from "
+                f"{_short_source(before)} to {_short_source(label)}; the band can step here"
+            )
+        last[r.stint] = label
+    return notes
+
+
+def _cmd_wear_filter(
+    data_dir: Path, reports_dir: Path, slug: str, driver: str, lap: int | None
+) -> int:
+    """Replay the race as-of each lap; fresh snapshot, fit and filter per cutoff (D-15)."""
+    try_line = f"Try: uv run f1si wear-filter {slug} --driver CODE --lap 20"
+    code = driver.upper()
+    if not _DRIVER_CODE.fullmatch(code):
+        return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
+    if lap is not None and lap < 0:
+        return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    accessor = asof.AsOfAccessor(db)
+    try:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+    except OutOfSampleLockedError as err:
+        return _refuse(
+            f"{err} 2026 races are out-of-sample, so they cannot be analysed in Phase 4."
+        )
+    try:
+        _pick_driver(end, end, code)
+    except UnknownDriverError as err:
+        return _refuse(f"{err}. {try_line}")
+    entries = end.entries
+    number = int(entries[entries["driver_code"] == code]["driver_number"].iloc[0])
+    laps_total = int(end.laps["lap_number"].max())
+    last_lap = laps_total if lap is None else min(lap, laps_total)
+    started = time.perf_counter()
+    collected: list[CutoffRow] = []
+    prior_checks: dict[int, CutoffRow] = {}
+    stint_counts: dict[int, tuple[int, int]] = {}
+    hindsight: dict[str, float] = {}
+    for cutoff in range(1, last_lap + 1):
+        snapshot = accessor.snapshot(asof.AsOf(race_id, cutoff))
+        fit = fit_linear_pace(snapshot)
+        results = filter_stints(snapshot, fit, driver_numbers=[number])
+        if cutoff == last_lap:
+            hindsight = {
+                c: rate for c in fit.fitted_compounds if (rate := fit.wear_rate(c)) is not None
+            }
+            for r in results:
+                stint_counts[r.stint] = (r.n_used, r.n_gate_rejections)
+        picked = cutoff_row(results, number, cutoff)
+        if picked is None:
+            continue
+        collected.append(picked)
+        if cutoff in _PRIOR_CHECK_LAPS:
+            prior_checks[cutoff] = picked
+    runtime = time.perf_counter() - started
+    race = end.race
+    print(f"{race.event_name} {race.season}: {code}, wear-rate filter replayed to lap {last_lap}")
+    print(
+        "The filter at lap N sees only laps up to N: a fresh snapshot, pace fit and filter are "
+        "run at every lap. Priors, fuel and noise come from that lap's own fit."
+    )
+    if not collected:
+        return _refuse(f"{code} has no dry-tyre laps up to lap {last_lap}. {try_line}")
+    for sid in dict.fromkeys(r.stint for r in collected):
+        mine = [r for r in collected if r.stint == sid]
+        final = mine[-1]
+        n_used = sum(1 for r in mine if r.row.used)
+        print()
+        print(f"Stint {sid}: {final.compound}, laps {mine[0].row.race_lap}-{final.row.race_lap}")
+        print(f"  rate prior: {final.priors.rate_source}")
+        print(f"  fuel: {final.priors.fuel_source}")
+        print(f"  noise: {final.priors.noise_source}")
+        gate = stint_counts.get(sid, (0, 0))[1]
+        print(f"  laps used: {n_used}, skipped: {len(mine) - n_used}, gate rejections: {gate}")
+        for note in _prior_switch_notes(mine):
+            print(f"  {note}")
+        _print_table(
+            ("LAP", "TYRE AGE", "USED", "RATE s/lap", "95% LOW", "95% HIGH"),
+            [
+                (
+                    str(r.row.race_lap),
+                    str(r.row.tyre_age),
+                    "used" if r.row.used else f"skipped ({r.row.reason})",
+                    f"{r.row.rate_mean:+.4f}",
+                    f"{r.row.rate_lo:+.4f}",
+                    f"{r.row.rate_hi:+.4f}",
+                )
+                for r in mine
+            ],
+        )
+    checks = [k for k in _PRIOR_CHECK_LAPS if k in prior_checks]
+    if checks:
+        print()
+        print("Phase 2 fit prior at laps 14, 20 and 30 (early-fit bias check, D-19):")
+        for k in checks:
+            pc = prior_checks[k]
+            print(
+                f"  lap {k}: rate prior {pc.compound} {pc.priors.prior.rate_mean:+.3f} "
+                f"+/- {pc.priors.prior.rate_sd:.3f} s/lap ({pc.priors.rate_source})"
+            )
+    if hindsight:
+        print(
+            "Hindsight (Phase 2 compound fit over the whole analysed window, dashed in the "
+            "plot): " + ", ".join(f"{c} {v:+.3f} s/lap" for c, v in sorted(hindsight.items()))
+        )
+    print(f"replayed {last_lap} laps in {runtime:.1f} s")
+    out = reports_dir / wear_filter_file_name(race.slug, code)
+    render_wear_filter_plot(
+        prepare_wear_filter_data(
+            collected,
+            slug=race.slug,
+            driver=code,
+            hindsight=hindsight,
+            is_full_race=lap is None or last_lap >= laps_total,
+            last_lap=last_lap,
+        ),
+        out,
+    )
+    print(f"Wrote {out}. Open it to see the estimate and its 95% band narrow within each stint.")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     args = build_parser().parse_args(argv)
@@ -748,6 +912,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_simulate(
                 data_dir, sim_reports, args.slug, args.driver, args.lap, args.n, args.seed
             )
+        if args.command == "wear-filter":
+            wf_reports: Path = (
+                args.reports_dir if args.reports_dir is not None else paths.reports_dir()
+            )
+            return _cmd_wear_filter(data_dir, wf_reports, args.slug, args.driver, args.lap)
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)

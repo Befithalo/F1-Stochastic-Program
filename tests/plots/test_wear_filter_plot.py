@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from f1si.pace.kalman import (
@@ -81,7 +82,7 @@ def test_figure_has_band_line_boundaries_and_hindsight() -> None:
     fig = build_wear_filter_figure(_data())
     ax = fig.axes[0]
     assert len(ax.collections) >= 2  # one band per stint (plus scatter points)
-    vlines = [ln for ln in ax.get_lines() if [float(v) for v in ln.get_xdata()] == [9.0, 9.0]]
+    vlines = [ln for ln in ax.get_lines() if np.asarray(ln.get_xdata()).tolist() == [9.0, 9.0]]
     assert len(vlines) == 1
     legend = ax.get_legend()
     assert legend is not None
