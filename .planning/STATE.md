@@ -4,12 +4,12 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Longstaff-Schwartz Strategy & Live Replay
 current_plan: 3
-status: executing
-stopped_at: Completed 05-02-PLAN.md
-last_updated: "2026-11-13T16:10:19.688Z"
+status: in_progress
+stopped_at: Plan 05-03 local work complete; current-branch CI pending
+last_updated: "2026-11-13T16:51:28.000Z"
 last_activity: 2026-11-13
-last_activity_desc: Phase 05 planning complete
-state_head: fc6335e93272470f6bdf4f35f9524f09380fefe8
+last_activity_desc: Plan 05-03 local validation complete; current-branch CI pending
+state_head: 6f2bd0dbd669bdf88700a5cf98b46b3472215a8f
 progress:
   total_phases: 8
   completed_phases: 4
@@ -33,10 +33,10 @@ Phase: 05 (Longstaff-Schwartz Strategy & Live Replay) — IN PROGRESS
 Current Plan: 3
 Total Plans in Phase: 3
 Plan: 3 of 3
-Status: Executing Plan 05-02
-Last activity: 2026-11-13 — Plan 05-01 complete; early-cutoff fit concern handed to Plan 05-02
+Status: Plan 05-03 halted; current-branch GitHub Actions pending
+Last activity: 2026-11-13 - Local Plan 05-03 validation and Bahrain smoke passed; current-branch CI pending
 
-Progress: [██████████] 100%
+Progress: [=======---] 67%
 
 ## Performance Metrics
 
@@ -119,16 +119,17 @@ Progress: [██████████] 100%
 
 ### Pending Todos
 
-- Phase 5 all-cutoff replay must handle cutoffs before the current-race pace fit identifies any dry compound without consulting future laps.
+- GitHub Actions must run on the current Phase 5 commits on both Ubuntu and Windows before phase closeout. The local branch agent-05-01 is not on origin.
 
 ### Blockers/Concerns
 
-- 2026 regulation break: keep 2026 races out-of-sample
-- Fuel load and tire wear are hidden variables; state this in README
-- The local Python 3.12.10 runtime is the last official Windows installer for the 3.12 line; later 3.12 security releases are source-only.
+- Phase 5 current-branch CI is pending; the latest available main run is for Phase 4 commit fcec2f2, not these commits.
+- Keep 2026 races out-of-sample because of the regulation break.
+- Fuel load and tire wear are hidden variables; state this in README.
+- The prior Windows Application Control OS error 4551 is resolved with verified PSF-signed CPython 3.12.10 at %LOCALAPPDATA%/Programs/Python/Python312/python.exe.
 
 ## Session Continuity
 
-Last session: 2026-11-13T16:10:19.150Z
-Stopped at: Completed 05-02-PLAN.md
-Resume file: None
+Last session: 2026-11-13T16:51:28.000Z
+Stopped at: Plan 05-03 halted pending current-branch GitHub Actions
+Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-03-SUMMARY.md

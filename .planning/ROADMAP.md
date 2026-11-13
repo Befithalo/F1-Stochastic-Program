@@ -201,10 +201,10 @@ Plans:
   4. Each recommendation carries a one-sentence reason such as undercut threat, cliff risk or safety-car window
   5. The Longstaff-Schwartz policy passes the shared `StrategyPolicy` test suite
 
-**Plans**: TBD
+**Plans**: 2/3 complete; Plan 05-03 is halted pending GitHub Actions on the current branch.
 - [x] 05-01-PLAN.md
 - [x] 05-02-PLAN.md
-- [ ] 05-03-PLAN.md
+- [ ] 05-03-PLAN.md - Local documentation, validation and Bahrain smoke complete; current-branch CI pending
 
 ### Phase 6: MVP Backtest, Streamlit View & README
 
