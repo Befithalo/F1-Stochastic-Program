@@ -1,7 +1,9 @@
 """The snapshot adapter for the wear filter (PAC-03, D-03, D-06 to D-09, D-19)."""
 
+import dataclasses
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -11,6 +13,8 @@ from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, RaceSnapshot
 from f1si.data.loader import load_races
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.pace.kalman import (
+    GENERIC_FUEL_MEAN,
+    GENERIC_FUEL_SD,
     GENERIC_SIGMA_S,
     FilterSnapshot,
     StintFilterResult,
@@ -173,3 +177,33 @@ def test_end_to_end_final_interval_covers_truth_loosely(
         last = r.rows[-1]
         hits.append(last.rate_lo <= truth <= last.rate_hi)
     assert np.mean(hits) >= 0.8
+
+
+def _with_report(fit: LinearPaceFit, **changes: Any) -> LinearPaceFit:
+    return dataclasses.replace(fit, report=dataclasses.replace(fit.report, **changes))
+
+
+@pytest.mark.parametrize("bad_se", [None, float("nan"), float("inf")])
+def test_missing_or_nonfinite_fuel_se_uses_fit_mean_with_generic_sd(
+    deviation_db: Path, bad_se: float | None
+) -> None:
+    """WR-03: no crash; the fitted fuel effect is kept and the generic fuel SD is used."""
+    _, fit, _ = _run(deviation_db, None)
+    broken = _with_report(fit, fuel_se=bad_se)
+    got = resolve_priors(broken, "HARD")
+    assert got.fuel_mean == fit.report.fuel_s_per_lap
+    assert got.prior.fuel_sd == GENERIC_FUEL_SD
+    assert got.fuel_source.startswith("fit")
+    assert got.fuel_source != "fit"
+    assert got.rate_source == "fit"
+
+
+def test_nonfinite_fuel_effect_falls_back_to_generic_everything_fuel_related(
+    deviation_db: Path,
+) -> None:
+    _, fit, _ = _run(deviation_db, None)
+    got = resolve_priors(_with_report(fit, fuel_s_per_lap=float("nan")), "HARD")
+    assert got.fuel_source.startswith("prior only")
+    assert got.rate_source.startswith("prior only")
+    assert got.fuel_mean == GENERIC_FUEL_MEAN
+    assert got.prior.fuel_sd == GENERIC_FUEL_SD

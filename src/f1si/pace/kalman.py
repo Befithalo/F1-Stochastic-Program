@@ -344,9 +344,11 @@ class StintFilterResult:
 def resolve_priors(fit: LinearPaceFit, compound: str) -> ResolvedPriors:
     """Priors for a stint on `compound` from `fit`, falling back per quantity (D-06, D-19)."""
     report = fit.report
-    fuel_known = report.fuel_s_per_lap is not None
-    rate = fit.wear_rate(compound) if fuel_known else None
-    se = fit.wear_se(compound) if fuel_known else None
+    fuel = report.fuel_s_per_lap
+    fuel_se = report.fuel_se
+    rate = fit.wear_rate(compound) if fuel is not None and math.isfinite(fuel) else None
+    se = fit.wear_se(compound) if rate is not None else None
+    fuel_known = fuel is not None and math.isfinite(fuel)
     if rate is not None and se is not None and math.isfinite(rate) and math.isfinite(se):
         rate_mean, rate_sd, rate_source = rate, math.sqrt(se**2 + TAU_CAR**2), "fit"
     else:
@@ -354,11 +356,16 @@ def resolve_priors(fit: LinearPaceFit, compound: str) -> ResolvedPriors:
         rate_sd = GENERIC_RATE_SD
         why = "compound not fitted yet" if fuel_known else "fit not identified yet"
         rate_source = f"prior only: {why}"
-    fuel = report.fuel_s_per_lap
-    if fuel is not None and report.fuel_se is not None and math.isfinite(fuel):
+    if fuel is not None and fuel_known:
         fuel_mean = fuel
-        fuel_sd = math.sqrt(report.fuel_se**2 + FUEL_SD_EXTRA**2)
-        fuel_source = "fit"
+        if fuel_se is not None and math.isfinite(fuel_se):
+            fuel_sd = math.sqrt(fuel_se**2 + FUEL_SD_EXTRA**2)
+            fuel_source = "fit"
+        else:
+            # The fitted effect is usable but its SE is missing or non-finite: keep the fitted
+            # mean (the rate prior is conditional on it) and use the generic SD, never crash.
+            fuel_sd = GENERIC_FUEL_SD
+            fuel_source = "fit (generic SD: fuel SE not available)"
     else:
         fuel_mean, fuel_sd = GENERIC_FUEL_MEAN, GENERIC_FUEL_SD
         fuel_source = "prior only: fuel effect not identified yet"
