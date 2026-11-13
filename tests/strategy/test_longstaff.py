@@ -8,6 +8,7 @@ import pytest
 from f1si.interfaces import Plan
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel, _PathCheckpoint
 from f1si.state import CarState, RaceState
+from f1si.strategy import longstaff
 from f1si.strategy.longstaff import (
     LongstaffSchwartzPolicy,
     _backward_stop,
@@ -22,7 +23,7 @@ class FlatPace:
         return np.full(lap.shape, 90.0), np.full(lap.shape, 0.2)
 
 
-def state(lap: int = 10) -> RaceState:
+def state(lap: int = 10, laps_total: int = 16) -> RaceState:
     cars = tuple(
         CarState(
             driver=code,
@@ -40,7 +41,7 @@ def state(lap: int = 10) -> RaceState:
         )
         for i, code in enumerate(("AAA", "BBB"), start=1)
     )
-    return RaceState(lap, 16, {"green": 1.0}, {"green": 20.0, "sc": 10.0}, cars)
+    return RaceState(lap, laps_total, {"green": 1.0}, {"green": 20.0, "sc": 10.0}, cars)
 
 
 def test_continuation_regression_recovers_conditional_mean_and_falls_back() -> None:
@@ -117,6 +118,117 @@ def test_policy_returns_deterministic_decision_without_mutating_state() -> None:
     assert len(policy.analyze(race, driver="AAA").options) >= 1
 
 
-def test_policy_refuses_nonpositive_sample_count_before_simulation() -> None:
+@pytest.mark.parametrize("count", [0, -1])
+def test_policy_refuses_nonpositive_sample_count_before_simulation(count: int) -> None:
     with pytest.raises(ValueError, match="positive"):
-        LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=0)
+        LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=count)
+
+
+def test_policy_compares_all_seven_actions_when_they_are_legal() -> None:
+    race = state(lap=10, laps_total=40)
+    policy = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=16, seed=2
+    )
+    report = policy.analyze(race, driver="AAA")
+    assert {row.action for row in report.options} == {
+        "pit now",
+        "pit in 1 lap(s)",
+        "pit in 2 lap(s)",
+        "pit in 3 lap(s)",
+        "pit in 4 lap(s)",
+        "pit in 5 lap(s)",
+        "stay out",
+    }
+    assert all(
+        np.isfinite([row.mean_finish, row.spread, row.cvar10, row.score]).all()
+        for row in report.options
+    )
+
+
+def test_late_race_omits_stop_options_past_last_legal_boundary() -> None:
+    race = state(lap=13, laps_total=16)
+    policy = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=12, seed=4
+    )
+    report = policy.analyze(race, driver="AAA")
+    assert [row.action for row in report.options] == ["stay out"]
+
+
+def test_empty_outcome_samples_are_refused() -> None:
+    with pytest.raises(ValueError, match="non-empty"):
+        _cvar10(np.array([], dtype=np.float64))
+    policy = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=12, seed=4
+    )
+    with pytest.raises(ValueError, match="race is over"):
+        policy.analyze(state(lap=16, laps_total=16), driver="AAA")
+
+
+def test_risk_endpoints_change_ranking_for_controlled_samples() -> None:
+    steady = np.full(100, 5.0)
+    volatile = np.ones(90)
+    volatile = np.concatenate([volatile, np.full(10, 30.0)])
+    assert _score_option(volatile, 0.0) < _score_option(steady, 0.0)
+    assert _score_option(volatile, 1.0) > _score_option(steady, 1.0)
+
+
+def test_reason_is_one_stable_score_grounded_sentence() -> None:
+    race = state(lap=10, laps_total=40)
+    policy = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=12, seed=7
+    )
+    reason = policy.analyze(race, driver="AAA").reason
+    assert reason.endswith(".")
+    assert reason.count("ranks first") == 1
+    assert "tire cliff" not in reason.lower()
+    assert "future safety car" not in reason.lower()
+    assert reason == policy.analyze(race, driver="AAA").reason
+
+
+def test_tied_options_have_stable_action_order(monkeypatch: pytest.MonkeyPatch) -> None:
+    class SameOutcomeSimulator:
+        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            pass
+
+        def _branch_paths(
+            self, checkpoint, *, actions, n_races, rng, checkpoint_laps, capture_actions
+        ):  # type: ignore[no-untyped-def]
+            from types import SimpleNamespace
+
+            outcomes = {}
+            for name in actions:
+                checkpoints = (
+                    {
+                        cutoff: SimpleNamespace(
+                            order=np.tile(np.array([[0, 1]], dtype=np.int64), (n_races, 1)),
+                            clock=np.tile(np.array([[0.0, 10.0]]), (n_races, 1)),
+                            tire_age=np.ones((n_races, 2), dtype=np.int64),
+                            stops_done=np.zeros((n_races, 2), dtype=np.int64),
+                            safety_car_remaining=np.zeros(n_races, dtype=np.int64),
+                        )
+                        for cutoff in checkpoint_laps
+                    }
+                    if name in capture_actions
+                    else {}
+                )
+                outcomes[name] = SimpleNamespace(
+                    result=SimpleNamespace(
+                        finish_positions=np.ones((n_races, 2), dtype=np.int64),
+                    ),
+                    checkpoints=checkpoints,
+                )
+            return outcomes
+
+    monkeypatch.setattr(longstaff, "NumpySimulator", SameOutcomeSimulator)
+    report = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=20
+    ).analyze(state(lap=10, laps_total=40), driver="AAA")
+    assert [row.action for row in report.options] == [
+        "pit now",
+        "pit in 1 lap(s)",
+        "pit in 2 lap(s)",
+        "pit in 3 lap(s)",
+        "pit in 4 lap(s)",
+        "pit in 5 lap(s)",
+        "stay out",
+    ]

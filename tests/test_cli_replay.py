@@ -42,7 +42,9 @@ def test_selected_cutoff_replay_prints_ranked_options(
     )
     out = capsys.readouterr().out
     assert "after lap 35" in out
+    assert all(heading in out for heading in ("MEAN", "SPREAD", "CVAR10", "SCORE"))
     assert "CVaR10" in out
+    assert "Recommendation:" in out
     assert "Reason:" in out
 
 
