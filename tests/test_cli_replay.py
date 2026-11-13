@@ -12,6 +12,7 @@ from f1si import cli
 from f1si.cli import build_parser, main
 from f1si.data import asof
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
+from f1si.pace.kalman import GENERIC_SIGMA_S
 from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator
 from tests.conftest import LONG_RACE_ID, LONG_SLUG
@@ -52,6 +53,50 @@ def test_selected_cutoff_replay_prints_ranked_options(
     assert "CVaR10" in out
     assert "Recommendation:" in out
     assert "Reason:" in out
+
+
+def test_sparse_fallback_model_is_available_for_unsupported_cutoffs() -> None:
+    assert hasattr(cli, "SparsePaceFallback")
+
+
+def test_sparse_fallback_replay_returns_ranked_options_at_lap_zero_and_fallback_lap(
+    long_synthetic_data_dir: Path,
+    long_synthetic_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = _code(long_synthetic_db)
+    for lap in (0, 5):
+        assert (
+            _run(
+                long_synthetic_data_dir,
+                "replay",
+                LONG_SLUG,
+                "--driver",
+                code,
+                "--lap",
+                str(lap),
+                "--n",
+                "12",
+            )
+            == 0
+        )
+        output = capsys.readouterr().out
+        assert "Status: fallback" in output
+        assert all(key in output for key in ("MEAN", "SPREAD", "CVAR10", "SCORE"))
+        assert "Recommendation:" in output
+        assert "cutoff-visible clean laps" in output
+        assert "generic DEC-091" in output
+        assert "[ASSUMED] 1.0 s" in output
+        assert "uncalibrated" in output
+        assert "unavailable" not in output
+
+
+def test_sparse_fallback_noise_floor_is_generic_at_lap_zero(
+    long_synthetic_db: Path,
+) -> None:
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, 0))
+    fallback = cli.SparsePaceFallback(snapshot)
+    assert fallback.sigma_sparse == GENERIC_SIGMA_S
 
 
 @pytest.mark.parametrize(

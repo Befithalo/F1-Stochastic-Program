@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="3.673" timestamp="2026-11-13T17:55:02.500432-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.test_cli_replay" name="test_sparse_fallback_model_is_available_for_unsupported_cutoffs" time="0.002"><failure message="AssertionError: assert False&#10; +  where False = hasattr(cli, 'SparsePaceFallback')">def test_sparse_fallback_model_is_available_for_unsupported_cutoffs() -&gt; None:
+&gt;       assert hasattr(cli, "SparsePaceFallback")
+E       AssertionError: assert False
+E        +  where False = hasattr(cli, 'SparsePaceFallback')
+
+tests\test_cli_replay.py:59: AssertionError</failure></testcase></testsuite></testsuites>

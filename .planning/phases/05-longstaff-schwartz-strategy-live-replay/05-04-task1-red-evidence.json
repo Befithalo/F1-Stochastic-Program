@@ -1,0 +1,13 @@
+{
+  "command": "uv run --python <trusted-python.exe> python -m pytest -q tests/test_cli_replay.py::test_sparse_fallback_model_is_available_for_unsupported_cutoffs --junitxml=.planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-task1-red.xml",
+  "exitCode": 1,
+  "output": "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuites name=\"pytest tests\"><testsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"1\" time=\"3.673\" timestamp=\"2026-11-13T17:55:02.500432-05:00\" hostname=\"LAPTOP-OAMU4RG3\"><testcase classname=\"tests.test_cli_replay\" name=\"test_sparse_fallback_model_is_available_for_unsupported_cutoffs\" time=\"0.002\"><failure message=\"AssertionError: assert False&#10; +  where False = hasattr(cli, 'SparsePaceFallback')\">def test_sparse_fallback_model_is_available_for_unsupported_cutoffs() -&gt; None:\r\n&gt;       assert hasattr(cli, \"SparsePaceFallback\")\r\nE       AssertionError: assert False\r\nE        +  where False = hasattr(cli, 'SparsePaceFallback')\r\n\r\ntests\\test_cli_replay.py:59: AssertionError</failure></testcase></testsuite></testsuites>",
+  "targetTest": "test_sparse_fallback_model_is_available_for_unsupported_cutoffs",
+  "targetFile": "tests/test_cli_replay.py",
+  "expected": "SparsePaceFallback is implemented and available to replay",
+  "actual": "AssertionError: cli has no SparsePaceFallback",
+  "reportPath": ".planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-task1-red.xml",
+  "runStartedAt": "2026-11-13T22:54:55Z",
+  "reportModifiedAt": "2026-11-13T22:55:06.181Z",
+  "semanticAssessment": "The named target executed and failed exactly on the planned missing-fallback assertion; no import, setup, collection, fixture, or unrelated failure occurred."
+}
