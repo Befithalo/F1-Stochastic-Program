@@ -155,8 +155,13 @@ def strategy_replay(db_path: Path, at: AsOf) -> object:
         seed=0,
     )
     if result.analysis is None:
-        return ("unavailable", result.unavailable_reason)
-    return ("available", result.analysis)
+        return ("unavailable", (), result.unavailable_reason)
+    status = "fallback" if result.is_fallback else "available"
+    evidence = tuple(
+        (option.action, option.mean_finish, option.spread, option.cvar10, option.score)
+        for option in result.analysis.options
+    )
+    return (status, evidence, result.analysis.reason)
 
 
 CONSUMERS: Final[dict[str, Consumer]] = {

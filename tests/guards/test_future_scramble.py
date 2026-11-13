@@ -182,6 +182,26 @@ def test_strategy_replay_ignores_future_at_a_supported_cutoff(
     )
 
 
+def test_strategy_replay_fallback_ignores_future_at_sparse_cutoff(
+    long_synthetic_db: Path,
+) -> None:
+    assert "strategy_replay" in CONSUMERS
+    tables = _db.read_all_tables(long_synthetic_db)
+    at = AsOf(LONG_RACE_ID, 5)
+    replay_result = CONSUMERS["strategy_replay"](long_synthetic_db, at)
+    assert isinstance(replay_result, tuple)
+    assert replay_result[0] == "fallback"
+    assert replay_result[1]
+    assert all(len(option) == 5 for option in replay_result[1])
+    assert "uncalibrated" in replay_result[2]
+    assert_no_lookahead(
+        CONSUMERS["strategy_replay"],
+        tables,
+        at,
+        rng=np.random.default_rng(5053),
+    )
+
+
 def _full_grid() -> list[tuple[str, int | RaceEnd]]:
     """Every in-sample synthetic race at every lap 0..n_laps, plus RACE_END (WR-02)."""
     grid: list[tuple[str, int | RaceEnd]] = []
