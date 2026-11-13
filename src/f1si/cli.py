@@ -997,7 +997,12 @@ def _print_replay_cutoff(
     )
     if cutoff.analysis is None:
         print("Status: unavailable")
-        print(f"Reason: {cutoff.unavailable_reason or 'No cutoff-local model is available.'}")
+        unavailable_reason = (
+            cutoff.unavailable_reason or "No cutoff-local model is available."
+        ).rstrip()
+        if not unavailable_reason.endswith((".", "!", "?")):
+            unavailable_reason += "."
+        print(f"Reason: {unavailable_reason}")
         return
     report = cutoff.analysis
     print("Status: available")
