@@ -1047,3 +1047,58 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** One end-of-race fit reused for every lap (look-ahead). Showing only rows whose race lap equals the cutoff (empty for cars behind the leader). Overwriting a lap's row with its later, better-informed version (not what was known then).
 **Consequences:** Measured replay time on the real Bahrain 2023 race (ALO, 57 laps, 3 stints): 8.1 to 8.4 s of replay, about 15 s wall time including start-up. On the real race the SOFT stint prior jumps when the fit first identifies SOFT (lap 13), from the generic 0.10 s/lap to about 0.26 s/lap, which is the early-fit bias the D-19 lines expose; the band is honest about the filter's inputs, not a statement that the fit prior is right.
 **Refs:** D-09, D-15, D-19, DEC-091, PAC-03
+
+## DEC-096 — Longstaff-Schwartz conditional-mean continuation basis
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** STR-01 requires pathwise stop/continue decisions learned from later simulated outcomes. The fitted target is finishing position, where lower values are better, and each target must stay aligned with the same simulation path's state.
+**Decision:** At each future stop time, `_backward_stop_options` regresses the later policy's realized finishing position on an intercept and six normalized, cutoff-visible features: position, gap to the field's lead clock, tire age, remaining distance, stops completed, and safety-car state. It uses `numpy.linalg.lstsq`; when there are fewer paths than design columns or the design is rank-deficient, it uses the finite intercept-only mean. It compares the predicted conditional-mean continuation cost with each legal immediate-stop cost path by path and carries the realized lower-cost outcome backward. **[ASSUMED]** This small basis and intercept fallback are the first stable, interpretable implementation, not a proven best basis. Keep the fallback and basis easy to replace if Phase 6 calibration or stability measurements show material error.
+**Why:** The basis represents the race state that changes stop value without adding a regression dependency, and the fallback is defined for every sample size without an unstable inverse.
+**Alternatives rejected:** Fitting one real `RaceState` as though it were a simulated training set; ranking preselected full schedules without backward regression; custom normal-equation or matrix-inverse code.
+**Consequences:** The continuation values estimate a conditional mean, not a tail-risk objective. Results can depend on this assumed linear basis and need backtest evidence before any accuracy claim.
+**Refs:** D-01, D-04, D-05, D-08, STR-01
+
+## DEC-097 — Exact current-cutoff mean and CVaR10 ranking
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** Analysts need to see both expected finishing position and the bad-result tail when comparing pit timing at a specific replay cutoff.
+**Decision:** For each current-cutoff option, report the sample mean, standard-deviation spread, and CVaR10 formed from exactly the worst 10% of finishing-position mass (larger position numbers are worse); use fractional weight on the boundary outcome when needed. Rank by `(1 - risk_aversion) * mean_finish + risk_aversion * CVaR10`, ascending, with default `risk_aversion = 0.5` and a finite input range `[0, 1]`. This blend ranks only the current-cutoff option distributions; it does not feed into the backward continuation regression and does not make the policy dynamically CVaR-optimal.
+**Why:** The visible parts of the score show whether expected finish or the worst decile moves an option, while the fractional tail convention represents exactly 10% even when sample counts do not divide by ten.
+**Alternatives rejected:** Tail fitting, integer-only tail cutoffs, hiding the mean and tail behind one score, and recursively optimizing a blended tail measure.
+**Consequences:** Risk settings can change the current recommendation without changing the conditional-mean continuation rule. The Monte Carlo sample and simulator assumptions still limit the precision of both metrics.
+**Refs:** D-01, D-02, D-08, STR-02, STR-03
+
+## DEC-098 — Comparable simulator branches from private path checkpoints
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** A policy must compare pit-now, delayed-stop and stay-out outcomes under the same future race luck, while preserving interaction with the whole field.
+**Decision:** Capture compact simulator checkpoints behind the private `_PathCheckpoint` / `_branch_paths` seam in `numpy_backend.py`. Branch each action from the same path state and seed; clone the NumPy generator so indexed child-stream state stays aligned. The public simulator result and StrategyPolicy protocol do not expose kernel checkpoint arrays. The fixed seeded policy replays the same action comparisons for the same state and settings.
+**Why:** Common scenarios reduce unrelated Monte Carlo noise between actions; a full-race checkpoint preserves traffic, order, tire age, stops and safety-car state without storing every random draw in the public result.
+**Alternatives rejected:** Independently seeding each action, restarting every forced plan from the current live state, or exposing mutable kernel arrays in `SimulationResult`.
+**Consequences:** Branch results are comparable only while action branches preserve the shared random-stream layout. The private seam has regression coverage for reproducibility and scenario alignment.
+**Refs:** D-03, D-05, D-08, STR-01, STR-02
+
+## DEC-099 — Legal stop boundary, deterministic ties and score-only reasons
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** The candidate set must obey existing stop-count and minimum-stint rules and return the same recommendation when simulated scores tie.
+**Decision:** Candidate stops cover the next available stop through at most five laps later, subject to fitted dry compounds, stop-count limits and the existing five-lap minimum final stint; staying out is always included. **[ASSUMED]** Sort equal scores by mean, then CVaR10, then earlier stop lap, then compound name, with stay-out after stop actions. This gives a stable and inspectable order while preserving the plan boundary; revisit it if Phase 6 shows these tie choices affect measured outcomes. The current reason is a deterministic sentence that quotes the winning action, blended score, mean and CVaR10. No numeric threshold for undercut, safety-car or wear narratives is implemented; unsupported explanations remain score-only (D-06/D-07).
+**Why:** Existing strategy rules provide the stint boundary, while a documented lexical order avoids run-to-run changes and unsupported race narratives.
+**Alternatives rejected:** Allowing a stop that leaves fewer than the required final-stint laps; random tie-breaking; inferring an undercut or tire-cliff story from unobserved future events.
+**Consequences:** Equal metrics can prefer a specific action due to the assumed tie order, so that policy is recorded rather than presented as a learned result. The single score reason is intentionally less descriptive than a validated causal explanation.
+**Refs:** D-06, D-07, D-08, STR-02, STR-04
+
+## DEC-100 — Replay rebuilds and validates each as-of cutoff
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** A selected-lap recommendation and the corresponding row in a full replay must use the same information and construction path.
+**Decision:** Keep replay composition in `cli.py`. For every cutoff, rebuild the `AsOfAccessor` snapshot, pace fit, wear-filter output and `RaceState`, then pass only that state to the policy. Full replay and `--lap N` share the same cutoff builder and formatter. Slugs resolve through the local race catalog; driver codes normalize to three letters and must appear in that race; lap inputs are integers from zero to one less than the race lap count; simulation count is a positive integer; risk is finite in `[0, 1]`. When cutoff-visible data cannot identify the needed dry-compound pace fit, report that cutoff as unavailable instead of supplying later laps. The race-distance maximum remains public metadata per D-21.
+**Why:** Rebuilding each row makes the no-look-ahead promise testable and ensures selected/full replay output can be compared exactly.
+**Alternatives rejected:** Reusing an end-of-race fit for early cutoffs; accepting arbitrary race/driver identifiers; silently producing a recommendation with an unidentified model.
+**Consequences:** Some early rows can be unavailable even though later rows in the same replay are supported. The Phase 4 fit-prior double-counting question from DEC-091 remains open measurement work for Phase 6; Phase 5 does not change that method.
+**Refs:** D-03, D-04, D-05, D-08, D-21, RPL-01, RPL-02
