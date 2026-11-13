@@ -164,7 +164,28 @@ Plans:
   3. On synthetic stints the 95% intervals contain the true value about 95% of the time
   4. The filter's wear mean and sd populate the `RaceState` fields the simulator reads
 
-**Plans**: TBD
+**Plans:** 0/5 plans complete
+
+Plans:
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Phase 3 reference captured, then the Kalman core `WearFilter` with its closed-form oracle and unit tests (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 04-02-PLAN.md — Synthetic per-driver wear, as-of snapshot adapter and priors, PAC-04 recovery tests (coverage and optimal accuracy gated, 10% reported) (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 04-03-PLAN.md — `wear_source` in RaceState and the simulator using a filter car's own wear for its current tyres (`wear_age_off`) (wave 3)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 04-04-PLAN.md — `f1si wear-filter` command and PNG, replayed as-of every lap; guards extended (wave 4)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 04-05-PLAN.md — Real Bahrain 2023 run and opt-in test, explainer, README, full gate (wave 5)
 
 ### Phase 5: Longstaff-Schwartz Strategy & Live Replay
 
