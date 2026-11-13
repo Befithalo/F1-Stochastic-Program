@@ -7,7 +7,7 @@
   "expected": "The policy returns ranked stay-out evidence when no second fitted compound is legal",
   "actual": "ValueError: stop and continuation outcomes must be non-empty and path-aligned",
   "reportPath": ".planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-task3-red.xml",
-  "runStartedAt": "2026-11-14T03:00:00Z",
+  "runStartedAt": "2026-11-13T23:41:51.000Z",
   "reportModifiedAt": "2026-11-13T23:41:53.076Z",
   "semanticAssessment": "The named test executed the policy with one fitted compound; it failed because the policy raised the exact empty-stop-action ValueError instead of returning the expected stay-out option. No setup, collection, fixture, or unrelated failure occurred."
 }
