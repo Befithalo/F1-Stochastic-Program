@@ -17,8 +17,8 @@ Command attempted after the implementation edits:
 uv run python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py
 ```
 
-Result: **blocked before Python launch**. `uv` reported `Failed to spawn: python` because Windows Application Control denied the Python child process with OS error 4551. This is not a passing test result. `git diff --check` completed without reporting whitespace errors. Ruff is not available on PATH.
+Result: **blocked before Python launch**. `uv` reported `Failed to spawn: python` because Windows Application Control denied the Python child process with OS error 4551. This is not a passing test result. `git diff --check` completed without reporting whitespace errors, and the repository's pre-commit Ruff check and format hooks passed on the checkpoint commit.
 
 ## Gate and Handoff
 
-The focused test command is the Task 1 tracer verification. The GSD tracer feedback gate therefore prevents expansion into Task 2 until the focused command runs successfully in an authorized Python environment. No task commit or `05-01-SUMMARY.md` was created because Task 1's required verification has not passed. The same blocker was recorded in `.planning/STATE.md`.
+The focused test command is the Task 1 tracer verification. The GSD tracer feedback gate therefore prevents expansion into Task 2 until the focused command runs successfully in an authorized Python environment. An explicitly unverified checkpoint commit, `bc0d615`, preserves the in-progress implementation on branch `agent-05-01`; no task-completion commit or `05-01-SUMMARY.md` was created because Task 1's required verification has not passed. The same blocker was recorded in `.planning/STATE.md`.
