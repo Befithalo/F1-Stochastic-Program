@@ -1002,3 +1002,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A "fit only after lap N or SE below X" rule (an extra tuned threshold with no ground truth). Tuning any constant to make the 10% target pass (D-17). Reading noise from another snapshot (look-ahead).
 **Consequences:** Early-fit values (laps 14 to 25) are several reported SE from the final answer at Bahrain; TAU_CAR softens but does not remove that bias. The look-ahead guard covers the adapter through a registered consumer.
 **Refs:** D-05, D-06, D-07, D-09, D-19, PAC-03
+
+## DEC-092 — PAC-04 accuracy restated: gate optimal accuracy, report the 10% figure
+
+**Date:** 2026-11-13
+**Status:** Accepted (owner decision D-17)
+**Context:** The requirement asked for wear-rate error under 10% by stint lap 8. Feasibility runs (synthetic, noise 0.15 s, generator default, 7 measured laps, prior SD 0.5 of the mean) show that cannot be reached honestly: inside a stint fuel and wear are the same straight line, and lap-time noise is large against a few laps of slope.
+**Decision:** Measured mean absolute relative error at stint lap 8 (2,000 stints per cell, truth above 0.25 of the prior mean): SOFT 19.4%, MEDIUM 28.3%, HARD 35.0% with fuel known; SOFT 22.9%, MEDIUM 31.9%, HARD 38.2% with fuel from its prior (prior alone about 43% to 46%). The gated criteria are: 95% interval coverage inside the binomial 99.9% band at every stint lap and pooled (fuel known and fuel from prior); a narrowing band; posterior SD equal to the closed form to 1e-9; Monte Carlo mean absolute error within 4 standard errors of sqrt(2/pi) times the closed-form SD (the Bayes-optimal value); filter equal to the regression oracle to 1e-9; error at lap 8 below the prior-only error by 3 standard errors; error not rising lap to lap. The 10% figure is printed per compound ("reported, not gated") and never asserted. No seed, noise level or prior was tuned to a gate.
+**Why:** A filter cannot beat the Bayes-optimal error for its model; testing equality with that optimum plus calibrated coverage proves the filter is as good as the data allow, which is what an honest estimate means. The owner chose this over loosening the target silently.
+**Alternatives rejected:** (a) a longer horizon per compound, (b) a different error metric, (c) lowering the synthetic noise, (d) a tighter prior. Each would make the 10% pass by changing the question, not the filter; recorded as not chosen. The pooled coverage band uses the stint count as n because laps within a stint are correlated.
+**Consequences:** PAC-04's 10% half is reported, not met, at generator noise. Phase 7 pooling across cars or races is the route to revisit it. Fuel/wear confounding sets a floor on the band that no number of laps removes.
+**Refs:** D-11, D-12, D-17, DEC-088, DEC-091, PAC-04

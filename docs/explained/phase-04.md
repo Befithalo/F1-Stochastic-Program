@@ -31,6 +31,7 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 ### Tests
 
 - `tests/pace/test_kalman_adapter.py` checks the snapshot adapter, its labelled sources and the clean-lap rule.
+- `tests/pace/test_kalman_recovery.py` checks calibrated coverage and Bayes-optimal accuracy on synthetic stints and prints the 10% report.
 - `tests/pace/test_kalman_math.py` checks the filter against exact Bayesian regression and the closed-form band.
 - `tests/pace/test_kalman_incremental.py`, `test_kalman_narrowing.py` and `test_kalman_gate.py` check lap-by-lap equals batch, the narrowing band and the outlier gate.
 - `tests/sim/test_phase3_reference.py` guards the stored Phase 3 simulator output.
