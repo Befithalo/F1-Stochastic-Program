@@ -336,3 +336,16 @@ def test_invalid_wear_deviation_raises(bad: dict[int, float]) -> None:
     )
     with pytest.raises(ValueError, match="wear_rate_deviation_s_per_lap"):
         generate_dataset([spec], rng=make_rng(5))
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [{1.5: 0.01}, {"a": 0.01}, {True: 0.01}, {None: 0.01}, {0: "x"}, {0: None}, {0: True}],
+)
+def test_wear_deviation_rejects_wrong_key_and_value_types(bad: dict[Any, Any]) -> None:
+    """IN-04: non-integer keys and non-numeric values raise ValueError, never TypeError/no-op."""
+    spec = SyntheticRaceSpec(
+        2023, 1, "Dev Grand Prix", n_drivers=3, wear_rate_deviation_s_per_lap=bad
+    )
+    with pytest.raises(ValueError, match="wear_rate_deviation_s_per_lap"):
+        generate_dataset([spec], rng=make_rng(5))

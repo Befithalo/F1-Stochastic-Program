@@ -302,6 +302,14 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
     wear = dict(spec.wear_rate_s_per_lap)
     dev = dict(spec.wear_rate_deviation_s_per_lap)
     for key, value in dev.items():
+        if isinstance(key, bool) or not isinstance(key, int | np.integer):
+            raise ValueError(
+                f"wear_rate_deviation_s_per_lap key {key!r} must be an integer driver index"
+            )
+        if isinstance(value, bool) or not isinstance(value, int | float | np.integer | np.floating):
+            raise ValueError(
+                f"wear_rate_deviation_s_per_lap entry {key!r}: {value!r} must be a finite number"
+            )
         if not 0 <= key < spec.n_drivers or not np.isfinite(value):
             raise ValueError(
                 f"wear_rate_deviation_s_per_lap entry {key!r}: {value!r} needs a driver index in "
