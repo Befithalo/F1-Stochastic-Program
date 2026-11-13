@@ -10,6 +10,7 @@ import pytest
 
 from f1si import cli
 from f1si.cli import build_parser, main
+from f1si.data import asof
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator
@@ -244,7 +245,7 @@ def test_replay_rejects_simulation_count_above_limit_before_loading_race(
     def forbidden(*args, **kwargs):  # type: ignore[no-untyped-def]
         raise AssertionError("race data or state was accessed for an invalid simulation count")
 
-    monkeypatch.setattr(cli.asof, "resolve_slug", forbidden)
+    monkeypatch.setattr(asof, "resolve_slug", forbidden)
     monkeypatch.setattr(cli, "build_race_state", forbidden)
 
     assert (
