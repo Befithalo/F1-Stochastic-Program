@@ -39,10 +39,11 @@ from the lap-to-lap trend only.
 
 Which laps update. The caller decides which laps are clean (`f1si.laps.fade_reason`) and passes a
 skip reason for the others; a skipped lap only runs the prediction step, so the band does not
-shrink on it (D-08). A usable lap is also skipped by the outlier gate: from the GATE_MIN_USED-th
-used lap on, a lap whose innovation exceeds GATE_Z standard deviations of S is rejected, except
-that the lap right after a rejection is never rejected (a real step change must not freeze the
-filter). Non-finite lap times are skipped before they can touch the covariance.
+shrink on it (D-08). A usable lap is also skipped by the outlier gate: once at least
+GATE_MIN_USED laps have been used (DEC-090), a lap whose innovation exceeds GATE_Z standard
+deviations of S is rejected, except that the lap right after a rejection is never rejected (a
+real step change must not freeze the filter). Non-finite lap times are skipped before they can
+touch the covariance.
 
 The array core sees no snapshot. `filter_stints` is the only function in this module that reads
 race data, and it receives a `RaceSnapshot` (plain data), never the accessor (D-09).
