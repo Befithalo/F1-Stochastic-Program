@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-11-13T05:51:48.720Z"
-last_activity: 2026-11-13 -- Phase 4 planning complete
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-11-13T06:04:25.825Z"
+last_activity: 2026-11-13
 progress:
   total_phases: 8
   completed_phases: 3
   total_plans: 28
-  completed_plans: 23
+  completed_plans: 24
   percent: 38
 ---
 
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-22)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 4 — kalman tire filter
+**Current focus:** Phase 4 — Kalman Tire Filter
 
 ## Current Position
 
-Phase: 4
-Plan: Not started
+Phase: 4 (Kalman Tire Filter) — EXECUTING
+Plan: 2 of 5
 Status: Ready to execute
-Last activity: 2026-11-13 -- Phase 4 planning complete
+Last activity: 2026-11-13
 
-Progress: [██████████] 100%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [██████████] 100%
 | Phase 03 P06 | 40min | 2 tasks | 7 files |
 | Phase 03 P07 | 40min | 2 tasks | 4 files |
 | 3 | 7 | - | - |
+| Phase 04 P01 | 1h | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,7 @@ Progress: [██████████] 100%
 - [Phase 03]: DEC-081/082: forced plans exact, fallback for refused cars, leader-relative start with catch-up lap and borrowed pace — see DECISIONS.md
 - [Phase 03]: DEC-083/084: Sobol+antithetic variance ratios 4.5/16.4/3.2; 50k benchmark 1.4 s
 - [Phase 03]: DEC-085: simulate command - hindsight rule, bounds, warm-up excluded, limitations printed
+- [Phase ?]: [Phase 04-01]: DEC-088..090 three-state wear filter with fuel nuisance state; q=0 default; gate 3.0 SD from the 3rd used lap, never twice in a row
 
 ### Pending Todos
 
@@ -108,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-11-12T20:58:48.216Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-kalman-tire-filter/04-CONTEXT.md
+Last session: 2026-11-13T06:04:25.816Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
