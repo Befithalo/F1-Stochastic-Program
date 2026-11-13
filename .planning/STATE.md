@@ -105,16 +105,16 @@ Progress: [██████████] 100%
 
 ### Pending Todos
 
-None yet.
+- Phase 5 all-cutoff replay must handle cutoffs before the current-race pace fit identifies any dry compound without consulting future laps.
 
 ### Blockers/Concerns
 
 - 2026 regulation break: keep 2026 races out-of-sample
 - Fuel load and tire wear are hidden variables; state this in README
-- Plan 05-01 Task 1 tracer verification blocked: uv could not spawn Python because Windows Application Control denied it with OS error 4551; focused pytest is not a pass.
+- The local Python 3.12.10 runtime is the last official Windows installer for the 3.12 line; later 3.12 security releases are source-only.
 
 ## Session Continuity
 
-Last session: 2026-11-13T09:44:08Z
-Stopped at: Phase 5 Plan 05-01 Task 1 checkpoint committed; focused pytest blocked by Windows Application Control OS error 4551
+Last session: 2026-11-13T15:33:33Z
+Stopped at: Phase 5 Plan 05-01 focused tracer gate passed (18 tests); ready to continue Task 2
 Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-01-CHECKPOINT.md

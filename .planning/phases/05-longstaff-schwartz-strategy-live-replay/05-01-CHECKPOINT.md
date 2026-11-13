@@ -1,6 +1,6 @@
 # Plan 05-01 Execution Checkpoint
 
-**Status:** Task 1 implementation is in progress; tracer verification is blocked by the local runtime. Task 2 has not started.
+**Status:** Task 1 focused tracer gate passed. Task 2 has not started.
 
 ## Current Work
 
@@ -11,14 +11,14 @@
 
 ## Verification
 
-Command attempted after the implementation edits:
+Focused tracer command, using the user-local CPython 3.12.10 interpreter signed by the Python Software Foundation:
 
 ```text
-uv run python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py
+uv run --python <CPython 3.12.10 path> python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py
 ```
 
-Result: **blocked before Python launch**. `uv` reported `Failed to spawn: python` because Windows Application Control denied the Python child process with OS error 4551. This is not a passing test result. `git diff --check` completed without reporting whitespace errors, and the repository's pre-commit Ruff check and format hooks passed on the checkpoint commit.
+Result: **18 passed**. The initially blocked `uv`-managed Python was replaced with the official signed user-local interpreter. A branch RNG fix now deep-copies the full NumPy generator so spawned child streams stay identical across candidate branches. The synthetic selected-cutoff test uses lap 35, where the as-of pace fit is identified; cutoffs before a fitted dry compound is available currently return a refusal and need explicit handling in the all-cutoff replay work. The repository's pre-commit Ruff check and format hooks passed on the prior checkpoint commit; the pending code changes will be checked on commit.
 
 ## Gate and Handoff
 
-The focused test command is the Task 1 tracer verification. The GSD tracer feedback gate therefore prevents expansion into Task 2 until the focused command runs successfully in an authorized Python environment. An explicitly unverified checkpoint commit, `bc0d615`, preserves the in-progress implementation on branch `agent-05-01`; no task-completion commit or `05-01-SUMMARY.md` was created because Task 1's required verification has not passed. The same blocker was recorded in `.planning/STATE.md`.
+The focused test command is the Task 1 tracer verification, and it now passes. Continue with Task 2 on branch `agent-05-01`. Commits `bc0d615` and `b76e5f2` preserve the earlier checkpoint and state update; no plan-completion summary exists yet.

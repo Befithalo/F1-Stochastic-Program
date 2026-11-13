@@ -202,15 +202,13 @@ class NumpySimulator:
         """Replay candidate actions from one checkpoint with identical scenario-indexed draws."""
         if not actions:
             raise ValueError("at least one branch action is required")
-        initial = copy.deepcopy(rng.bit_generator.state)
+        initial = copy.deepcopy(rng)
         outputs: dict[str, _BranchRun] = {}
         for name, plans in actions.items():
-            bit_generator = type(rng.bit_generator)()
-            bit_generator.state = copy.deepcopy(initial)
             result, states = self._simulate(
                 checkpoint.state,
                 n_races=n_races,
-                rng=np.random.Generator(bit_generator),
+                rng=copy.deepcopy(initial),
                 plans=plans,
                 checkpoint_laps=checkpoint_laps if name in capture_actions else (),
             )

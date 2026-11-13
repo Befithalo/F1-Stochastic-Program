@@ -34,14 +34,14 @@ def test_selected_cutoff_replay_prints_ranked_options(
             "--driver",
             code,
             "--lap",
-            "10",
+            "35",
             "--n",
             "12",
         )
         == 0
     )
     out = capsys.readouterr().out
-    assert "after lap 10" in out
+    assert "after lap 35" in out
     assert "CVaR10" in out
     assert "Reason:" in out
 
@@ -53,10 +53,10 @@ def test_selected_cutoff_replay_prints_ranked_options(
         (LONG_SLUG, "--driver", "ZZZ", "--lap", "10"),
         (LONG_SLUG, "--driver", "AAA", "--lap", "-1"),
         (LONG_SLUG, "--driver", "AAA", "--lap", "999"),
-        (LONG_SLUG, "--driver", "AAA", "--n", "0"),
-        (LONG_SLUG, "--driver", "AAA", "--n", "-1"),
-        (LONG_SLUG, "--driver", "AAA", "--risk", "nan"),
-        (LONG_SLUG, "--driver", "AAA", "--risk", "1.1"),
+        (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--n", "0"),
+        (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--n", "-1"),
+        (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--risk", "nan"),
+        (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--risk", "1.1"),
     ],
 )
 def test_bad_replay_inputs_refuse_before_running(
@@ -99,7 +99,6 @@ def test_invalid_replay_values_are_refused_before_state_or_simulation(
         )
         == 1
     )
-    assert _run(long_synthetic_data_dir, "replay", LONG_SLUG, "--driver", "AAA", "--n", "0") == 1
     assert (
         _run(
             long_synthetic_data_dir,
@@ -107,6 +106,22 @@ def test_invalid_replay_values_are_refused_before_state_or_simulation(
             LONG_SLUG,
             "--driver",
             "AAA",
+            "--lap",
+            "10",
+            "--n",
+            "0",
+        )
+        == 1
+    )
+    assert (
+        _run(
+            long_synthetic_data_dir,
+            "replay",
+            LONG_SLUG,
+            "--driver",
+            "AAA",
+            "--lap",
+            "10",
             "--risk",
             "nan",
         )
