@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from matplotlib.collections import LineCollection
 
 from f1si.pace.kalman import (
     CutoffRow,
@@ -88,7 +89,8 @@ def test_figure_has_band_line_boundaries_and_hindsight() -> None:
     assert legend is not None
     labels = [t.get_text() for t in legend.get_texts()]
     assert any("hindsight" in t for t in labels)
-    assert [c for c in ax.collections if "hindsight" in str(c.get_label())]
+    hlines = [c for c in ax.collections if isinstance(c, LineCollection)]
+    assert len(hlines) == 2  # one dashed hindsight line per compound
 
 
 def test_render_writes_png_and_parent_dirs(tmp_path: Path) -> None:
@@ -113,7 +115,11 @@ def test_cutoff_row_lookup() -> None:
     assert found.row.race_lap == 3
     assert found.stint == 1
     assert found.compound == "MEDIUM"
-    assert cutoff_row([res], 14, 9) is None
+    behind = cutoff_row([res], 14, 9)  # newest visible lap at or before the cutoff
+    assert behind is not None
+    assert behind.row.race_lap == 4
+    assert behind.cutoff_lap == 9
+    assert cutoff_row([res], 14, 0) is None
     assert cutoff_row([res], 99, 3) is None
 
 

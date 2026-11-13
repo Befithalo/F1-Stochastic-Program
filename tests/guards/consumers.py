@@ -90,6 +90,27 @@ def race_state(db_path: Path, at: AsOf) -> object:
     )
 
 
+def race_state_filter(db_path: Path, at: AsOf) -> object:
+    """The RaceState built with the Kalman wear filter, so filter-fed state cannot see the future.
+
+    The CLI `wear-filter` replay holds the accessor only in cli.py; this consumer proves the same
+    snapshot -> fit -> filter -> state path ignores data after the cutoff (D-09, D-15).
+    """
+    snapshot = AsOfAccessor(db_path).snapshot(at)
+    fit = fit_linear_pace(snapshot)
+    pit = measure_pit_loss(snapshot, fit)
+    lap = at.lap if isinstance(at.lap, int) else 12
+    results = filter_stints(snapshot, fit)
+    state = build_race_state(
+        snapshot,
+        fit,
+        laps_total=max(12, lap),
+        pit_loss_s=pit.median_s,
+        wear_filter=current_stint_snapshots(results),
+    )
+    return state.to_json(), state.to_json_dict(), state.to_arrays().position.tolist()
+
+
 def wear_plot_data(db_path: Path, at: AsOf) -> object:
     """The wear plot's prepared data (points, lines, panels)."""
     snapshot = AsOfAccessor(db_path).snapshot(at)
@@ -120,6 +141,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "linear_fit": linear_fit,
     "pit_loss": pit_loss,
     "race_state": race_state,
+    "race_state_filter": race_state_filter,
     "wear_plot_data": wear_plot_data,
     "sc_rate": sc_rate,
     "wear_filter": wear_filter,

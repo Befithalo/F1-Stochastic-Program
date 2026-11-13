@@ -465,7 +465,11 @@ def current_stint_snapshots(results: Sequence[StintFilterResult]) -> dict[int, F
 
 @dataclass(frozen=True)
 class CutoffRow:
-    """The row a driver's filter showed for race lap == `cutoff_lap`, with its stint's priors."""
+    """The newest row a driver's filter showed at `cutoff_lap`, with its stint's priors.
+
+    `row.race_lap` can be below `cutoff_lap`: cars behind the leader have not yet completed the
+    leader's lap when the cutoff is taken.
+    """
 
     cutoff_lap: int
     stint: int
@@ -477,20 +481,23 @@ class CutoffRow:
 def cutoff_row(
     results: Sequence[StintFilterResult], driver_number: int, cutoff_lap: int
 ) -> CutoffRow | None:
-    """The driver's row for `cutoff_lap`, or None (retired, wet tyre, lap not run).
+    """The driver's newest row with race_lap <= `cutoff_lap`, or None (nothing visible yet).
 
-    Pure lookup over already computed results; it reads no race data.
+    The as-of door shows a car's lap only after the leader's cutoff lap has passed it, so a car
+    behind the leader usually has its lap `cutoff_lap - 1` as the newest one. Pure lookup over
+    already computed results; it reads no race data.
     """
+    best: CutoffRow | None = None
     for r in results:
         if r.driver_number != driver_number:
             continue
         for row in r.rows:
-            if row.race_lap == cutoff_lap:
-                return CutoffRow(
+            if row.race_lap <= cutoff_lap and (best is None or row.race_lap > best.row.race_lap):
+                best = CutoffRow(
                     cutoff_lap=cutoff_lap,
                     stint=r.stint,
                     compound=r.compound,
                     priors=r.priors,
                     row=row,
                 )
-    return None
+    return best

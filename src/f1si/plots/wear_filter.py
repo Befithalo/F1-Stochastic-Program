@@ -21,7 +21,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from matplotlib.artist import Artist
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 from f1si.pace.kalman import CutoffRow
 from f1si.plots.stints import COMPOUND_COLORS, EDGE_COLOR, UNKNOWN_COLOR
@@ -97,6 +100,7 @@ def build_wear_filter_figure(data: WearFilterPlotData) -> Figure:
     ax.set_ylabel("Wear rate (s per lap of tyre age)", fontsize=8)
     ax.tick_params(labelsize=7)
     n = len(data.laps)
+    handles: list[Artist] = []
     stints = list(dict.fromkeys(data.stint_ids))
     first_lap_of: dict[int, int] = {}
     span_of: dict[str, list[tuple[int, int]]] = {}
@@ -126,7 +130,8 @@ def build_wear_filter_figure(data: WearFilterPlotData) -> Figure:
             )
         y = [data.rate[i] for i in idx]
         ax.plot(x, y, color=EDGE_COLOR, linewidth=2.4, zorder=3)
-        ax.plot(x, y, color=colour, linewidth=1.4, zorder=4, label=f"{comp} stint {sid}")
+        ax.plot(x, y, color=colour, linewidth=1.4, zorder=4)
+        handles.append(Patch(facecolor=colour, edgecolor=EDGE_COLOR, label=f"{comp} stint {sid}"))
         skipped = [i for i in idx if not data.used[i]]
         used = [i for i in idx if data.used[i]]
         ax.scatter(
@@ -159,15 +164,18 @@ def build_wear_filter_figure(data: WearFilterPlotData) -> Figure:
             value,
             lo_lap,
             hi_lap,
-            colors=COMPOUND_COLORS.get(comp, UNKNOWN_COLOR),
+            colors=EDGE_COLOR,
             linestyles="--",
-            linewidth=1.6,
-            zorder=3,
-            label="_nolegend_" if labelled else _HINDSIGHT,
+            linewidth=1.2,
+            zorder=6,
         )
+        if not labelled:
+            handles.append(
+                Line2D([], [], color=EDGE_COLOR, linestyle="--", linewidth=1.2, label=_HINDSIGHT)
+            )
         labelled = True
     if n:
-        ax.legend(fontsize=6, loc="upper right")
+        ax.legend(handles=handles, fontsize=6, loc="upper right")
     fig.suptitle(data.title)
     fig.supxlabel(data.caption, fontsize=6, wrap=True)
     return fig

@@ -801,6 +801,7 @@ def _cmd_wear_filter(
     last_lap = laps_total if lap is None else min(lap, laps_total)
     started = time.perf_counter()
     collected: list[CutoffRow] = []
+    shown: set[int] = set()
     prior_checks: dict[int, CutoffRow] = {}
     stint_counts: dict[int, tuple[int, int]] = {}
     hindsight: dict[str, float] = {}
@@ -817,9 +818,13 @@ def _cmd_wear_filter(
         picked = cutoff_row(results, number, cutoff)
         if picked is None:
             continue
-        collected.append(picked)
         if cutoff in _PRIOR_CHECK_LAPS:
             prior_checks[cutoff] = picked
+        # A car behind the leader shows lap cutoff-1 as its newest lap. Keep each driver lap the
+        # first time it appears: that is what a live system showed when the lap arrived.
+        if picked.row.race_lap not in shown:
+            shown.add(picked.row.race_lap)
+            collected.append(picked)
     runtime = time.perf_counter() - started
     race = end.race
     print(f"{race.event_name} {race.season}: {code}, wear-rate filter replayed to lap {last_lap}")
@@ -835,7 +840,9 @@ def _cmd_wear_filter(
         n_used = sum(1 for r in mine if r.row.used)
         print()
         print(f"Stint {sid}: {final.compound}, laps {mine[0].row.race_lap}-{final.row.race_lap}")
-        print(f"  rate prior: {final.priors.rate_source}")
+        first_source = mine[0].priors.rate_source
+        began = "" if first_source == final.priors.rate_source else f" (began as {first_source})"
+        print(f"  rate prior: {final.priors.rate_source}{began}")
         print(f"  fuel: {final.priors.fuel_source}")
         print(f"  noise: {final.priors.noise_source}")
         gate = stint_counts.get(sid, (0, 0))[1]
