@@ -60,6 +60,7 @@ the safety car, first-lap chaos. The simulator sees only a `RaceState`, never th
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -113,6 +114,31 @@ class SafetyCarModel:
             raise ValueError(f"duration_laps must be at least 1, got {self.duration_laps!r}")
 
 
+@dataclass(frozen=True)
+class _PathCheckpoint:
+    """Private batched race-interaction state captured after one simulated lap."""
+
+    state: RaceState
+    lap: int
+    order: NDArray[np.int64] | None = None
+    clock: NDArray[np.float64] | None = None
+    tire_age: NDArray[np.int64] | None = None
+    compounds: NDArray[np.int64] | None = None
+    stops_done: NDArray[np.int64] | None = None
+    stop_history: NDArray[np.int64] | None = None
+    pit_loss_paid: NDArray[np.float64] | None = None
+    safety_car_remaining: NDArray[np.int64] | None = None
+    safety_car_fresh: NDArray[np.bool_] | None = None
+
+
+@dataclass(frozen=True)
+class _BranchRun:
+    """Terminal outcomes plus aligned internal path states for one branch action."""
+
+    result: SimulationResult
+    checkpoints: Mapping[int, _PathCheckpoint]
+
+
 class NumpySimulator:
     """Monte Carlo simulator of race continuations; satisfies `SimulatorBackend`.
 
@@ -163,6 +189,34 @@ class NumpySimulator:
 
     # ------------------------------------------------------------------ public API
 
+    def _branch_paths(
+        self,
+        checkpoint: _PathCheckpoint,
+        *,
+        actions: Mapping[str, Mapping[str, Plan]],
+        n_races: int,
+        rng: np.random.Generator,
+        checkpoint_laps: Sequence[int] = (),
+        capture_actions: Sequence[str] = (),
+    ) -> dict[str, _BranchRun]:
+        """Replay candidate actions from one checkpoint with identical scenario-indexed draws."""
+        if not actions:
+            raise ValueError("at least one branch action is required")
+        initial = copy.deepcopy(rng.bit_generator.state)
+        outputs: dict[str, _BranchRun] = {}
+        for name, plans in actions.items():
+            bit_generator = type(rng.bit_generator)()
+            bit_generator.state = copy.deepcopy(initial)
+            result, states = self._simulate(
+                checkpoint.state,
+                n_races=n_races,
+                rng=np.random.Generator(bit_generator),
+                plans=plans,
+                checkpoint_laps=checkpoint_laps if name in capture_actions else (),
+            )
+            outputs[name] = _BranchRun(result, states)
+        return outputs
+
     def simulate(
         self,
         state: RaceState,
@@ -172,6 +226,19 @@ class NumpySimulator:
         plans: Mapping[str, Plan] | None = None,
     ) -> SimulationResult:
         """Simulate `n_races` continuations of `state` (see the module docstring)."""
+        result, _ = self._simulate(state, n_races=n_races, rng=rng, plans=plans, checkpoint_laps=())
+        return result
+
+    def _simulate(
+        self,
+        state: RaceState,
+        *,
+        n_races: int,
+        rng: np.random.Generator,
+        plans: Mapping[str, Plan] | None,
+        checkpoint_laps: Sequence[int],
+    ) -> tuple[SimulationResult, dict[int, _PathCheckpoint]]:
+        """Private simulation core; checkpoint copies are produced only for branch callers."""
         self._validate(state, n_races)
         n = int(n_races)
         cars = state.cars
@@ -299,6 +366,7 @@ class NumpySimulator:
             sc_left[:] = max(1, self._sc.duration_laps - state.sc_laps_elapsed)
             sc_fresh[:] = True
         sc_mask = np.zeros((n, n_sim), dtype=np.bool_)
+        checkpoints: dict[int, _PathCheckpoint] = {}
         clocks = np.zeros((n, n_sim, n_cars), dtype=np.float64) if self._record else None
         lap_mask = np.zeros(n, dtype=np.bool_)
 
@@ -349,6 +417,21 @@ class NumpySimulator:
             sc_mask[:, j] = lap_mask
             if clocks is not None:
                 clocks[:, j, :] = clock
+            lap_no = int(laps[j])
+            if lap_no in checkpoint_laps:
+                checkpoints[lap_no] = _PathCheckpoint(
+                    state=state,
+                    lap=lap_no,
+                    order=order.copy(),
+                    clock=clock.copy(),
+                    tire_age=age.copy(),
+                    compounds=comp.copy(),
+                    stops_done=stops_done.copy(),
+                    stop_history=stop_taken.copy(),
+                    pit_loss_paid=pit_paid.copy(),
+                    safety_car_remaining=sc_left.copy(),
+                    safety_car_fresh=sc_fresh.copy(),
+                )
 
         total = np.array(clock, dtype=np.float64)
         # finishing positions come from the running order, which the kernel keeps consistent with
@@ -360,15 +443,18 @@ class NumpySimulator:
             np.broadcast_to(np.arange(1, n_cars + 1, dtype=np.int64), order.shape),
             axis=1,
         )
-        return SimulationResult(
-            finish_positions=positions,
-            total_time_s=total,
-            sc_lap_mask=sc_mask,
-            stop_laps=stop_taken,
-            pit_loss_paid_s=pit_paid,
-            plan_sources=sources,
-            diagnostics=tuple(diagnostics),
-            clock_s=clocks,
+        return (
+            SimulationResult(
+                finish_positions=positions,
+                total_time_s=total,
+                sc_lap_mask=sc_mask,
+                stop_laps=stop_taken,
+                pit_loss_paid_s=pit_paid,
+                plan_sources=sources,
+                diagnostics=tuple(diagnostics),
+                clock_s=clocks,
+            ),
+            checkpoints,
         )
 
     # ------------------------------------------------------------------ helpers

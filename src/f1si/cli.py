@@ -28,7 +28,13 @@ from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
 from f1si.interfaces import DRY_COMPOUNDS, Plan
-from f1si.pace.kalman import CutoffRow, cutoff_row, cutoff_rows, filter_stints
+from f1si.pace.kalman import (
+    CutoffRow,
+    current_stint_snapshots,
+    cutoff_row,
+    cutoff_rows,
+    filter_stints,
+)
 from f1si.pace.linear import (
     DEFAULT_PIT_LOSS_S,
     FUEL_SANITY_RANGE,
@@ -57,8 +63,9 @@ from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
+from f1si.strategy.longstaff import LongstaffSchwartzPolicy
 
-_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate", "wear-filter"})
+_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate", "wear-filter", "replay"})
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
 
 
@@ -202,6 +209,19 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="replay up to the leader's lap N (default: the whole race)",
     )
+    replay = sub.add_parser("replay", help="rank pit actions from a selected as-of race cutoff")
+    replay.add_argument("slug", metavar="SLUG", help="cached race slug (for example bahrain-2023)")
+    replay.add_argument("--driver", required=True, metavar="CODE", help="known driver code")
+    replay.add_argument(
+        "--lap", type=int, required=True, metavar="N", help="cutoff after leader lap N"
+    )
+    replay.add_argument(
+        "--n", type=int, default=50000, metavar="N", help="positive simulation count"
+    )
+    replay.add_argument(
+        "--risk", type=float, default=0.5, metavar="R", help="risk blend in [0, 1] (default 0.5)"
+    )
+    replay.add_argument("--seed", type=int, default=0, metavar="S", help="random seed (default 0)")
     return parser
 
 
@@ -895,6 +915,91 @@ def _cmd_wear_filter(
     return 0
 
 
+def _cmd_replay(
+    data_dir: Path,
+    slug: str,
+    driver: str,
+    lap: int,
+    n_simulations: int,
+    risk_aversion: float,
+    seed: int,
+) -> int:
+    """Build a single cutoff state from as-of data and print policy evidence."""
+    from f1si.strategy.longstaff import _risk
+
+    try_line = f"Try: uv run f1si replay {slug} --driver CODE --lap 20"
+    code = driver.upper()
+    if not _DRIVER_CODE.fullmatch(code):
+        return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
+    if lap < 0:
+        return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
+    if isinstance(n_simulations, bool) or n_simulations < 1:
+        return _refuse(f"--n must be positive, got {n_simulations}. {try_line}")
+    try:
+        risk = _risk(risk_aversion)
+    except ValueError as err:
+        return _refuse(f"{err}. {try_line}")
+    if isinstance(seed, bool) or seed < 0:
+        return _refuse(f"--seed must be 0 or more, got {seed}. {try_line}")
+
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    accessor = asof.AsOfAccessor(db)
+    try:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+        laps_total = int(end.laps["lap_number"].max())
+        if lap >= laps_total:
+            return _refuse(f"--lap must be in 0..{laps_total - 1}, got {lap}. {try_line}")
+        known = set(str(v) for v in end.entries["driver_code"])
+        if code not in known:
+            return _refuse(f"Unknown driver {code!r}; choose a driver in {slug}. {try_line}")
+        snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+        history = accessor.history(asof.AsOf(race_id, lap))
+    except OutOfSampleLockedError as err:
+        return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+    fit = fit_linear_pace(snapshot)
+    pit = measure_pit_loss(snapshot, fit)
+    results = filter_stints(snapshot, fit)
+    wear = current_stint_snapshots(results)
+    state = build_race_state(
+        snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
+    )
+    estimate = estimate_sc_rate(history)
+    policy = LongstaffSchwartzPolicy(
+        fit,
+        compounds=fit.fitted_compounds,
+        risk_aversion=risk,
+        n_simulations=n_simulations,
+        seed=seed,
+        sc=SafetyCarModel(estimate.rate_per_lap, estimate.duration_laps),
+    )
+    try:
+        report = policy.analyze(state, driver=code)
+    except ValueError as err:
+        return _refuse(f"Cannot replay {code} after lap {lap}: {err}. {try_line}")
+    print(f"{end.race.event_name} {end.race.season}: {code}, recommendation after lap {lap}")
+    print(
+        f"risk aversion {risk:.2f}; options share {n_simulations} seeded race scenarios. "
+        "CVaR10 is the exact worst decile; lower blended score ranks first."
+    )
+    _print_table(
+        ("ACTION", "MEAN", "SPREAD", "CVAR10", "SCORE"),
+        [
+            (
+                option.action,
+                f"{option.mean_finish:.3f}",
+                f"{option.spread:.3f}",
+                f"{option.cvar10:.3f}",
+                f"{option.score:.3f}",
+            )
+            for option in report.options
+        ],
+    )
+    print(f"Recommendation: {report.best.action}")
+    print(f"Reason: {report.reason}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     args = build_parser().parse_args(argv)
@@ -924,6 +1029,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()
             )
             return _cmd_wear_filter(data_dir, wf_reports, args.slug, args.driver, args.lap)
+        if args.command == "replay":
+            return _cmd_replay(
+                data_dir, args.slug, args.driver, args.lap, args.n, args.risk, args.seed
+            )
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
