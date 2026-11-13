@@ -130,6 +130,11 @@ def test_full_replay_emits_every_cutoff_and_marks_unsupported_cutoffs(
     assert laps == list(range(max(laps) + 1))
     assert any("unavailable" in line.lower() for line in out.splitlines())
     assert any("Recommendation:" in line for line in out.splitlines())
+    reasons = [
+        line.removeprefix("Reason: ") for line in out.splitlines() if line.startswith("Reason: ")
+    ]
+    assert reasons
+    assert all(reason.endswith(".") for reason in reasons)
 
 
 def test_selected_replay_matches_full_replay_cutoff_block(
