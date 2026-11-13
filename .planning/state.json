@@ -1,0 +1,53 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v1.0",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Foundation & Data",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Interfaces, Linear Tire Wear & Free-Track Optimizer",
+      "status": "complete"
+    },
+    {
+      "number": "3",
+      "name": "Monte Carlo Simulator",
+      "status": "complete"
+    },
+    {
+      "number": "4",
+      "name": "Kalman Tire Filter",
+      "status": "complete"
+    },
+    {
+      "number": "5",
+      "name": "Longstaff-Schwartz Strategy & Live Replay",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "MVP Backtest, Streamlit View & README",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Bayesian Pace Model",
+      "status": "pending"
+    },
+    {
+      "number": "8",
+      "name": "Markov Regimes & Full Backtest",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 5 of 8 · executing"
+  },
+  "updated_at": "2026-11-13T09:26:03.488Z"
+}
