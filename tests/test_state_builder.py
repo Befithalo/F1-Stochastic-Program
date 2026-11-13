@@ -231,3 +231,26 @@ def test_wear_filter_ignored_for_unknown_compound(long_synthetic_db: Path) -> No
     assert car.compound is None
     assert car.wear_source == "fit"
     assert car.wear_rate_s_per_lap is None
+
+
+def test_wear_filter_entry_for_another_compound_is_ignored(long_synthetic_db: Path) -> None:
+    """WR-04: a filter snapshot of the previous tyre must not replace the current tyre's fit."""
+    snap = _snap(long_synthetic_db, 40)
+    fit = fit_linear_pace(snap)
+    base = build_race_state(snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0)
+    a = base.cars[0]
+    assert a.compound is not None
+    other = "SOFT" if a.compound != "SOFT" else "HARD"
+    stale = dataclasses.replace(_filter_snapshot(0.09, 0.011, 40), compound=other)
+    same = dataclasses.replace(_filter_snapshot(0.09, 0.011, 40), compound=a.compound)
+    ignored = build_race_state(
+        snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0, wear_filter={a.driver_number: stale}
+    )
+    assert ignored.cars[0] == a
+    assert ignored.cars[0].wear_source == "fit"
+    used = build_race_state(
+        snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0, wear_filter={a.driver_number: same}
+    )
+    assert used.cars[0].wear_source == "filter"
+    assert used.cars[0].wear_rate_s_per_lap == 0.09
+    assert RaceState.from_json(used.to_json()) == used

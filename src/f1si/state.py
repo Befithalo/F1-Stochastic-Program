@@ -515,7 +515,9 @@ def build_race_state(
       * `wear_filter` (optional, driver number -> FilterSnapshot, D-13): a car with an entry that
         is not `prior_only` and whose compound is known takes `wear_rate_s_per_lap` = rate_mean
         and `wear_sd` = rate_sd from the filter and `wear_source` "filter"; all other cars keep
-        the fit values and "fit". Without the argument the state is exactly as before.
+        the fit values and "fit". An entry whose `compound` is set and differs from the car's
+        current compound is ignored (it describes an earlier tyre).
+        Without the argument the state is exactly as before.
 
     Raises:
         ValueError: if `laps_total` is smaller than the lap, or any `wear_filter` entry has a
@@ -604,6 +606,10 @@ def build_race_state(
         wear_sd = None if name is None else fit.wear_se(name)
         wear_source = "fit"
         flt = None if wear_filter is None or name is None else wear_filter.get(r["number"])
+        # A filter entry for another compound is the car's previous tyre (stop near the cutoff,
+        # retired car): its rate does not describe the current tyre, so keep the fit values.
+        if flt is not None and flt.compound is not None and flt.compound != name:
+            flt = None
         if flt is not None and not flt.prior_only:
             wear_rate, wear_sd, wear_source = flt.rate_mean, flt.rate_sd, "filter"
         states.append(

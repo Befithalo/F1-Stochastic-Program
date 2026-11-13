@@ -151,6 +151,7 @@ class FilterSnapshot:
     n_used: int
     prior_only: bool
     cutoff_lap: int
+    compound: str | None = None  # compound of the filtered stint; None = not stated (no check)
 
 
 class WearFilter:
@@ -476,6 +477,7 @@ def current_stint_snapshots(results: Sequence[StintFilterResult]) -> dict[int, F
                 n_used=r.n_used,
                 prior_only=False,
                 cutoff_lap=r.cutoff_lap,
+                compound=r.compound,
             )
     return out
 
