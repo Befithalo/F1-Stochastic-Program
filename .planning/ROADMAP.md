@@ -203,7 +203,7 @@ Plans:
 
 **Plans**: TBD
 - [x] 05-01-PLAN.md
-- [ ] 05-02-PLAN.md
+- [x] 05-02-PLAN.md
 - [ ] 05-03-PLAN.md
 
 ### Phase 6: MVP Backtest, Streamlit View & README
@@ -264,7 +264,7 @@ Plans:
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
-| 5. Longstaff-Schwartz Strategy & Live Replay | 1/3 | In Progress | - |
+| 5. Longstaff-Schwartz Strategy & Live Replay | 2/3 | In Progress | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |
 | 8. Markov Regimes & Full Backtest | 0/0 | Not started | - |

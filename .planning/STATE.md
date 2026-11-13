@@ -3,17 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 05
 current_phase_name: Longstaff-Schwartz Strategy & Live Replay
+current_plan: 3
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-11-13T15:43:58.287Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-11-13T16:10:19.688Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 05 planning complete
-state_head: a0aefff25155f6b77c5c0a98718a4f7f21604e50
+state_head: fc6335e93272470f6bdf4f35f9524f09380fefe8
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 31
-  completed_plans: 29
+  completed_plans: 30
 milestone_name: milestone
 ---
 
@@ -29,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 05 (Longstaff-Schwartz Strategy & Live Replay) — IN PROGRESS
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 3
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Executing Plan 05-02
 Last activity: 2026-11-13 — Plan 05-01 complete; early-cutoff fit concern handed to Plan 05-02
 
@@ -64,6 +65,7 @@ Progress: [██████████] 100%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 05 P01 | 9min | 2 tasks | 7 files |
+| Phase 05 P02 | 25min | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -112,6 +114,8 @@ Progress: [██████████] 100%
 - [Phase 05]: D-01/D-02/D-08: use conditional-mean LSM recursion and the locked current-cutoff mean/CVaR10 score, default risk 0.5.
 - [Phase 05]: Use a normalized cutoff-visible basis with intercept-only conditional-mean fallback when data are undersized or rank-deficient.
 - [Phase 05]: Keep reasons score-only without supporting visible evidence; enforce the existing five-lap minimum final stint.
+- [Phase 05]: Full and selected replay share a cutoff builder and format unavailable results when cutoff-visible pace fit is unsupported.
+- [Phase 05]: Replay consumers use the CLI cutoff builder and future-scramble tests preserve D-21 public max-lap metadata while scrambling observations.
 
 ### Pending Todos
 
@@ -125,6 +129,6 @@ Progress: [██████████] 100%
 
 ## Session Continuity
 
-Last session: 2026-11-13T15:43:57.702Z
-Stopped at: Completed 05-01-PLAN.md
-Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-02-PLAN.md
+Last session: 2026-11-13T16:10:19.150Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: None

@@ -56,7 +56,7 @@
 
 ### Replay and Backtest
 
-- [ ] **RPL-01**: User can replay a race lap by lap for any driver and get a recommendation with uncertainty each lap
+- [x] **RPL-01**: User can replay a race lap by lap for any driver and get a recommendation with uncertainty each lap
 - [x] **RPL-02**: Live replay of Bahrain 2023 works end to end (M1 definition of done)
 - [ ] **BKT-01**: A walk-forward backtester runs races from 2023-2025 with zero look-ahead
 - [ ] **BKT-02**: Backtest reports Brier score (podium, top-10) vs a grid-position baseline and 90% finishing-interval coverage
@@ -117,7 +117,7 @@
 | STR-02 | Phase 5 | Complete |
 | STR-03 | Phase 5 | Complete |
 | STR-04 | Phase 5 | Complete |
-| RPL-01 | Phase 5 | Pending |
+| RPL-01 | Phase 5 | Complete |
 | RPL-02 | Phase 5 | Complete |
 | BKT-01 | Phase 6 | Pending |
 | BKT-02 | Phase 6 | Pending |
