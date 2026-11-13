@@ -42,21 +42,29 @@ Plan and task IDs are provisional until the planner assigns the final plan struc
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | TBD | TBD | STR-01 | T-05-02 | Strategy receives only RaceState and preserves cutoff isolation | unit + conformance | uv run python -m pytest -q tests/strategy/test_longstaff.py tests/conformance/test_suites.py | New strategy tests; shared suite exists | pending |
-| 05-01-02 | TBD | TBD | STR-02 | — | All actions use comparable scenarios and report the documented metrics | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py -k cvar | New strategy tests | pending |
-| 05-01-03 | TBD | TBD | STR-03 | T-05-01 | Risk input is bounded and finite; ranking endpoints are covered | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py -k risk | New strategy tests | pending |
-| 05-01-04 | TBD | TBD | STR-04 | T-05-02, T-05-03 | Reasons use cutoff-visible evidence and expected errors stay friendly | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py -k reason | New strategy tests | pending |
-| 05-01-05 | TBD | TBD | RPL-01 | T-05-02 | Every replay cutoff rebuilds its snapshot, fit, filter and state from that cutoff | integration + future-scramble | uv run python -m pytest -q tests/test_cli_replay.py tests/guards/test_future_scramble.py | New replay tests; guard exists | pending |
+| 05-01-01 | TBD | TBD | STR-01 | T-05-02 | Synthetic paths recover conditional continuation values; stopping is pathwise, checkpoint branches are reproducible, fallback is rank-aware, and policy conformance passes | unit + conformance | uv run python -m pytest -q tests/strategy/test_longstaff.py tests/conformance/test_suites.py | New strategy tests; shared suite exists | pending |
+| 05-01-02 | TBD | TBD | STR-02 | — | Pit now, pit in 1-5 laps, and stay out use common scenarios and expose mean, spread, worst-decile CVaR, and blended score; fractional tail boundary and ties are covered | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py | New strategy tests | pending |
+| 05-01-03 | TBD | TBD | STR-03 | T-05-01 | Finite risk input is bounded to [0,1]; both endpoints and a sample that changes rank are covered | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py | New strategy tests | pending |
+| 05-01-04 | TBD | TBD | STR-04 | T-05-02 | Repeated same-state calls return the same evidence-based reason; reasons use cutoff-visible inputs and never invent future events | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py | New strategy tests | pending |
+| 05-01-05 | TBD | TBD | RPL-01 | T-05-02 | Every cutoff rebuilds snapshot, fit, filter output, and RaceState through AsOfAccessor; future-scramble and selected-lap equivalence pass | integration + future-scramble | uv run python -m pytest -q tests/test_cli_replay.py tests/guards/test_future_scramble.py | New replay tests; guard exists | pending |
 | 05-01-06 | TBD | TBD | RPL-02 | T-05-01, T-05-03 | Bahrain replay accepts known drivers and refuses invalid input without exposing a traceback | smoke + manual CLI | uv run f1si replay bahrain-2023 --driver ALO | New CLI coverage; local cache availability to confirm | pending |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] tests/strategy/test_longstaff.py — synthetic continuation-value recovery, fallback behavior, CVaR orientation and cutoff ties, risk endpoints, deterministic reasons.
+- [ ] tests/strategy/test_longstaff.py — synthetic conditional-mean continuation recovery, pathwise stopping, same-checkpoint/common-draw branch behavior, rank-aware fallback, CVaR orientation and fractional boundary, risk endpoints, deterministic reasons, and StrategyPolicy conformance.
 - [ ] tests/test_cli_replay.py — all-cutoff replay, selected-lap equality, driver selection, and expected refusal paths.
 - [ ] tests/guards/consumers.py — register the replay command's as-of data consumer.
 - [ ] Extend tests/conformance so the Longstaff-Schwartz policy runs through the shared StrategyPolicy suite.
+
+## Security Coverage
+
+| Threat Ref | Threat | Required validation |
+|------------|--------|---------------------|
+| T-05-01 | Invalid replay bounds or non-finite/out-of-range risk input | Test malformed driver/lap/race inputs and NaN, infinity, and values outside [0,1]; expected failures are friendly and do not start simulation. |
+| T-05-02 | Future-data leakage into strategy decisions | Keep data access in the replay driver, pass only cutoff-built RaceState to the policy, register the as-of consumer, and retain the future-scramble guard. |
+| T-05-03 | User-controlled race/driver text reaches shell or query construction | Resolve names through existing catalog/argument APIs; test unknown identifiers and confirm no raw shell or SQL interpolation is introduced. |
 
 ---
 
