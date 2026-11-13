@@ -205,6 +205,10 @@ class LongstaffSchwartzPolicy:
         ]
         if car.stops_done >= 2:
             stop_laps = []
+        if not options:
+            # There can still be legal timing laps, but no fitted compound to pit onto. In that
+            # case staying out is the only legal action and there are no stopping times to fit.
+            stop_laps = []
         candidates: list[tuple[str, Plan]] = []
         if options:
             for delay, stop_lap in enumerate(stop_laps):
