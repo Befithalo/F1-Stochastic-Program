@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, RaceSnapshot
+from f1si.pace.kalman import FilterSnapshot
 from f1si.pace.linear import fit_linear_pace
 from f1si.state import SC_PIT_LOSS_RATIO, RaceState, build_race_state
 from tests.conftest import LONG_RACE_ID, SC_HISTORY_CURRENT_RACE_ID
@@ -159,3 +160,74 @@ def test_safety_car_regime_follows_the_cutoff(sc_history_db: Path) -> None:
     after = _sc_state(sc_history_db, 14)
     assert dict(after.regime) == {"green": 1.0}
     assert after.sc_laps_elapsed == 0
+
+
+def _filter_snapshot(
+    rate: float, sd: float, cutoff: int, *, prior_only: bool = False
+) -> FilterSnapshot:
+    return FilterSnapshot(rate, sd, 5, prior_only, cutoff)
+
+
+def test_wear_filter_fills_rate_sd_and_source(long_synthetic_db: Path) -> None:
+    snap = _snap(long_synthetic_db, 40)
+    fit = fit_linear_pace(snap)
+    base = build_race_state(snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0)
+    a, b, c = base.cars[0], base.cars[1], base.cars[2]
+    flt = {
+        a.driver_number: _filter_snapshot(0.09, 0.011, 40),
+        b.driver_number: _filter_snapshot(0.05, 0.02, 40, prior_only=True),
+    }
+    state = build_race_state(
+        snap,
+        fit,
+        laps_total=LAPS_TOTAL,
+        pit_loss_s=22.0,
+        wear_filter=flt,
+    )
+    assert state.cars[0].wear_rate_s_per_lap == 0.09
+    assert state.cars[0].wear_sd == 0.011
+    assert state.cars[0].wear_source == "filter"
+    assert state.cars[1] == b
+    assert state.cars[2] == c
+    assert state.cars[1].wear_source == "fit"
+    assert RaceState.from_json(state.to_json()) == state
+
+
+def test_wear_filter_none_equals_default(long_synthetic_db: Path) -> None:
+    snap = _snap(long_synthetic_db, 40)
+    fit = fit_linear_pace(snap)
+    plain = build_race_state(snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0)
+    none = build_race_state(snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0, wear_filter=None)
+    assert plain == none
+
+
+def test_wear_filter_cutoff_mismatch_raises(long_synthetic_db: Path) -> None:
+    snap = _snap(long_synthetic_db, 40)
+    fit = fit_linear_pace(snap)
+    with pytest.raises(ValueError, match=r"39.*40"):
+        build_race_state(
+            snap,
+            fit,
+            laps_total=LAPS_TOTAL,
+            pit_loss_s=22.0,
+            wear_filter={1: _filter_snapshot(0.09, 0.011, 39)},
+        )
+
+
+def test_wear_filter_ignored_for_unknown_compound(long_synthetic_db: Path) -> None:
+    snap = _snap(long_synthetic_db, 0)
+    fit = fit_linear_pace(snap)
+    base = build_race_state(snap, fit, laps_total=LAPS_TOTAL, pit_loss_s=22.0)
+    number = base.cars[0].driver_number
+    unknown = dataclasses.replace(snap, entries=snap.entries.assign(start_compound=None))
+    st = build_race_state(
+        unknown,
+        fit,
+        laps_total=LAPS_TOTAL,
+        pit_loss_s=22.0,
+        wear_filter={number: _filter_snapshot(0.09, 0.011, 0)},
+    )
+    car = next(c for c in st.cars if c.driver_number == number)
+    assert car.compound is None
+    assert car.wear_source == "fit"
+    assert car.wear_rate_s_per_lap is None

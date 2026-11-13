@@ -1013,3 +1013,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** (a) a longer horizon per compound, (b) a different error metric, (c) lowering the synthetic noise, (d) a tighter prior. Each would make the 10% pass by changing the question, not the filter; recorded as not chosen. The pooled coverage band uses the stint count as n because laps within a stint are correlated.
 **Consequences:** PAC-04's 10% half is reported, not met, at generator noise. Phase 7 pooling across cars or races is the route to revisit it. Fuel/wear confounding sets a floor on the band that no number of laps removes.
 **Refs:** D-11, D-12, D-17, DEC-088, DEC-091, PAC-04
+
+## DEC-093 — CarState.wear_source and build_race_state(wear_filter=)
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** The simulator must know whether a car's wear rate and SD come from the whole-race compound fit or from the per-stint Kalman filter, and the builder must be able to take the filter result without changing any existing caller or stored JSON.
+**Decision:** `CarState` gets a trailing defaulted field `wear_source` ("fit" or "filter", ValueError naming the value otherwise). It is written to JSON only when "filter" and read with a default of "fit", so JSON produced before this change loads and re-dumps byte-identical. `build_race_state` takes the keyword-only `wear_filter: Mapping[int, FilterSnapshot] | None = None`. A car with an entry that is not `prior_only` and has a known compound takes `wear_rate_s_per_lap = rate_mean`, `wear_sd = rate_sd` and `wear_source = "filter"`; a car with a prior-only filter, no entry or an unknown compound keeps the fit values and "fit". Any entry whose `cutoff_lap` differs from the lap of the state being built raises ValueError naming both laps. Addition only: no field was renamed or removed. The SD already includes the fuel uncertainty (D-18).
+**Why:** A prior-only filter result is the generic prior, which carries less information than the fit when the fit is identified, so it must not replace it. A filter result from another cutoff would be stale or look-ahead data, so a mismatch is an error and not a silent use.
+**Alternatives rejected:** A separate parallel RaceState type (every consumer would change). Writing the key always (changes every stored JSON). Silently ignoring a cutoff mismatch.
+**Consequences:** Negative `wear_sd` is still accepted by `CarState` (existing property tests generate it); the simulator treats such a car as ineligible for the filter path (DEC-094).
+**Refs:** D-13, PAC-03

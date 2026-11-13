@@ -268,3 +268,33 @@ def test_pace_offset_sd_round_trip_and_old_json_loads() -> None:
     assert RaceState.from_json_dict(data).cars[0].pace_offset_sd is None
     with pytest.raises(ValueError, match="pace_offset_sd"):
         _car(pace_offset_sd=float("nan"))
+
+
+_OLD_JSON = (
+    '{"lap": 10, "laps_total": 57, "regime": {"green": 1.0}, "pit_loss_s": {"green": 22.0}, '
+    '"cars": [{"driver": "ALO", "position": 2, "gap_ahead_s": 1.5, "gap_behind_s": null, '
+    '"compound": "MEDIUM", "tire_age": 9, "wear_rate_s_per_lap": 0.07, "wear_sd": 0.01, '
+    '"pace_offset_s": -0.2, "stops_done": 0, "compounds_used": ["MEDIUM"], '
+    '"driver_number": 14, "laps_done": null, "pace_offset_sd": null}]}'
+)
+
+
+def test_wear_source_round_trip_absent_when_fit() -> None:
+    fit_state = _state()
+    assert all("wear_source" not in c for c in fit_state.to_json_dict()["cars"])
+    filt = _state(cars=(_car(wear_source="filter"),))
+    assert filt.to_json_dict()["cars"][0]["wear_source"] == "filter"
+    again = RaceState.from_json(filt.to_json())
+    assert again.cars[0].wear_source == "filter"
+    assert again == filt
+
+
+def test_wear_source_old_json_loads_and_re_dumps_byte_identical() -> None:
+    state = RaceState.from_json(_OLD_JSON)
+    assert state.cars[0].wear_source == "fit"
+    assert state.to_json() == _OLD_JSON
+
+
+def test_wear_source_invalid_value_raises() -> None:
+    with pytest.raises(ValueError, match="'kalman'"):
+        _car(wear_source="kalman")

@@ -62,6 +62,7 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from f1si.data.asof import RaceSnapshot
+from f1si.pace.kalman import FilterSnapshot
 from f1si.pace.linear import LinearPaceFit
 
 _CODE: Final = re.compile(r"^[A-Z]{3}$")
@@ -80,8 +81,10 @@ _CAR_KEYS: Final = (
     "driver_number",
     "laps_done",
     "pace_offset_sd",
+    "wear_source",
 )
-_OPTIONAL_CAR_KEYS: Final = ("laps_done", "pace_offset_sd")
+_OPTIONAL_CAR_KEYS: Final = ("laps_done", "pace_offset_sd", "wear_source")
+_WEAR_SOURCES: Final = ("fit", "filter")
 _STATE_KEYS: Final = ("lap", "laps_total", "regime", "pit_loss_s", "cars", "sc_laps_elapsed")
 _OPTIONAL_STATE_KEYS: Final = ("sc_laps_elapsed",)
 SC_PIT_LOSS_RATIO: Final = 0.5
@@ -147,6 +150,7 @@ class CarState:
     compounds_used: tuple[str, ...]
     laps_done: int | None = None
     pace_offset_sd: float | None = None
+    wear_source: str = "fit"
 
     def __post_init__(self) -> None:
         if not isinstance(self.driver, str) or not _CODE.match(self.driver):
@@ -158,6 +162,8 @@ class CarState:
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, _check_float(name, value))
+        if self.wear_source not in _WEAR_SOURCES:
+            raise ValueError(f"wear_source must be 'fit' or 'filter', got {self.wear_source!r}")
         if self.compound is not None and not isinstance(self.compound, str):
             raise ValueError(f"compound must be a string or None, got {self.compound!r}")
         if _check_int("tire_age", self.tire_age) < 0:
@@ -311,25 +317,7 @@ class RaceState:
             "laps_total": self.laps_total,
             "regime": dict(self.regime),
             "pit_loss_s": dict(self.pit_loss_s),
-            "cars": [
-                {
-                    "driver": c.driver,
-                    "position": c.position,
-                    "gap_ahead_s": c.gap_ahead_s,
-                    "gap_behind_s": c.gap_behind_s,
-                    "compound": c.compound,
-                    "tire_age": c.tire_age,
-                    "wear_rate_s_per_lap": c.wear_rate_s_per_lap,
-                    "wear_sd": c.wear_sd,
-                    "pace_offset_s": c.pace_offset_s,
-                    "stops_done": c.stops_done,
-                    "compounds_used": list(c.compounds_used),
-                    "driver_number": c.driver_number,
-                    "laps_done": c.laps_done,
-                    "pace_offset_sd": c.pace_offset_sd,
-                }
-                for c in self.cars
-            ],
+            "cars": [_car_json(c) for c in self.cars],
         }
         if self.sc_laps_elapsed:
             out["sc_laps_elapsed"] = self.sc_laps_elapsed
@@ -376,6 +364,7 @@ class RaceState:
                     compounds_used=tuple(used),
                     laps_done=raw.get("laps_done"),
                     pace_offset_sd=raw.get("pace_offset_sd"),
+                    wear_source=raw.get("wear_source", "fit"),
                 )
             )
         return cls(
@@ -399,6 +388,29 @@ class RaceState:
         except json.JSONDecodeError as err:
             raise ValueError(f"RaceState JSON: not valid JSON ({err})") from err
         return cls.from_json_dict(data)
+
+
+def _car_json(c: CarState) -> dict[str, Any]:
+    """JSON dict of one car; `wear_source` is written only for "filter" (old JSON stays stable)."""
+    out: dict[str, Any] = {
+        "driver": c.driver,
+        "position": c.position,
+        "gap_ahead_s": c.gap_ahead_s,
+        "gap_behind_s": c.gap_behind_s,
+        "compound": c.compound,
+        "tire_age": c.tire_age,
+        "wear_rate_s_per_lap": c.wear_rate_s_per_lap,
+        "wear_sd": c.wear_sd,
+        "pace_offset_s": c.pace_offset_s,
+        "stops_done": c.stops_done,
+        "compounds_used": list(c.compounds_used),
+        "driver_number": c.driver_number,
+        "laps_done": c.laps_done,
+        "pace_offset_sd": c.pace_offset_sd,
+    }
+    if c.wear_source != "fit":
+        out["wear_source"] = c.wear_source
+    return out
 
 
 def _reject_constant(name: str) -> float:
@@ -474,7 +486,12 @@ def _safety_car_state(snapshot: RaceSnapshot, lap: int) -> tuple[bool, int]:
 
 
 def build_race_state(
-    snapshot: RaceSnapshot, fit: LinearPaceFit, *, laps_total: int, pit_loss_s: float
+    snapshot: RaceSnapshot,
+    fit: LinearPaceFit,
+    *,
+    laps_total: int,
+    pit_loss_s: float,
+    wear_filter: Mapping[int, FilterSnapshot] | None = None,
 ) -> RaceState:
     """Build the `RaceState` for the cutoff of `snapshot` (pure; reads only its arguments).
 
@@ -495,9 +512,14 @@ def build_race_state(
       * Gap to the car ahead: time gap on the last lap both cars completed (see module
         docstring); None for the leader, lapped cars, missing lap ends and gaps <= 0.
         `gap_behind_s` of a car is the next car's `gap_ahead_s`.
+      * `wear_filter` (optional, driver number -> FilterSnapshot, D-13): a car with an entry that
+        is not `prior_only` and whose compound is known takes `wear_rate_s_per_lap` = rate_mean
+        and `wear_sd` = rate_sd from the filter and `wear_source` "filter"; all other cars keep
+        the fit values and "fit". Without the argument the state is exactly as before.
 
     Raises:
-        ValueError: if `laps_total` is smaller than the lap.
+        ValueError: if `laps_total` is smaller than the lap, or any `wear_filter` entry has a
+            `cutoff_lap` different from the lap of this state (stale or look-ahead data).
     """
     cars = snapshot.cars
     at_lap = snapshot.at.lap
@@ -507,6 +529,13 @@ def build_race_state(
         raise ValueError(
             f"laps_total {laps_total} is smaller than the lap {lap}; pass the race distance (D-21)"
         )
+    if wear_filter is not None:
+        for fnum, fsnap in wear_filter.items():
+            if fsnap.cutoff_lap != lap:
+                raise ValueError(
+                    f"wear_filter entry for driver {fnum} has cutoff_lap {fsnap.cutoff_lap}, "
+                    f"but the state is built at lap {lap}"
+                )
     entries = snapshot.entries.set_index("driver_number")
     stints = snapshot.stints.sort_values(["driver_number", "stint"])
     stints_by_driver = {int(str(n)): grp for n, grp in stints.groupby("driver_number", sort=True)}
@@ -571,6 +600,12 @@ def build_race_state(
     states: list[CarState] = []
     for i, r in enumerate(rows):
         name = r["compound"]
+        wear_rate = None if name is None else fit.wear_rate(name)
+        wear_sd = None if name is None else fit.wear_se(name)
+        wear_source = "fit"
+        flt = None if wear_filter is None or name is None else wear_filter.get(r["number"])
+        if flt is not None and not flt.prior_only:
+            wear_rate, wear_sd, wear_source = flt.rate_mean, flt.rate_sd, "filter"
         states.append(
             CarState(
                 driver=r["driver"],
@@ -580,13 +615,14 @@ def build_race_state(
                 gap_behind_s=gap_ahead[i + 1] if i + 1 < len(rows) else None,
                 compound=name,
                 tire_age=r["tire_age"],
-                wear_rate_s_per_lap=None if name is None else fit.wear_rate(name),
-                wear_sd=None if name is None else fit.wear_se(name),
+                wear_rate_s_per_lap=wear_rate,
+                wear_sd=wear_sd,
                 pace_offset_s=fit.pace_offset(r["number"]),
                 stops_done=r["stops"],
                 compounds_used=r["used"],
                 laps_done=r["done"],
                 pace_offset_sd=fit.pace_offset_se(r["number"]),
+                wear_source=wear_source,
             )
         )
     sc_active, sc_elapsed = _safety_car_state(snapshot, lap)
