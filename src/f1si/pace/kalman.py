@@ -520,3 +520,23 @@ def cutoff_row(
                     row=row,
                 )
     return best
+
+
+def cutoff_rows(
+    results: Sequence[StintFilterResult], driver_number: int, cutoff_lap: int
+) -> list[CutoffRow]:
+    """Every row of the driver with race_lap <= `cutoff_lap`, in lap order (empty if none).
+
+    A car can jump several laps between two cutoffs (pit lane, a long stop), so more than one
+    row may first become visible at one cutoff. Pure lookup over already computed results.
+    """
+    found = [
+        CutoffRow(
+            cutoff_lap=cutoff_lap, stint=r.stint, compound=r.compound, priors=r.priors, row=row
+        )
+        for r in results
+        if r.driver_number == driver_number
+        for row in r.rows
+        if row.race_lap <= cutoff_lap
+    ]
+    return sorted(found, key=lambda c: c.row.race_lap)

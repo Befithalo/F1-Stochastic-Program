@@ -207,6 +207,7 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.pace.kalman.WearFilter.snapshot": _PURE_MATHS,
     "f1si.pace.kalman.posterior_rate_sd": _PURE_MATHS,
     "f1si.pace.kalman.cutoff_row": "pure lookup over already-computed results",
+    "f1si.pace.kalman.cutoff_rows": "pure lookup over already-computed results",
     "f1si.plots.wear_filter.prepare_wear_filter_data": (
         "takes already-computed CutoffRow values, no snapshot"
     ),

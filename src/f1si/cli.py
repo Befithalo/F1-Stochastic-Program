@@ -28,7 +28,7 @@ from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
 from f1si.interfaces import DRY_COMPOUNDS, Plan
-from f1si.pace.kalman import CutoffRow, cutoff_row, filter_stints
+from f1si.pace.kalman import CutoffRow, cutoff_row, cutoff_rows, filter_stints
 from f1si.pace.linear import (
     DEFAULT_PIT_LOSS_S,
     FUEL_SANITY_RANGE,
@@ -820,11 +820,13 @@ def _cmd_wear_filter(
             continue
         if cutoff in _PRIOR_CHECK_LAPS:
             prior_checks[cutoff] = picked
-        # A car behind the leader shows lap cutoff-1 as its newest lap. Keep each driver lap the
-        # first time it appears: that is what a live system showed when the lap arrived.
-        if picked.row.race_lap not in shown:
-            shown.add(picked.row.race_lap)
-            collected.append(picked)
+        # A car behind the leader shows lap cutoff-1 as its newest lap, and a car can jump several
+        # laps between cutoffs. Keep every driver lap the first time it appears, each computed
+        # from this cutoff's snapshot: that is what a live system showed when the lap arrived.
+        for visible in cutoff_rows(results, number, cutoff):
+            if visible.row.race_lap not in shown:
+                shown.add(visible.row.race_lap)
+                collected.append(visible)
     runtime = time.perf_counter() - started
     race = end.race
     print(f"{race.event_name} {race.season}: {code}, wear-rate filter replayed to lap {last_lap}")

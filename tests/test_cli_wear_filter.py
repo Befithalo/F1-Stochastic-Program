@@ -1,5 +1,7 @@
 """The `wear-filter` command on synthetic data: as-of replay, labels, PNG, errors (PAC-03)."""
 
+import dataclasses
+import re
 from pathlib import Path
 
 import pytest
@@ -157,3 +159,41 @@ def test_2026_race_is_refused(
     slug = str(cat[cat["out_of_sample"].astype(bool)]["slug"].iloc[0])
     assert _run(synthetic_db.parent, tmp_path, "wear-filter", slug, "--driver", "AAA") == 1
     assert "out-of-sample" in capsys.readouterr().err
+
+
+def _table_laps(out: str) -> list[int]:
+    return [int(m.group(1)) for m in re.finditer(r"^\s*(\d+)\s+\d+\s+(?:used|skipped)", out, re.M)]
+
+
+def test_laps_that_appear_several_at_a_time_reach_the_table(
+    long_synthetic_data_dir: Path,
+    long_synthetic_db: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """WR-01: laps 5 and 6 become visible together at cutoff 6; lap 5 must not vanish."""
+    code = _code(long_synthetic_db)
+    cars = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, RACE_END)).cars
+    number = int(cars[cars["driver_code"] == code]["driver_number"].iloc[0])
+    original = AsOfAccessor.snapshot
+
+    def delayed(self: AsOfAccessor, at: AsOf):  # type: ignore[no-untyped-def]
+        snap = original(self, at)
+        if at.lap == 5:
+            laps = snap.laps
+            hide = (laps["driver_number"] == number) & (laps["lap_number"] == 5)
+            snap = dataclasses.replace(snap, laps=laps[~hide].reset_index(drop=True))
+        return snap
+
+    monkeypatch.setattr(AsOfAccessor, "snapshot", delayed)
+    args = ("wear-filter", LONG_SLUG, "--driver", code, "--lap", "8")
+    assert _run(long_synthetic_data_dir, tmp_path, *args) == 0
+    out = capsys.readouterr().out
+    shown = _table_laps(out)
+    assert shown == sorted(set(shown))
+    assert {5, 6}.issubset(shown)
+    assert set(range(1, 8)).issubset(shown)
+    used = re.search(r"laps used: (\d+), skipped: (\d+)", out)
+    assert used is not None
+    assert int(used.group(1)) + int(used.group(2)) == len(shown)

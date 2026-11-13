@@ -16,6 +16,7 @@ from f1si.pace.kalman import (
     StintFilterResult,
     WearPrior,
     cutoff_row,
+    cutoff_rows,
 )
 from f1si.plots.wear_filter import (
     build_wear_filter_figure,
@@ -137,3 +138,12 @@ def test_trailing_newline_is_unsafe() -> None:
         wear_filter_file_name("bahrain\n", "ALO")
     with pytest.raises(ValueError, match="Unsafe driver code"):
         wear_filter_file_name("bahrain-2023", "ALO\n")
+
+
+def test_cutoff_rows_returns_every_visible_row_in_lap_order() -> None:
+    rows = tuple(_row(k, 1, "MEDIUM").row for k in range(1, 5))
+    res = StintFilterResult(14, 1, "MEDIUM", _PRIORS, rows, 4, 0, True, 4)
+    assert [c.row.race_lap for c in cutoff_rows([res], 14, 3)] == [1, 2, 3]
+    assert [c.row.race_lap for c in cutoff_rows([res], 14, 9)] == [1, 2, 3, 4]
+    assert cutoff_rows([res], 14, 0) == []
+    assert cutoff_rows([res], 99, 3) == []
