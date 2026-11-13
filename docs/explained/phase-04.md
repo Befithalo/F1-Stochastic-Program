@@ -8,6 +8,8 @@ This page is for you, the owner. It is a skeleton that plan 04-05 completes with
 
 **The Phase 3 reference.** Before the simulator is touched in later plans, its output for a fixed seed and a fixed hand-built race is stored in the repository. A test compares the live simulator with it, so cars that keep the old fitted wear stay byte-identical.
 
+**The per-car wear path.** A car whose wear comes from the filter runs its current tyres on its own rate and its own uncertainty: `src/f1si/sim/numpy_backend.py` adds a virtual tyre column for it, `src/f1si/sim/kernel.py` takes one new per-column offset so the uncertainty counts only laps run after the cutoff, and `src/f1si/sim/draws.py` supplies its own random number from an extra stream; cars without a filter result are unchanged.
+
 ## How the pieces connect
 
 ```
