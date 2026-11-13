@@ -211,10 +211,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="replay up to the leader's lap N (default: the whole race)",
     )
     replay = sub.add_parser("replay", help="replay pit actions from as-of race cutoffs")
-    replay.add_argument("slug", metavar="SLUG", help="cached race slug (for example bahrain-2023)")
-    replay.add_argument("--driver", required=True, metavar="CODE", help="known driver code")
     replay.add_argument(
-        "--lap", type=int, default=None, metavar="N", help="only show the cutoff after lap N"
+        "slug", metavar="SLUG", help="cached race slug from the catalog (for example bahrain-2023)"
+    )
+    replay.add_argument(
+        "--driver",
+        required=True,
+        metavar="CODE",
+        help="known driver code for that race (three letters, case-insensitive)",
+    )
+    replay.add_argument(
+        "--lap",
+        type=int,
+        default=None,
+        metavar="N",
+        help="cutoff after lap N (0 to one less than the race lap count; default all cutoffs)",
     )
     replay.add_argument(
         "--n",
@@ -225,6 +236,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     replay.add_argument(
         "--risk",
+        "--risk-aversion",
+        dest="risk",
         type=float,
         default=0.5,
         metavar="R",
