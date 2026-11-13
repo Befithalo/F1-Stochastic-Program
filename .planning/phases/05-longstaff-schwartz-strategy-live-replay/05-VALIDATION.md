@@ -60,6 +60,16 @@ Plan and task IDs are provisional until the planner assigns the final plan struc
 
 ## Security Coverage
 
+The project security gate is ASVS L1 with a high-severity block threshold. This CLI phase adopts the applicable versioned controls below as a focused verification contract, not as a certification claim. Control definitions are from ASVS 5.0.0.
+
+| ASVS 5.0.0 Control | Phase evidence required | Validation |
+|--------------------|-----------------------|------------|
+| `v5.0.0-2.1.1` — document input rules | CLI help/README state the accepted race and driver identifiers, lap rules, positive simulation count, finite risk range [0,1], and risk default 0.5 | `tests/test_docs.py`; `tests/test_decisions_log.py` |
+| `v5.0.0-2.2.1` — validate decision-bearing input against allowlists/ranges | Reject unknown race/driver, invalid lap/count, NaN/infinity, and risk outside [0,1] before simulation | `tests/strategy/test_longstaff.py`; `tests/test_cli_replay.py` |
+| `v5.0.0-2.2.2` — enforce validation at the trusted service layer | Policy and replay entry points enforce the same finite/range/catalog rules even when called without parser help | `tests/strategy/test_longstaff.py`; `tests/test_cli_replay.py` |
+| `v5.0.0-1.2.4` — parameterize database queries, when changed | Keep current-race data behind `AsOfAccessor`; any query added in this phase binds values and does not interpolate race/driver text | Replay integration tests and source review of any query changes |
+| `v5.0.0-1.2.5` — prevent OS command injection | Replay does not invoke a shell or build an OS command from CLI values; race/driver lookup uses existing catalog APIs | `tests/test_cli_replay.py` refusal cases and source review |
+
 | Threat Ref | Threat | Required validation |
 |------------|--------|---------------------|
 | T-05-01 | Invalid replay bounds or non-finite/out-of-range risk input | Test malformed driver/lap/race inputs and NaN, infinity, and values outside [0,1]; expected failures are friendly and do not start simulation. |

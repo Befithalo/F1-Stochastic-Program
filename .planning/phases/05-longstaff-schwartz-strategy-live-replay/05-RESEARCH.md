@@ -322,25 +322,25 @@ These gaps are copied from [VERIFIED: 05-VALIDATION.md Wave 0 Requirements.]
 
 ## Security Domain
 
-### Applicable ASVS Categories
+### Applicable ASVS 5.0.0 Level 1 Controls
 
-ASVS is primarily a web-application verification standard; this phase is a local CLI, so most web controls do not apply. The current stable release is ASVS 5.0.0 (published 2025-05-30). [CITED: https://asvs.owasp.org/]
+ASVS is primarily a web-application verification standard; this phase is a local CLI, so use the following applicable controls as a focused reference, not as an ASVS certification claim. ASVS 5.0.0 is the stable release. [CITED: https://asvs.owasp.org/; https://github.com/OWASP/ASVS/blob/v5.0.0/5.0/docs_en/OWASP_Application_Security_Verification_Standard_5.0.0_en.xml]
 
-| ASVS Category | Applies | Standard Control |
-|---------------|---------|-----------------|
-| V2 Authentication | no | No user authentication in local replay CLI. |
-| V3 Session Management | no | No interactive user sessions. |
-| V4 Access Control | no | Local command operates on user-selected cached race/driver; validate requested identifiers and respect existing out-of-sample refusal. |
-| V5 Input Validation | yes | Validate driver code, lap range, race slug, and finite risk input before simulation; keep expected invalid-input messages friendly. [CITED: https://asvs.owasp.org/] |
-| V6 Cryptography | no | No cryptographic operation is introduced. |
+| Versioned Control | Applies | Phase Interpretation |
+|-------------------|---------|----------------------|
+| `v5.0.0-2.1.1` | yes | Document expected input structures and rules for race slug, driver code, lap selection, simulation count, and risk value in CLI help/README. |
+| `v5.0.0-2.2.1` | yes | Validate decision-bearing values with catalog allowlists, explicit ranges, and finite-number checks before simulation. |
+| `v5.0.0-2.2.2` | yes | Enforce input checks at the trusted CLI/policy boundary; parser help alone is not the validation control. |
+| `v5.0.0-1.2.4` | yes, if queries are changed | Keep database access behind `AsOfAccessor` and use bound parameters for any new query; never interpolate race/driver input into SQL. |
+| `v5.0.0-1.2.5` | yes | Do not construct OS commands from CLI values; resolve race and driver through existing catalog APIs and return friendly refusals. |
 
 ### Known Threat Patterns for Python CLI / replay
 
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
-| Malformed CLI bounds or non-finite risk value | Tampering | Typed parsing plus explicit range/finite checks; test invalid values. |
+| Malformed CLI bounds or non-finite risk value | Tampering | Typed parsing plus explicit range/finite checks; test invalid values. (`v5.0.0-2.1.1`, `v5.0.0-2.2.1`, `v5.0.0-2.2.2`) |
 | Read around as-of accessor / future leakage | Information disclosure | Keep accessor in replay driver; strategy accepts `RaceState`; register consumer and retain future-scramble tests. |
-| Shell/path construction from user-provided race or driver string | Tampering | Resolve through existing catalog/argument APIs; do not interpolate raw input into shell or SQL. |
+| Shell/path construction from user-provided race or driver string | Tampering | Resolve through existing catalog/argument APIs; do not interpolate raw input into shell or SQL. (`v5.0.0-1.2.4`, `v5.0.0-1.2.5`) |
 
 The app-level input and no-look-ahead controls above are phase-specific planning guidance; OWASP ASVS applies as a control reference, not as a certification claim. [CITED: https://asvs.owasp.org/]
 
