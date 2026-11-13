@@ -420,8 +420,15 @@ def filter_stints(
             wear_filter = WearFilter(priors.prior)
             rows: list[LapRow] = []
             previous_age = -1
+            previous_lap: int | None = None
             for _, lap in grp.sort_values("lap").iterrows():
                 race_lap = int(lap["lap"])
+                if previous_lap is not None:
+                    # A race lap absent from the laps table still happened: advance the filter
+                    # one predict-only step for it so level and rate stay aligned with tyre age.
+                    for _missing in range(race_lap - previous_lap - 1):
+                        wear_filter.observe(None, "missing lap")
+                previous_lap = race_lap
                 age = previous_age + 1 if math.isnan(lap["age"]) else int(lap["age"])
                 previous_age = age
                 reason = lap["reason"] if isinstance(lap["reason"], str) else None

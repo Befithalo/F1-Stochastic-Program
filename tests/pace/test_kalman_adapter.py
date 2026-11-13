@@ -207,3 +207,25 @@ def test_nonfinite_fuel_effect_falls_back_to_generic_everything_fuel_related(
     assert got.rate_source.startswith("prior only")
     assert got.fuel_mean == GENERIC_FUEL_MEAN
     assert got.prior.fuel_sd == GENERIC_FUEL_SD
+
+
+def test_missing_lap_row_equals_the_same_lap_marked_skipped(deviation_db: Path) -> None:
+    """WR-02: an absent middle lap row advances the filter exactly like a skipped lap."""
+    snap, fit, _ = _run(deviation_db, None)
+    laps = snap.laps
+    driver, hole = 12, 20  # lap 20 sits inside the driver's first stint (pit stop is later)
+    is_hole = (laps["driver_number"] == driver) & (laps["lap_number"] == hole)
+    assert int(is_hole.sum()) == 1
+    absent = dataclasses.replace(snap, laps=laps[~is_hole].reset_index(drop=True))
+    blanked = laps.copy()
+    blanked.loc[is_hole, "lap_time_s"] = np.nan  # present but skipped ("no lap time")
+    skipped = dataclasses.replace(snap, laps=blanked)
+    a = filter_stints(absent, fit, driver_numbers=[driver])
+    b = filter_stints(skipped, fit, driver_numbers=[driver])
+    assert len(a) == len(b)
+    for ra, rb in zip(a, b, strict=True):
+        assert ra.n_used == rb.n_used
+        kept = [row for row in rb.rows if row.race_lap != hole or ra.stint != 1]
+        assert [(r.race_lap, r.used, r.rate_mean, r.rate_sd) for r in ra.rows] == [
+            (r.race_lap, r.used, r.rate_mean, r.rate_sd) for r in kept
+        ]
