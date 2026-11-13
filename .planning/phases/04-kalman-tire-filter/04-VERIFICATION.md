@@ -1,7 +1,7 @@
 ---
 phase: 04-kalman-tire-filter
 verified: 2026-11-13T00:00:00Z
-status: human_needed
+status: passed
 score: 4/4 must-haves verified (2 with human decision items)
 overrides_applied: 0
 human_verification:
@@ -75,3 +75,14 @@ No blocking gaps. Four items need a human: the narrowing-threshold conditional, 
 
 _Verified: 2026-11-13_
 _Verifier: Claude (gsd-verifier)_
+
+## Human verification outcome (2026-11-13)
+
+All four items passed (see 04-HUMAN-UAT.md, status complete):
+
+1. **Narrowing threshold:** the owner chose "Report the ratio". The dead conditional 0.9 branch was removed. The gated checks are SD non-increasing on used laps and SD after 7 used laps below the prior SD. The printed ratios for ALO are 0.95, 0.95 and 0.93.
+2. **Lap-14 bias and WR-05:** the owner accepted these for Phase 4. They are documented in DEC-091 and the explainer. Follow-up: the Phase 6 backtest measures real-data coverage of the wear band across races before the method changes.
+3. **CI:** run 43389440391 on 41d844b succeeded on Ubuntu and Windows.
+4. **PNG:** the owner approved it.
+
+Status moved from human_needed to passed.

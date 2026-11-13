@@ -217,6 +217,8 @@ Plans:
   4. User opens one Streamlit page showing strategy table, finishing fan chart, regime gauge, tire panel, reason line and risk dial for a driver and lap
   5. The README lists measured results only, states hidden-variable assumptions, and credits FastF1/OpenF1 with licensing notes
 
+**Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -258,7 +260,7 @@ Plans:
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
-| 4. Kalman Tire Filter | 5/5 | Complete   | 2026-11-13 |
+| 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |

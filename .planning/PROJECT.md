@@ -37,10 +37,11 @@ M1 must be architected so later milestones plug in without rewrites.
 - [x] Typed Protocols in `f1si/interfaces.py`: `PaceModel`, `StrategyPolicy`, `SimulatorBackend`, with a shared test suite every implementation must pass — Validated in Phase 2: Interfaces, Linear Tire Wear & Free-Track Optimizer
 - [x] Simple fuel-corrected linear tire wear per compound + free-track brute-force 1/2-stop optimizer — Validated in Phase 2 (Bahrain 2023: HARD +0.121, SOFT +0.125 s/lap, fuel -0.078 s/lap, pit loss 24.4 s)
 - [x] Vectorized Monte Carlo simulator (pit loss, overtaking from pace gap, safety-car probability); 50,000 races in under 10 s; Sobol + antithetic variance reduction — Validated in Phase 3: Monte Carlo Simulator (Bahrain 2023 ALO: 50,000 races in 1.7 s, variance cut 3.8x mean finish / 11.7x total time / 2.5x SC share; open flag: real P3 sits outside the 90% interval P4-P6, check coverage in Phase 6)
+- [x] Kalman tire-degradation filter (per car and stint, as-of only) feeding the simulator — Validated in Phase 4: Kalman Tire Filter (synthetic: 95% bands cover truth, accuracy matches the Bayes-optimal closed form; owner restated PAC-04: 10% by stint lap 8 is reported, not gated, measured 23/32/38% soft/medium/hard; Bahrain 2023 replay `f1si wear-filter`; open flag: early as-of fit bias at lap 14 (soft 0.26 vs 0.12) and own-laps double counting, measure real-data wear-band coverage in Phase 6)
 
 ### Active (M1)
 
-- [ ] Kalman tire-degradation filter + lap-by-lap live-replay loop
+- [ ] Lap-by-lap live-replay loop (Phase 5)
 - [ ] Longstaff-Schwartz optimal pit timing, ranked by mean finish and CVaR@10%
 - [ ] Walk-forward backtester (2023-2025, no look-ahead) with Brier score and calibration; 10 races at MVP, at least 20 for M1 done
 - [ ] Streamlit one-page view
@@ -109,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-12 after Phase 3 completion*
+*Last updated: 2026-11-13 after Phase 4 completion*

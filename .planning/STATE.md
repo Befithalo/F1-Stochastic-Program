@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: verifying
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-11-13T07:25:35.395Z"
+status: ready_to_plan
+stopped_at: Phase 4 complete (5/5) — ready to discuss Phase 5
+last_updated: 2026-11-13T08:07:25.964Z
 last_activity: 2026-11-13
 progress:
   total_phases: 8
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-22)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 4 — Kalman Tire Filter
+**Current focus:** Phase 5 — longstaff schwartz strategy & live replay
 
 ## Current Position
 
-Phase: 4 (Kalman Tire Filter) — EXECUTING
-Plan: 5 of 5
-Status: Phase complete — ready for verification
+Phase: 5
+Plan: Not started
+Status: Ready to plan
 Last activity: 2026-11-13
 
 Progress: [██████████] 100%
@@ -36,7 +36,7 @@ Progress: [██████████] 100%
 
 **Velocity:**
 
-- Total plans completed: 12
+- Total plans completed: 17
 - Average duration: -
 - Total execution time: -
 
@@ -53,6 +53,7 @@ Progress: [██████████] 100%
 | Phase 03 P07 | 40min | 2 tasks | 4 files |
 | 3 | 7 | - | - |
 | Phase 04 P01 | 1h | 3 tasks | 12 files |
+| 4 | 5 | - | - |
 
 ## Accumulated Context
 

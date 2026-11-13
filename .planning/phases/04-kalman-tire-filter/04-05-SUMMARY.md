@@ -90,3 +90,6 @@ No new surface. T-04-17 (read-only local cache, skip when missing), T-04-18 (exp
 ## Self-Check: PASSED
 
 Commits 6116bb6 and 8897690 exist; tests/real/test_wear_filter_bahrain.py, docs/explained/phase-04.md present.
+
+
+**Post-verification (owner, 2026-11-13):** the conditional 0.9 branch was removed; the ratio is printed, not gated (see 04-HUMAN-UAT.md item 1).

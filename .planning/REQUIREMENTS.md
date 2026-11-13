@@ -30,8 +30,8 @@
 
 - [x] **PAC-01**: Lap times are fuel-corrected, and a linear tire-wear rate is fitted per compound
 - [x] **PAC-02**: User can get the free-track optimal plan by brute-forcing every 1- and 2-stop strategy for total race time
-- [ ] **PAC-03**: A Kalman filter estimates hidden tire wear per car from noisy lap times, with an uncertainty band
-- [ ] **PAC-04**: On synthetic stints the Kalman estimate is within 10% of truth by lap 8 and 95% intervals cover truth about 95% of the time. *Restated 2026-11-12 (owner, Phase 4 D-17): 10% by stint lap 8 is not attainable at honest noise (about 19-35%); the gate is that the filter reaches the Bayes-optimal accuracy (matches the closed form), with the 10% figure reported against, not gated; revisit in Phase 7. Coverage stays gated.*
+- [x] **PAC-03**: A Kalman filter estimates hidden tire wear per car from noisy lap times, with an uncertainty band
+- [x] **PAC-04**: On synthetic stints the Kalman estimate is within 10% of truth by lap 8 and 95% intervals cover truth about 95% of the time. *Restated 2026-11-12 (owner, Phase 4 D-17): 10% by stint lap 8 is not attainable at honest noise (about 19-35%); the gate is that the filter reaches the Bayes-optimal accuracy (matches the closed form), with the 10% figure reported against, not gated; revisit in Phase 7. Coverage stays gated.*
 - [ ] **PAC-05**: A hierarchical Bayesian (PyMC) pace model with car, driver, tire, fuel and era effects implements `PaceModel`
 - [ ] **PAC-06**: The Bayesian pace model recovers known parameters from synthetic data and beats a per-compound linear baseline by at least 15% on next-lap error
 
@@ -111,8 +111,8 @@
 | SIM-02 | Phase 3 | Complete |
 | SIM-03 | Phase 3 | Complete |
 | REG-01 | Phase 3 | Complete |
-| PAC-03 | Phase 4 | Pending |
-| PAC-04 | Phase 4 | Pending |
+| PAC-03 | Phase 4 | Complete |
+| PAC-04 | Phase 4 | Complete |
 | STR-01 | Phase 5 | Pending |
 | STR-02 | Phase 5 | Pending |
 | STR-03 | Phase 5 | Pending |

@@ -106,12 +106,10 @@ def test_band_narrows_within_each_stint(db: Path, race_id: str, number: int) -> 
                 f"({r.priors.rate_source}), SD after 7 used laps {sds[6]:.4f}, ratio {ratio:.2f}"
             )
             assert sds[6] < r.priors.prior.rate_sd
-            # The 0.9 factor only makes sense when the prior is loose enough for 7 laps to
-            # matter. A tight fit prior (SD about 0.03 s/lap) with a noisy hindsight sigma
-            # narrows by only a few percent; that is the honest Bayes answer, so the factor is
-            # not applied there.
-            if r.priors.prior.rate_sd >= 0.05:
-                assert ratio < 0.9
+            # The ratio is reported, not gated (owner, Phase 4 UAT): a tight fit prior (SD
+            # about 0.03 s/lap) with noisy real laps narrows by only 5-7% in 7 laps, which is
+            # the honest Bayes answer. Gated: SD never rises on a used lap and ends below the
+            # prior SD.
 
 
 def test_lap_20_row_is_reproducible_and_uses_own_fit(db: Path, race_id: str, number: int) -> None:
