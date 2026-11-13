@@ -91,6 +91,7 @@ def run(state: dict[str, Any], lap: int = 5, *, python: bool = False, **over: An
         a["pu"],
         a["off_sd"],
         a["wear_sd"],
+        a.get("wear_age_off", np.zeros_like(a["wear_sd"], dtype=np.int64)),
         a["stop_lap"],
         a["next_comp"],
         a["opportunistic"],

@@ -3,7 +3,8 @@
 Lap-time model. Per race, car `c` on compound `k` with `a` laps already on the tyres runs a free
 lap of
 
-    T = mean_table[c, k, a] + z_off[c] * offset_sd[c] + z_wear[k] * wear_sd[k] * (a + 1)
+    T = mean_table[c, k, a] + z_off[c] * offset_sd[c]
+        + z_wear[k] * wear_sd[k] * (a + 1 - wear_age_off[k])
         + eps * sd_table[c, k, a]
 
 with `mean_table` and `sd_table` from the fitted `PaceModel` (through `BorrowedPace`, evaluated
@@ -44,6 +45,15 @@ order (`START_SPACING_S` where a gap is unknown). Followers one lap behind run a
 catch-up lap first. Cars further behind (retired or lapped) get a lap penalty and are placed last
 so the result stays a permutation (D-09).
 
+Filter cars (DEC-094). A car with `wear_source == "filter"` runs its CURRENT tyres on a virtual
+compound column appended after the real ones: the mean table gets the incremental correction
+`delta * (a + 1 - age0)` (delta = filtered rate minus the table's own age slope, age0 = the age
+the kernel starts the car from), the wear SD is the car's own, `wear_age_off` is `age0` so the
+wear-rate uncertainty scales with laps run after the cutoff, and the normal comes from one extra
+spawned stream (`car_wear_draws`). The real tyre age is kept, so the opportunistic safety-car
+rule sees it; after its first stop the car is back on a real compound. With no filter car
+nothing here runs and the arrays are exactly the Phase 3 ones.
+
 NOT modelled (D-09): lapping, retirements, virtual safety cars, red flags, reduced tyre wear under
 the safety car, first-lap chaos. The simulator sees only a `RaceState`, never the data accessor.
 """
@@ -75,6 +85,7 @@ from f1si.sim.constants import (
 from f1si.sim.draws import (
     MODES,
     VarianceReduction,
+    car_wear_draws,
     make_streams,
     normal_block,
     normal_from_uniform,
@@ -251,10 +262,31 @@ class NumpySimulator:
                 )
         z_wear = np.ascontiguousarray(z_wear)
 
+        # filter cars (DEC-094): virtual compound columns for the current tyres, own wear draw
+        wear_age_off = np.zeros(n_comp, dtype=np.int64)
+        start_comp_run = start.comp
+        eligible = _filter_eligible(state, start)
+        if eligible:
+            mean_tab, sd_tab, wear_sd, wear_age_off, virtual = _filter_car_columns(
+                mean_tab, sd_tab, wear_sd, cars, eligible, start.comp, start.age
+            )
+            z_car = car_wear_draws(rng, self._mode, n_cars, n)
+            z_wear = np.ascontiguousarray(
+                np.concatenate([z_wear, z_car[:, eligible]], axis=1), dtype=np.float64
+            )
+            start_comp_run = start.comp.copy()
+            for i, column in zip(eligible, virtual, strict=True):
+                start_comp_run[i] = column
+                diagnostics.append(
+                    f"{cars[i].driver}: wear from filter (rate {cars[i].wear_rate_s_per_lap:.4f}, "
+                    f"SD {cars[i].wear_sd:.4f}), tyre age {int(start.age[i])}"
+                )
+        n_comp_run = n_comp + len(eligible)
+
         order = np.ascontiguousarray(np.tile(start.order, (n, 1)))
         clock = np.ascontiguousarray(np.tile(start.clock, (n, 1)))
         age = np.ascontiguousarray(np.tile(start.age, (n, 1)))
-        comp = np.ascontiguousarray(np.tile(start.comp, (n, 1)))
+        comp = np.ascontiguousarray(np.tile(start_comp_run, (n, 1)))
         stops_done = np.ascontiguousarray(np.tile(start.stops_done, (n, 1)))
         pit_paid = np.ascontiguousarray(np.tile(start.pit_paid, (n, 1)))
         stop_taken = np.full((n, n_cars, n_slots), -1, dtype=np.int64)
@@ -270,7 +302,9 @@ class NumpySimulator:
         clocks = np.zeros((n, n_sim, n_cars), dtype=np.float64) if self._record else None
         lap_mask = np.zeros(n, dtype=np.bool_)
 
-        self._check_kernel_inputs(mean_tab, stop_lap, next_comp, n_comp, n_cars)
+        self._check_kernel_inputs(
+            mean_tab, stop_lap, next_comp, n_comp_run, n_cars, wear_sd, wear_age_off, z_wear
+        )
         for j in range(n_sim):
             pu = uniform_block(self._mode, n_cars, n, passing[j])
             eps = normal_block(self._mode, n_cars, n, noise)
@@ -285,6 +319,7 @@ class NumpySimulator:
                 pu,
                 off_sd,
                 wear_sd,
+                wear_age_off,
                 stop_lap,
                 next_comp,
                 opportunistic,
@@ -358,10 +393,19 @@ class NumpySimulator:
         next_comp: NDArray[np.int64],
         n_comp: int,
         n_cars: int,
+        wear_sd: NDArray[np.float64],
+        wear_age_off: NDArray[np.int64],
+        z_wear: NDArray[np.float64],
     ) -> None:
         """Numba does not bounds-check: validate shapes and index ranges here (T-03-11)."""
         if mean_tab.shape[1:3] != (n_cars, n_comp):
             raise ValueError(f"pace table has shape {mean_tab.shape}, expected cars/compounds")
+        if wear_sd.shape != (n_comp,) or wear_age_off.shape != (n_comp,):
+            raise ValueError("wear_sd and wear_age_off must both have shape (compounds,)")
+        if wear_age_off.dtype != np.int64:
+            raise ValueError(f"wear_age_off must be int64, got {wear_age_off.dtype}")
+        if z_wear.ndim != 2 or z_wear.shape[1] != n_comp:
+            raise ValueError(f"z_wear has shape {z_wear.shape}, expected (races, {n_comp})")
         if stop_lap.shape != next_comp.shape or stop_lap.shape[0] != n_cars:
             raise ValueError("stop_lap and next_comp must both have shape (cars, slots)")
         if next_comp.min() < 0 or next_comp.max() >= n_comp:
@@ -429,6 +473,89 @@ class NumpySimulator:
             elif self._wear_sd is not None:
                 diagnostics.append(f"{name}: no wear SD supplied, wear uncertainty set to 0")
         return out
+
+
+def _filter_eligible(state: RaceState, start: _Start) -> list[int]:
+    """Indices of cars whose current tyres use the filter (DEC-094).
+
+    Needs source "filter", a finite rate, a finite non-negative SD, a known compound and no stop
+    on the cutoff lap (`stops_done == 0`); anything else behaves as a fit car. At most one
+    virtual column per car, so the extra columns are bounded by `MAX_CARS`.
+    """
+    out: list[int] = []
+    for i, car in enumerate(state.cars):
+        rate, sd = car.wear_rate_s_per_lap, car.wear_sd
+        if (
+            car.wear_source == "filter"
+            and car.compound is not None
+            and rate is not None
+            and sd is not None
+            and np.isfinite(rate)
+            and np.isfinite(sd)
+            and sd >= 0.0
+            and start.stops_done[i] == 0
+        ):
+            out.append(i)
+    return out
+
+
+def _filter_car_columns(
+    mean_tab: NDArray[np.float64],
+    sd_tab: NDArray[np.float64],
+    wear_sd: NDArray[np.float64],
+    cars: Sequence[CarState],
+    eligible: Sequence[int],
+    comp: NDArray[np.int64],
+    age: NDArray[np.int64],
+) -> tuple[
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.int64],
+    list[int],
+]:
+    """Append one virtual compound column per filter car (DEC-094).
+
+    For car `i` on real compound `k0` with start age `age0`, the new column copies the `k0`
+    columns of every car (all values finite) and, for car `i` only, adds the incremental wear
+    correction `delta * (a + 1 - age0)` for table rows `a >= age0`, where `delta` is the filtered
+    rate minus the median first difference of the car's own `k0` row over age (the slope the pace
+    table really uses, also for borrowed slopes). Returns the extended tables, the extended wear
+    SD, `wear_age_off` (0 for real columns, `age0` for the car's virtual one) and the virtual
+    column index of each eligible car.
+    """
+    n_real = mean_tab.shape[2]
+    m = len(eligible)
+    n_rows = mean_tab.shape[3]
+    mean_new = np.zeros((*mean_tab.shape[:2], m, n_rows), dtype=np.float64)
+    sd_new = np.zeros((*sd_tab.shape[:2], m, n_rows), dtype=np.float64)
+    wear_sd_ext = np.concatenate([wear_sd, np.zeros(m)])
+    off = np.zeros(n_real + m, dtype=np.int64)
+    columns: list[int] = []
+    rows = np.arange(n_rows)
+    for j, i in enumerate(eligible):
+        k0 = int(comp[i])
+        age0 = int(age[i])
+        mean_new[:, :, j, :] = mean_tab[:, :, k0, :]
+        sd_new[:, :, j, :] = sd_tab[:, :, k0, :]
+        rate = cars[i].wear_rate_s_per_lap
+        sd = cars[i].wear_sd
+        assert rate is not None
+        assert sd is not None
+        slope = float(np.median(np.diff(mean_tab[0, i, k0, :]))) if n_rows > 1 else 0.0
+        delta = rate - slope
+        corr = np.where(rows >= age0, delta * (rows + 1 - age0), 0.0)
+        mean_new[:, i, j, :] += corr
+        wear_sd_ext[n_real + j] = sd
+        off[n_real + j] = age0
+        columns.append(n_real + j)
+    return (
+        np.ascontiguousarray(np.concatenate([mean_tab, mean_new], axis=2)),
+        np.ascontiguousarray(np.concatenate([sd_tab, sd_new], axis=2)),
+        wear_sd_ext,
+        off,
+        columns,
+    )
 
 
 def _mean_lap(pace: BorrowedPace, car: CarState, compound: str, lap: int, age: int) -> float:

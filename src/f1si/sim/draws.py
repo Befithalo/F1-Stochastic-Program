@@ -93,3 +93,16 @@ def make_streams(
         raise ValueError(f"n_laps must be at least 1, got {n_laps!r}")
     sc_params, passing, noise, _spare = rng.spawn(4)
     return sc_params, passing.spawn(n_laps), noise
+
+
+def car_wear_draws(rng: np.random.Generator, mode: str, n_cars: int, n: int) -> NDArray[np.float64]:
+    """One standard normal per race and car for filter-car wear (DEC-094), shape (n, n_cars).
+
+    Spawns ONE child from `rng` (the fifth, after the four of `make_streams`, so those four are
+    unchanged: NumPy's SeedSequence hands out children by an increasing counter) and draws plain
+    (antithetic) normals from it, never Sobol, so the Sobol layout of DEC-087 does not change. All
+    cars get a column whether or not they use it, so one car's draw never depends on which other
+    cars are filter cars.
+    """
+    child = rng.spawn(1)[0]
+    return normal_block(mode, n_cars, n, child)

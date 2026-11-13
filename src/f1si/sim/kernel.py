@@ -9,8 +9,14 @@ it last crossed the line. One call advances every race by one lap.
 Lap-time model. The free (clear air) lap time of car `c` on compound `k` with `a` laps already
 on the tyres is, with the table entries holding the fitted rate (DEC-077),
 
-    T = mean_tab[c, k, a] + z_off * off_sd[c] + z_wear[k] * wear_sd[k] * (a + 1)
+    T = mean_tab[c, k, a] + z_off * off_sd[c]
+        + z_wear[k] * wear_sd[k] * (a + 1 - wear_age_off[k])
         + eps * sd_tab[c, k, a].
+
+`wear_age_off[k]` is 0 for every real compound column, so `a + 1 - 0` is the same integer as
+`a + 1` and the wear term is bit-for-bit the Phase 3 one. A virtual column used by a car whose
+wear comes from the Kalman filter holds the car's tyre age at the cutoff, so its wear-rate
+uncertainty scales with the laps run after the cutoff (DEC-094).
 
 Rules, per race and lap, in this order:
 
@@ -77,6 +83,7 @@ def lap_step(
     pu: NDArray[np.float64],
     off_sd: NDArray[np.float64],
     wear_sd: NDArray[np.float64],
+    wear_age_off: NDArray[np.int64],
     stop_lap: NDArray[np.int64],
     next_comp: NDArray[np.int64],
     opportunistic: NDArray[np.bool_],
@@ -107,8 +114,9 @@ def lap_step(
 
     Shapes with `n` races, `C` cars, `K` compounds, `S` stop slots, `A` age rows:
     `mean_tab, sd_tab (C, K, A)`; `u_sc (n,)`; `z_off, eps, pu (n, C)`; `z_wear (n, K)`;
-    `off_sd (C,)`; `wear_sd (K,)`; `stop_lap, next_comp (C, S)` (unused stop laps hold a large
-    sentinel); `opportunistic (C,)`; mutable `order, clock, age, comp, stops_done (n, C)`,
+    `off_sd (C,)`; `wear_sd, wear_age_off (K,)`; `stop_lap, next_comp (C, S)` (unused stop laps
+    hold a large sentinel); `opportunistic (C,)`;
+    mutable `order, clock, age, comp, stops_done (n, C)`,
     `sc_left, sc_fresh (n,)`; outputs `pit_paid (n, C)`, `stop_taken (n, C, S)` (-1 padded),
     `sc_mask (n,)` for this lap.
     """
@@ -136,7 +144,7 @@ def lap_step(
             free[c] = (
                 mean_tab[c, k, a_idx]
                 + z_off[r, c] * off_sd[c]
-                + z_wear[r, k] * wear_sd[k] * (age[r, c] + 1)
+                + z_wear[r, k] * wear_sd[k] * (age[r, c] + 1 - wear_age_off[k])
                 + eps[r, c] * sd_tab[c, k, a_idx]
             )
         leader_time = free[order[r, 0]]
