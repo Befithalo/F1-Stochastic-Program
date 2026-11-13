@@ -6,9 +6,11 @@ from pathlib import Path
 
 import pytest
 
+from f1si import cli
 from f1si.cli import _prior_switch_notes, main
 from f1si.data import asof
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
+from f1si.pace import kalman
 from f1si.pace.kalman import CutoffRow, LapRow, ResolvedPriors, WearPrior
 from tests.conftest import LONG_RACE_ID, LONG_SLUG
 
@@ -197,3 +199,28 @@ def test_laps_that_appear_several_at_a_time_reach_the_table(
     used = re.search(r"laps used: (\d+), skipped: (\d+)", out)
     assert used is not None
     assert int(used.group(1)) + int(used.group(2)) == len(shown)
+
+
+def test_gate_rejection_count_comes_from_the_shown_rows(
+    long_synthetic_data_dir: Path,
+    long_synthetic_db: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """IN-05: the gate figure is counted from the rows in the table, not from the last fit."""
+    code = _code(long_synthetic_db)
+    original = kalman.filter_stints
+
+    def inflated(snapshot, fit, **kwargs):  # type: ignore[no-untyped-def]
+        out = original(snapshot, fit, **kwargs)
+        return tuple(dataclasses.replace(r, n_gate_rejections=99) for r in out)
+
+    monkeypatch.setattr(cli, "filter_stints", inflated)
+    args = ("wear-filter", LONG_SLUG, "--driver", code, "--lap", "12")
+    assert _run(long_synthetic_data_dir, tmp_path, *args) == 0
+    out = capsys.readouterr().out
+    stated = [int(n) for n in re.findall(r"gate rejections: (\d+)", out)]
+    assert stated
+    assert 99 not in stated
+    assert sum(stated) == out.count("skipped (outlier gate)")

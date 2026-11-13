@@ -803,7 +803,6 @@ def _cmd_wear_filter(
     collected: list[CutoffRow] = []
     shown: set[int] = set()
     prior_checks: dict[int, CutoffRow] = {}
-    stint_counts: dict[int, tuple[int, int]] = {}
     hindsight: dict[str, float] = {}
     for cutoff in range(1, last_lap + 1):
         snapshot = accessor.snapshot(asof.AsOf(race_id, cutoff))
@@ -813,8 +812,6 @@ def _cmd_wear_filter(
             hindsight = {
                 c: rate for c in fit.fitted_compounds if (rate := fit.wear_rate(c)) is not None
             }
-            for r in results:
-                stint_counts[r.stint] = (r.n_used, r.n_gate_rejections)
         picked = cutoff_row(results, number, cutoff)
         if picked is None:
             continue
@@ -847,7 +844,8 @@ def _cmd_wear_filter(
         print(f"  rate prior: {final.priors.rate_source}{began}")
         print(f"  fuel: {final.priors.fuel_source}")
         print(f"  noise: {final.priors.noise_source}")
-        gate = stint_counts.get(sid, (0, 0))[1]
+        # Same frozen rows as the used / skipped counts, so the three numbers always add up.
+        gate = sum(1 for r in mine if r.row.reason == "outlier gate")
         print(f"  laps used: {n_used}, skipped: {len(mine) - n_used}, gate rejections: {gate}")
         for note in _prior_switch_notes(mine):
             print(f"  {note}")
