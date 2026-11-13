@@ -32,6 +32,7 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 
 ### Tests
 
+- `src/f1si/plots/wear_filter.py` draws the filter chart: the as-of wear-rate estimate with its shaded 95% band against race lap, stint boundaries, and the Phase 2 whole-race fit as a dashed line labelled hindsight.
 - `tests/pace/test_kalman_adapter.py` checks the snapshot adapter, its labelled sources and the clean-lap rule.
 - `tests/pace/test_kalman_recovery.py` checks calibrated coverage and Bayes-optimal accuracy on synthetic stints and prints the 10% report.
 - `tests/pace/test_kalman_math.py` checks the filter against exact Bayesian regression and the closed-form band.

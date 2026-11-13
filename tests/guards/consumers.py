@@ -139,6 +139,7 @@ DESIGNATED_MODULES: Final = (
     "f1si.pace.kalman",
     "f1si.state",
     "f1si.plots.wear",
+    "f1si.plots.wear_filter",
     "f1si.regime.sc_rate",
 )
 
@@ -183,4 +184,15 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.pace.kalman.WearFilter.observe": _PURE_MATHS,
     "f1si.pace.kalman.WearFilter.snapshot": _PURE_MATHS,
     "f1si.pace.kalman.posterior_rate_sd": _PURE_MATHS,
+    "f1si.pace.kalman.cutoff_row": "pure lookup over already-computed results",
+    "f1si.plots.wear_filter.prepare_wear_filter_data": (
+        "takes already-computed CutoffRow values, no snapshot"
+    ),
+    "f1si.plots.wear_filter.build_wear_filter_figure": (
+        "pure drawing of already-prepared WearFilterPlotData"
+    ),
+    "f1si.plots.wear_filter.render_wear_filter_plot": (
+        "writes a figure of prepared WearFilterPlotData to disk"
+    ),
+    "f1si.plots.wear_filter.wear_filter_file_name": "string function of a validated slug and code",
 }

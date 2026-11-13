@@ -461,3 +461,36 @@ def current_stint_snapshots(results: Sequence[StintFilterResult]) -> dict[int, F
                 cutoff_lap=r.cutoff_lap,
             )
     return out
+
+
+@dataclass(frozen=True)
+class CutoffRow:
+    """The row a driver's filter showed for race lap == `cutoff_lap`, with its stint's priors."""
+
+    cutoff_lap: int
+    stint: int
+    compound: str
+    priors: ResolvedPriors
+    row: LapRow
+
+
+def cutoff_row(
+    results: Sequence[StintFilterResult], driver_number: int, cutoff_lap: int
+) -> CutoffRow | None:
+    """The driver's row for `cutoff_lap`, or None (retired, wet tyre, lap not run).
+
+    Pure lookup over already computed results; it reads no race data.
+    """
+    for r in results:
+        if r.driver_number != driver_number:
+            continue
+        for row in r.rows:
+            if row.race_lap == cutoff_lap:
+                return CutoffRow(
+                    cutoff_lap=cutoff_lap,
+                    stint=r.stint,
+                    compound=r.compound,
+                    priors=r.priors,
+                    row=row,
+                )
+    return None
