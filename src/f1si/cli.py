@@ -1047,6 +1047,8 @@ def _cmd_replay(
         return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
     if isinstance(n_simulations, bool) or not isinstance(n_simulations, int) or n_simulations < 1:
         return _refuse(f"--n must be positive, got {n_simulations}. {try_line}")
+    if n_simulations > MAX_RACES:
+        return _refuse(f"--n must be at most {MAX_RACES}, got {n_simulations}. {try_line}")
     try:
         risk = _risk(risk_aversion)
     except ValueError as err:

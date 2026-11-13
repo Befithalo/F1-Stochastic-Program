@@ -11,6 +11,7 @@ import pytest
 from f1si import cli
 from f1si.cli import build_parser, main
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
+from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator
 from tests.conftest import LONG_RACE_ID, LONG_SLUG
 
@@ -233,3 +234,31 @@ def test_invalid_replay_values_are_refused_before_state_or_simulation(
     )
     assert calls == []
     assert "Traceback" not in capsys.readouterr().err
+
+
+def test_replay_rejects_simulation_count_above_limit_before_loading_race(
+    long_synthetic_data_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def forbidden(*args, **kwargs):  # type: ignore[no-untyped-def]
+        raise AssertionError("race data or state was accessed for an invalid simulation count")
+
+    monkeypatch.setattr(cli.asof, "resolve_slug", forbidden)
+    monkeypatch.setattr(cli, "build_race_state", forbidden)
+
+    assert (
+        _run(
+            long_synthetic_data_dir,
+            "replay",
+            "not-a-race-2023",
+            "--driver",
+            "AAA",
+            "--n",
+            str(MAX_RACES + 1),
+        )
+        == 1
+    )
+    err = capsys.readouterr().err
+    assert f"--n must be at most {MAX_RACES}" in err
+    assert "Traceback" not in err
