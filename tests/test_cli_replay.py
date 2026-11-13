@@ -58,6 +58,7 @@ def test_selected_cutoff_replay_prints_ranked_options(
         (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--n", "0"),
         (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--n", "-1"),
         (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--risk", "nan"),
+        (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--risk", "inf"),
         (LONG_SLUG, "--driver", "AAA", "--lap", "10", "--risk", "1.1"),
     ],
 )
@@ -73,6 +74,10 @@ def test_bad_replay_inputs_refuse_before_running(
 def test_replay_parser_defaults() -> None:
     args = build_parser().parse_args(["replay", "bahrain-2023", "--driver", "ALO", "--lap", "20"])
     assert (args.lap, args.n, args.risk) == (20, 50000, 0.5)
+    subparsers = build_parser()._subparsers._group_actions[0].choices
+    help_text = subparsers["replay"].format_help()
+    assert "[0, 1]" in help_text
+    assert "default 0.5" in help_text
 
 
 def test_invalid_replay_values_are_refused_before_state_or_simulation(
