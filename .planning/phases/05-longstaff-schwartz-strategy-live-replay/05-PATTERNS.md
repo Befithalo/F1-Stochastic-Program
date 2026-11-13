@@ -1,33 +1,32 @@
 # Phase 5: Longstaff-Schwartz Strategy & Live Replay - Pattern Map
 
 **Mapped:** 2026-11-13  
-**Files analyzed:** 8 anticipated new/modified implementation and test files  
-**Analogs found:** 8 / 8 (some implementation details remain intentionally undecided)
-
-The phase documents explicitly point to the policy under `src/f1si/strategy/` and replay through `src/f1si/cli.py`. Research also calls out an output/interface extension, simulator path support, conformance registration, and future-scramble registration. Test paths below follow the focused paths named in RESEARCH.md; adapt if planning chooses another test layout. Every analog named here was verified with `git ls-files` and is tracked.
+**Files analyzed:** 9 likely new or modified source/test files  
+**Analogs found:** 9 / 9 (all are role or partial matches; the backward LSM/path-branching algorithm has no existing implementation)
 
 ## File Classification
 
 | New/Modified File | Role | Data Flow | Closest Analog | Match Quality |
 |-------------------|------|-----------|----------------|---------------|
-| `src/f1si/strategy/longstaff.py` (new; exact module name discretionary) | strategy/service | transform, request-response | `src/f1si/strategy/free_track.py` | role-match |
-| `src/f1si/interfaces.py` (modified if scored outputs/path result are added) | model / contract | transform | `src/f1si/interfaces.py` (`PitDecision`, `SimulationResult`) | exact |
-| `src/f1si/sim/numpy_backend.py` (possible modification for training paths) | service | batch / transform | `src/f1si/sim/numpy_backend.py` | exact |
-| `src/f1si/cli.py` | controller / CLI | request-response, file-I/O | `src/f1si/cli.py` (`wear-filter` replay) | exact |
-| `tests/strategy/test_longstaff.py` (new) | test | transform | `tests/strategy/test_free_track.py` | role-match |
-| `tests/test_cli_replay.py` (new) | test | request-response, file-I/O | `tests/test_cli_wear_filter.py` | role-match |
-| `tests/conformance/test_suites.py` (modified to register policy case) | test | transform | `tests/conformance/suites.py` | role-match |
-| `tests/guards/consumers.py` (modified to register replay consumer) | test / registry utility | file-I/O, transform | `tests/guards/consumers.py` | exact |
+| `src/f1si/strategy/longstaff.py` | strategy/service | transform | `src/f1si/strategy/free_track.py` | role-match |
+| `src/f1si/interfaces.py` | model / public contract | transform | `src/f1si/interfaces.py` | exact |
+| `src/f1si/sim/numpy_backend.py` | simulator/backend | streaming | `src/f1si/sim/numpy_backend.py` | exact |
+| `src/f1si/cli.py` | controller / CLI | request-response | `src/f1si/cli.py` (`simulate`, `plan`) | exact |
+| `tests/strategy/test_longstaff.py` | test | transform | `tests/strategy/test_free_track.py` | role-match |
+| `tests/test_cli_replay.py` | test | request-response | `tests/test_cli_simulate.py` | role-match |
+| `tests/conformance/suites.py` | test utility | transform | `tests/conformance/suites.py` | exact |
+| `tests/guards/consumers.py` | test utility / registry | request-response | `tests/guards/consumers.py` | exact |
+| `tests/guards/test_future_scramble.py` | test | request-response | `tests/guards/test_future_scramble.py` | exact |
 
-Research also raises possible simulator-kernel changes if pathwise state cannot be produced through the existing backend. Inspect `src/f1si/sim/kernel.py` before planning that change; its need and exact output shape are unresolved. The phase does not establish a separate replay module, so keep accessor ownership in the CLI unless planning chooses a driver module.
+The concrete filenames for the new strategy and replay tests follow the phase validation map and research. The simulator seam may require additional internal files after planning chooses between an opt-in path history, resume API, or callback; the analog below is limited to existing simulation state and draw layout.
 
 ## Pattern Assignments
 
-### `src/f1si/strategy/longstaff.py` (strategy, transform/request-response)
+### `src/f1si/strategy/longstaff.py` (strategy, transform)
 
-**Analog:** `src/f1si/strategy/free_track.py`
+**Analog:** `src/f1si/strategy/free_track.py` (tracked)
 
-**Imports and pure boundary** (lines 35-44):
+**Imports and dependency boundary** (lines 35-44):
 ```python
 from __future__ import annotations
 
@@ -41,9 +40,7 @@ from f1si.interfaces import DRY_COMPOUNDS, PaceModel, PitDecision, Plan
 from f1si.state import CarState, RaceState
 ```
 
-Reuse the module's principle: strategy gets a `RaceState` and injected model/simulator, not an accessor. Keep the `decide(state, *, driver)` signature in `src/f1si/interfaces.py:167-175`.
-
-**Decision construction** (`free_track.py`, lines 107-121):
+**Policy contract and deterministic result construction** (`free_track.py`, lines 105-121):
 ```python
 def decide(self, state: RaceState, *, driver: str) -> PitDecision:
     """Rank every legal plan; pit now iff the best plan stops on the car's next lap."""
@@ -62,176 +59,111 @@ def decide(self, state: RaceState, *, driver: str) -> PitDecision:
     )
 ```
 
-**Legality, deterministic ranking, refusal** (`free_track.py`, lines 131-184): `rank_plans` starts with `state.car(driver)`, uses `state.laps_done_of(car)`, derives remaining distance and used compounds, raises `PlanRefusedError` with an actionable explanation if no legal rows exist, sorts by stable explicit keys, and returns immutable `Plan` values. Preserve the existing per-car lap convention and legal-plan rules rather than copying free-track optimization's objective unchanged.
+Keep the policy a pure consumer of `RaceState`; put data access in the replay driver. Reuse the existing `PitDecision` / `Plan` representation and deterministic ordering conventions. LSM itself is new: implement a genuine reverse-time conditional-mean continuation regression and pathwise stop/continue comparison, not just a rank of fixed forced schedules. Use `numpy.linalg.lstsq` and rank-aware fallback per RESEARCH.md. Keep the CVaR blend solely in current-cutoff option ranking; it is not the LSM regression target.
 
-**Randomness:** `src/f1si/sim/numpy_backend.py:166-173` takes `rng: np.random.Generator`; policy calls must derive/reset a seeded generator per decision to keep repeated `decide` calls deterministic. `src/f1si/sim/draws.py:15-20,88-95` documents unconditional indexed draws and spawned child streams. Reuse simulator CRN behavior for comparing options; do not seed global NumPy state.
+**Validation/refusal pattern** (`free_track.py`, lines 123-142, 177-184): validate the driver/state at the public method boundary, wrap model pricing `ValueError` as a domain-specific refusal with actionable wording, reject an empty legal candidate set explicitly, and sort candidates on stable explicit tie-break keys.
 
-### `src/f1si/interfaces.py` (model/contract, transform)
+### `src/f1si/interfaces.py` (public contract, transform)
 
-**Analog:** same file, tracked and authoritative for immutable public value objects.
+**Analog:** itself (tracked)
 
-**Frozen dataclass validation** (lines 83-107):
+`SimulationResult` is a frozen value object (`interfaces.py`, lines 120-144); append new optional fields after existing fields and retain `finish_positions` / `total_time_s` as the first two positional fields. `SimulatorBackend.simulate` takes keyword-only `n_races`, injected `rng`, and optional forced `plans` (`interfaces.py`, lines 179-194). `StrategyPolicy.decide(state, *, driver)` has no RNG parameter and promises deterministic behavior without mutating state (`interfaces.py`, lines 167-175). Preserve these public contracts while designing the minimal opt-in path checkpoint/branch seam; do not expose policy-level data access.
+
+### `src/f1si/sim/numpy_backend.py` (backend, streaming)
+
+**Analog:** itself (tracked); draw-stability details also in `src/f1si/sim/draws.py` (tracked) and `tests/sim/test_crn_and_plans.py` (tracked).
+
+**Common-random-number draw layout** (`numpy_backend.py`, lines 245-263):
 ```python
-@dataclass(frozen=True)
-class PitDecision:
-    driver: str
-    lap: int
-    pit_now: bool
-    compound: str | None
-    best_plan: Plan
-    ranked_plans: tuple[Plan, ...]
-
-    def __post_init__(self) -> None:
-        object.__setattr__(self, "ranked_plans", tuple(self.ranked_plans))
-        if not self.ranked_plans:
-            raise ValueError("ranked_plans must hold at least one plan")
-        if self.ranked_plans[0] != self.best_plan:
-            raise ValueError("best_plan must equal ranked_plans[0]")
+sc_params, passing, noise = make_streams(rng, d_sc)
+n_draw = len(DRAW_COMPOUNDS)
+block = uniform_block(self._mode, n_sim + n_cars + n_draw, n, sc_params)
+u_sc_all = np.ascontiguousarray(block[:, :n_sim])
+z_off = np.ascontiguousarray(normal_from_uniform(block[:, n_sim : n_sim + n_cars]))
+z_slots = normal_from_uniform(block[:, n_sim + n_cars :])
 ```
 
-`SimulationResult` (lines 120-145) keeps its first two fields stable and places defaulted diagnostics after them. If adding metrics or path outputs, follow this trailing-default convention for compatibility. `StrategyPolicy.decide` (lines 167-175) explicitly guarantees no state mutation and deterministic repeat calls; preserve both.
+The fixed compound-name slot layout is documented in that block as preventing plans from shifting other compounds' draws (DEC-087). Preserve stable scenario/draw identity between branches where feasible. Existing simulator path state is initialized as per-race arrays (`numpy_backend.py`, lines 286-303): `order`, `clock`, `age`, `comp`, `stops_done`, `pit_paid`, stop history, safety-car remaining/freshness, and optional recorded clocks. Kernel advancement is performed lap-by-lap in lines 305-352. Extend this path cautiously: research recommends decision-time state plus branch/resume support, with full path storage opt-in rather than an unbounded default result payload.
 
-### `src/f1si/sim/numpy_backend.py` (service, batch)
+**Regression evidence:** `tests/sim/test_crn_and_plans.py`, lines 52-73, runs alternative forced plans with the same `make_rng(9)` seed and asserts unchanged rival times and identical safety-car masks. Follow that style for branch identity and common-random-number tests.
 
-**Analog:** existing backend, especially constructor and `simulate` signature (lines 116-190).
+### `src/f1si/cli.py` (CLI controller, request-response)
 
-**Injected backend and RNG** (lines 126-173):
+**Analog:** itself (tracked), especially `simulate` parser (`cli.py`, lines 153-185) and `_cmd_simulate` (`cli.py`, lines 610-685).
+
+**Imports/parser pattern** (`cli.py`, lines 19-31, 54-59): import the as-of module, data refusal types, typed contracts, simulator/state builders, and `make_rng`; register a subcommand in `build_parser` with explicit `slug`, `--driver`, optional `--lap`, simulation-count, risk, and seed help. Use plain text output helpers such as `_print_table` (`cli.py`, lines 393-397).
+
+**As-of composition** (`cli.py`, lines 637-668):
 ```python
-def __init__(
-    self,
-    model: PaceModel,
-    *,
-    sc: SafetyCarModel,
-    compounds: Sequence[str],
-    optimizer: FreeTrackOptimizer | None = None,
-    wear_sd_by_compound: Mapping[str, float | None] | None = None,
-    fitted_drivers: Sequence[int] | None = None,
-    variance_reduction: VarianceReduction = "sobol_antithetic",
-    record_clocks: bool = False,
-) -> None:
-    ...
-
-def simulate(
-    self,
-    state: RaceState,
-    *,
-    n_races: int,
-    rng: np.random.Generator,
-    plans: Mapping[str, Plan] | None = None,
-) -> SimulationResult:
-    self._validate(state, n_races)
-    ...
-```
-
-The `plans` argument forces comparable candidate strategies; diagnostics are gathered explicitly. Existing `SimulationResult.clock_s` is optional and cumulative-clock shaped (`interfaces.py:128-145`). Research flags that full per-path stopping-state features may not exist. If extending the simulator, preserve the caller-injected RNG, forced-plan seam, and default compatibility; inspect tracked `src/f1si/sim/kernel.py` for the per-lap state update before choosing where to collect path outputs. Do not add an accessor dependency to the simulator.
-
-### `src/f1si/cli.py` (controller, request-response/file-I/O)
-
-**Analog:** existing `_cmd_wear_filter` replay (`cli.py`, lines 775-832) and parser/dispatch (`65-85`, `898-929`).
-
-**Validation and accessor ownership** (lines 779-808):
-```python
-try_line = f"Try: uv run f1si wear-filter {slug} --driver CODE --lap 20"
-code = driver.upper()
-if not _DRIVER_CODE.fullmatch(code):
-    return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
-if lap is not None and lap < 0:
-    return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
-db = paths.db_path(data_dir)
-race_id = asof.resolve_slug(db, slug)
 accessor = asof.AsOfAccessor(db)
-...
-for cutoff in range(1, last_lap + 1):
-    snapshot = accessor.snapshot(asof.AsOf(race_id, cutoff))
-    fit = fit_linear_pace(snapshot)
-    results = filter_stints(snapshot, fit, driver_numbers=[number])
+try:
+    end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+    laps_total = int(end.laps["lap_number"].max())
+    if lap is None:
+        fit_snapshot = end
+        state_snapshot = accessor.snapshot(asof.AsOf(race_id, 0))
+        history = accessor.history(asof.AsOf(race_id, 0))
+    elif lap >= laps_total:
+        return _refuse("Nothing to simulate: the race is over ...")
+    else:
+        fit_snapshot = state_snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+        history = accessor.history(asof.AsOf(race_id, lap))
+except OutOfSampleLockedError as err:
+    return _refuse(f"{err} ...")
 ```
 
-For replay, rebuild fit, filter, and `RaceState` from that same `snapshot` within each cutoff iteration; `AsOfAccessor` stays in CLI/driver composition. The strategy receives only the resulting state. Keep expected failures friendly through `_refuse` and existing top-level exception dispatch (`cli.py:930-953`). Register parser and command dispatch next to existing subcommands (`65-85`, `898-929`); tabular output uses `_print_table` (`393-397`).
+For live replay, rebuild snapshot, pace fit, wear filter and `RaceState` at every cutoff through the same helper/path used by `--lap N`; the exception in current `simulate` that allows a hindsight fit must not be copied. Keep the accessor in CLI/replay orchestration and pass only `RaceState` to policy. Validate finite/ranged risk and lap/driver inputs, normalize driver codes, return friendly refusals for expected data/fit limits, and avoid traceback for these cases. Existing `main` catches expected `ValueError` based on `_FRIENDLY_VALUE_ERRORS` near line 61; update its command set if needed.
 
-### `tests/strategy/test_longstaff.py` (test, transform)
+### `tests/strategy/test_longstaff.py` (unit/conformance tests)
 
-**Analog:** `tests/strategy/test_free_track.py`.
+**Analog:** `tests/strategy/test_free_track.py` (tracked)
 
-Tests build small analytic states/models with local helpers, check numerical behavior against an independent reference where useful (`test_free_track.py:22-80,163-199`), then assert contract behavior without mutating state. The policy test pattern (`251-266`) is:
-```python
-before = state.to_json()
-first = policy.decide(state, driver="AAA")
-assert isinstance(first, PitDecision)
-assert first == policy.decide(state, driver="AAA")
-assert state.to_json() == before
-```
+`test_free_track.py`, lines 12-19, imports the public decision/value types and the policy under test. Lines 22-40 define a small deterministic synthetic `PaceModel`; lines 43-78 construct a compact hand-authored `RaceState`. Prefer this isolated fixture style for synthetic continuation recovery and risk-ranking distributions. The file includes explicit legality and edge cases; add focused checks for regression rank/fallback, CVaR tail orientation/fractional boundary, risk endpoints and rank change, deterministic reasons, and repeated `decide` identity. Add the new policy to the shared suite rather than duplicating its contract assertions.
 
-Add focused cases for synthetic continuation recovery/fallback, worst-tail orientation and fractional CVaR convention, risk endpoints, deterministic reason, and refusal/legality. For shared contract checks, use `check_strategy_policy` rather than duplicating the shared assertions.
+### `tests/test_cli_replay.py` (CLI integration test)
 
-### `tests/test_cli_replay.py` (test, request-response/file-I/O)
+**Analog:** `tests/test_cli_simulate.py` (tracked)
 
-**Analog:** `tests/test_cli_wear_filter.py`.
+`test_cli_simulate.py`, lines 18-30, has `_run` and race-driver helpers; lines 33-79 exercise successful hindsight and selected-lap behavior against synthetic cache fixtures and `capsys`. For replay tests, check all-cutoff rows, `--lap N` equality with that row, driver selection, useful refusal messages and deterministic output. Existing fixtures and database helpers are preferable to new bespoke cache setup.
 
-The analog invokes the public `main([...])` with fixture data and captures output. Its `_run` helper (lines 18-19) forwards the temp data directory, and its tests cover full replay, case-insensitive driver, selected `--lap`, friendly errors without tracebacks, and snapshot-per-cutoff behavior (lines 27-132). Follow that structure: assert both all-cutoff and selected-cutoff output, expected error status/text, and equality between the selected cutoff and that row in full replay.
+### `tests/conformance/suites.py` (shared conformance utility)
 
-### `tests/conformance/test_suites.py` (test, transform)
+**Analog:** itself (tracked)
 
-**Analog:** `tests/conformance/suites.py:116-146` defines `check_strategy_policy(policy, case)`, covering the protocol, return type, mutation, repeat determinism, driver/lap, legal compounds, and `best_plan` ordering. Register the new policy in the existing suite test harness rather than inventing a second contract suite. Concrete registration pattern is in tracked `tests/conformance/test_suites.py`; preserve its parameterized/factory case structure.
+Add Longstaff policy registration to the existing strategy suite and use the shared `StrategyPolicy` behavior assertions, including same-input determinism and no state mutation. `StrategyPolicy` contract is in `src/f1si/interfaces.py:167-175`; test registration and implementation should remain centralized in the conformance harness rather than creating a policy-only variant.
 
-### `tests/guards/consumers.py` (test registry, file-I/O/transform)
+### `tests/guards/consumers.py` and `tests/guards/test_future_scramble.py` (guard registry and test)
 
-**Analog:** existing `race_state_filter` consumer (`lines 93-111`):
-```python
-def race_state_filter(db_path: Path, at: AsOf) -> object:
-    snapshot = AsOfAccessor(db_path).snapshot(at)
-    fit = fit_linear_pace(snapshot)
-    pit = measure_pit_loss(snapshot, fit)
-    lap = at.lap if isinstance(at.lap, int) else 12
-    results = filter_stints(snapshot, fit)
-    state = build_race_state(
-        snapshot,
-        fit,
-        laps_total=max(12, lap),
-        pit_loss_s=pit.median_s,
-        wear_filter=current_stint_snapshots(results),
-    )
-    return state.to_json(), state.to_json_dict(), state.to_arrays().position.tolist()
-```
+**Analogs:** themselves (tracked)
 
-Each consumer is a deterministic `(db_path, at) -> output` registered in `CONSUMERS`; `tests/guards/test_future_scramble.py:145-160` samples the registry to prove future rows do not affect output. Add replay as an accessor consumer that returns recommendation/metrics for the requested cutoff, and register it in `CONSUMERS`. Keep its prepared input path on the same cutoff.
+`consumers.py`, lines 1-21, documents the registry contract: each consumer is callable as `(db_path, at) -> output` and new as-of consumers must be registered. Existing consumers compose `AsOfAccessor(db_path).snapshot(at)` and downstream transforms (lines 24-31, 54-80). Add replay's state/decision consumer through a registry callable that takes an `AsOf` cutoff and derives all inputs from that cutoff. The property harness in `test_future_scramble.py`, lines 145-165, samples registered consumers and checks output equality after scrambling future rows; its full-grid guard at lines 182-195 covers every in-sample race/cutoff. Keep replay logic out of the strategy module so this guard can prove it ignores unseen data.
 
 ## Shared Patterns
 
-### As-of isolation
+### Typed immutable contracts and deterministic policy
+**Sources:** `src/f1si/interfaces.py:43-108,120-144,167-194`; `src/f1si/strategy/free_track.py:105-121`  
+**Apply to:** new strategy API and simulator result extensions. Keep typed value objects frozen, preserve established positional fields, and maintain `decide(state, *, driver)` with deterministic output and no mutation.
 
-**Source:** `src/f1si/data/asof.py:13-20,82-106`; CLI replay analog above.  
-**Apply to:** replay composition and guard consumer.  
-Accessor remains in replay driver; strategy and simulator receive state/value data only. A fresh snapshot is required per cutoff.
+### Seeded simulation and comparable alternatives
+**Sources:** `src/f1si/rng.py:1-30`; `src/f1si/sim/numpy_backend.py:245-263`; `tests/sim/test_crn_and_plans.py:52-73`  
+**Apply to:** all candidate action estimates and path branches. CLI creates seeded generators via `make_rng`; library receives an injected `Generator`; stable draw slots let alternatives share scenarios. Do not advance a persistent policy RNG across repeated equivalent `decide` calls.
 
-### Strategy contract and immutable state
+### As-of replay and no-look-ahead
+**Sources:** `src/f1si/data/asof.py:1-23`; `src/f1si/cli.py:637-668`; `tests/guards/consumers.py:1-7,76-80`  
+**Apply to:** replay driver and registered guard consumer. Rebuild each cutoff from `AsOfAccessor`; no current-race results, future laps, or full-race hindsight fit may feed a replay recommendation. Strategy sees `RaceState` only.
 
-**Source:** `src/f1si/interfaces.py:83-107,167-175`; `tests/conformance/suites.py:116-146`.  
-**Apply to:** policy and its tests.  
-Return `PitDecision`, preserve legal plans and best-first order, do not mutate `RaceState`, and make repeated decisions identical.
-
-### Reproducible comparisons
-
-**Source:** `src/f1si/sim/draws.py:15-20,88-95`; `src/f1si/sim/numpy_backend.py:28-39,166-173`.  
-**Apply to:** all action valuation and continuation simulation.  
-Use injected `Generator`, fixed call layout and CRN across plans when permitted; avoid global random calls.
-
-### Friendly CLI refusals
-
-**Source:** `src/f1si/cli.py:779-797,930-953`.  
-**Apply to:** replay argument/data/strategy limitations.  
-Validate lap and driver before work, use actionable `_refuse` text for expected limitations, and leave traceback behavior to `--debug`/existing exception policy.
+### Friendly expected-error handling
+**Sources:** `src/f1si/cli.py:61-62,620-635,654-672`; `src/f1si/strategy/free_track.py:123-142,177-182`  
+**Apply to:** new CLI and strategy validation. Reject invalid driver/lap/risk/sample inputs before computation, use `_refuse` for expected CLI errors, and use actionable domain errors for unsupported states or no legal action.
 
 ## No Analog Found
 
-| File/Concern | Reason |
-|--------------|--------|
-| Longstaff-Schwartz pathwise regression/training-state representation | No current strategy performs backward stopping regression. Research explicitly notes current simulation outputs final outcomes and optional clocks, not full pathwise race state. Use the existing simulator and contracts as integration patterns, but design this algorithm-specific seam from RESEARCH.md. |
-| Dynamic CVaR continuation recursion | No existing risk-sensitive stopping policy exists. RESEARCH.md recommends explicitly scoping CVaR to current-cutoff candidate ranking unless a dynamic recursion is deliberately designed. |
+| Capability | Reason |
+|------------|--------|
+| Backward LSM regression over simulated race paths with conditional continuation values | No existing optimal-stopping strategy or pathwise branch/resume API exists. `free_track.py` is only a strategy contract/legality analog; `numpy_backend.py` exposes evolving mutable path arrays but currently returns terminal outcomes and optional clocks. Use RESEARCH.md's algorithm and let planning select the smallest simulator seam. |
 
 ## Metadata
 
-**Analog search scope:** `src/f1si/strategy/`, `src/f1si/sim/`, `src/f1si/data/`, `src/f1si/pace/`, `src/f1si/cli.py`, and relevant strategy/CLI/conformance/guard tests.  
-**Files scanned:** 15 tracked analogs and adjacent contract/test files.  
-**Tracked-source gate:** all analog paths above were confirmed by `git ls-files`; no runtime mirror paths used.  
+**Analog search scope:** `src/f1si/{strategy,sim,data}`, `src/f1si/{cli.py,interfaces.py,state.py,rng.py}`, `tests/{strategy,sim,conformance,guards}`, existing CLI tests.  
+**Tracked-source gate:** named code analogs were verified with `git ls-files`; no install/runtime mirror paths are referenced.  
 **Pattern extraction date:** 2026-11-13
