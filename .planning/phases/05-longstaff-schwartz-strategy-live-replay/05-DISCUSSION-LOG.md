@@ -19,7 +19,7 @@
 | Rank only by CVaR | Does not provide the mean-focused end required by STR-03. | |
 
 **Choice:** Mean/CVaR blend with a protect-points dial.
-**Rationale:** Both measures use finishing-position units; exposing each alongside the score makes the risk trade-off understandable.
+**Rationale:** Both measures use finishing-position units; exposing each alongside the score makes the risk trade-off understandable. After research, the recommended formula was made explicit as (1 - risk_aversion) × mean + risk_aversion × CVaR10, with a neutral default of 0.5. The risk blend ranks current-cutoff options while the LSM regression estimates conditional mean continuation; the policy is not described as dynamically CVaR-optimal.
 
 ## Replay workflow and output
 

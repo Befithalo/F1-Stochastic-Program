@@ -19,13 +19,14 @@ Requirements: STR-01, STR-02, STR-03, STR-04, RPL-01, RPL-02.
 ## Implementation Decisions
 
 ### Strategy ranking and risk setting
-- **D-01:** Use one user-facing risk-aversion value on a 0-1 scale. 0 is mean-focused / chase-the-win; 1 is tail-focused / protect-points. Rank options by a blend of expected finishing position and worst-decile CVaR, with lower values better. Keep the mean and CVaR visible as separate reported metrics so the blend remains inspectable.
-- **D-02:** Define CVaR@10% as the average finishing position in the worst 10% of simulated outcomes (higher finishing-position numbers are worse). The CLI default risk setting and exact numeric output format are implementation details for planning.
+- **D-01:** Use one user-facing risk-aversion value on a 0-1 scale. 0 is mean-focused / chase-the-win; 1 is tail-focused / protect-points. Rank current-cutoff options by score = (1 - risk_aversion) × mean_finish + risk_aversion × CVaR10, with lower values better. Keep the mean and CVaR visible separately so the blend remains inspectable.
+- **D-02:** Define CVaR@10% as the average finishing position in the worst 10% of simulated outcomes (higher finishing-position numbers are worse), with fractional weight at the sample boundary so the tail represents exactly 10% of probability mass. Default the CLI risk setting to 0.5, a neutral blend; expose its bounds and meaning in help.
+- **D-08:** The Longstaff-Schwartz continuation regression estimates conditional mean finishing position. Apply the risk blend when ranking the current-cutoff candidate distributions; describe this as a CVaR-aware option ranking, not as a dynamically CVaR-optimal stopping policy. A nested or dynamically consistent CVaR recursion is outside Phase 5.
 
 ### Replay workflow and output
 - **D-03:** Add a f1si replay CLI command. With no lap argument it emits recommendations for successive race cutoffs; --lap N emits the single as-of recommendation at lap N. Use the existing CLI command and plain-text table patterns; reserve the interactive dashboard and fan chart for Phase 6.
 - **D-04:** Rebuild the snapshot, fit, filter output, and RaceState from the same as-of cutoff for each recommendation. Keep replay on AsOfAccessor; do not read current-race results, future laps, or hindsight fits to produce a call.
-- **D-05:** All stochastic strategy comparisons must use the project's injected, seeded numpy.random.Generator conventions. Preserve common random numbers between competing options where the simulator permits it, so option differences are not dominated by unrelated draws.
+- **D-05:** All stochastic strategy comparisons must use the project's injected, seeded numpy.random.Generator conventions. Preserve common random numbers between competing options where the simulator permits it, so option differences are not dominated by unrelated draws. Repeated decide calls for the same state and policy configuration must remain identical, as required by the shared StrategyPolicy contract.
 
 ### Recommendation reasons
 - **D-06:** Produce a concise, deterministic sentence from the current as-of state and the option scores. Mention an undercut, current safety-car stop value, or wear uncertainty only when the visible inputs and simulated outcomes support the claim. Do not claim a tire cliff or forecast an unobserved future regime.
