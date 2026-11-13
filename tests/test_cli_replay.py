@@ -6,6 +6,7 @@ from contextlib import redirect_stderr
 from io import StringIO
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from f1si import cli
@@ -13,6 +14,8 @@ from f1si.cli import build_parser, main
 from f1si.data import asof
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.kalman import GENERIC_SIGMA_S
+from f1si.pace.linear import _classify
+from f1si.pace.sparse_fallback import SparsePaceFallback
 from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator
 from tests.conftest import LONG_RACE_ID, LONG_SLUG
@@ -97,6 +100,41 @@ def test_sparse_fallback_noise_floor_is_generic_at_lap_zero(
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, 0))
     fallback = cli.SparsePaceFallback(snapshot)
     assert fallback.sigma_sparse == GENERIC_SIGMA_S
+    assert fallback.visible_clean_laps == 0
+    assert set(fallback.driver_offsets.values()) == {0.0}
+    assert fallback.pace_offset_sd_s == 1.0
+
+
+def test_sparse_fallback_uses_cutoff_clean_residuals_and_robust_noise(
+    long_synthetic_db: Path,
+) -> None:
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, 5))
+    fallback = SparsePaceFallback(snapshot)
+    clean = _classify(snapshot.laps)
+    clean = clean.loc[clean["reason"].isna()].copy()
+    fuel = -0.05
+    wear = {"SOFT": 0.10, "MEDIUM": 0.08, "HARD": 0.06}
+    residuals = (
+        clean["time"].to_numpy()
+        - fuel * (clean["lap"].to_numpy() - 1.0)
+        - clean["compound"].map(wear).to_numpy() * clean["age"].to_numpy()
+    )
+    clean["residual"] = residuals
+    centers = clean.groupby("driver")["residual"].median()
+    field_center = float(centers.median())
+    for driver_number, center in centers.items():
+        assert fallback.driver_offsets[int(driver_number)] == pytest.approx(center - field_center)
+    within_driver = np.array(
+        [
+            value - centers.loc[number]
+            for number, value in zip(clean["driver"], residuals, strict=True)
+        ]
+    )
+    expected_sigma = max(
+        GENERIC_SIGMA_S,
+        1.4826 * float(np.median(np.abs(within_driver - np.median(within_driver)))),
+    )
+    assert fallback.sigma_sparse == pytest.approx(expected_sigma)
 
 
 @pytest.mark.parametrize(
@@ -161,7 +199,7 @@ class ReplayParserTest(unittest.TestCase):
         assert args.lap is None
 
 
-def test_full_replay_emits_every_cutoff_and_marks_unsupported_cutoffs(
+def test_full_replay_emits_every_cutoff_and_marks_fallback_cutoffs(
     long_synthetic_data_dir: Path,
     long_synthetic_db: Path,
     capsys: pytest.CaptureFixture[str],
@@ -175,8 +213,9 @@ def test_full_replay_emits_every_cutoff_and_marks_unsupported_cutoffs(
         if line.startswith("Cutoff lap ")
     ]
     assert laps == list(range(max(laps) + 1))
-    assert any("unavailable" in line.lower() for line in out.splitlines())
-    assert any("Recommendation:" in line for line in out.splitlines())
+    assert "Status: unavailable" not in out
+    assert "Status: fallback" in out
+    assert out.count("Recommendation:") == len(laps)
     reasons = [
         line.removeprefix("Reason: ") for line in out.splitlines() if line.startswith("Reason: ")
     ]
@@ -193,11 +232,23 @@ def test_selected_replay_matches_full_replay_cutoff_block(
     args = ("replay", LONG_SLUG, "--driver", code, "--n", "12")
     assert _run(long_synthetic_data_dir, *args) == 0
     full = capsys.readouterr().out
-    assert _run(long_synthetic_data_dir, *args, "--lap", "35") == 0
-    selected = capsys.readouterr().out
-    full_block = full.split("Cutoff lap 35", maxsplit=1)[1].split("Cutoff lap 36", maxsplit=1)[0]
-    selected_block = selected.split("Cutoff lap 35", maxsplit=1)[1]
-    assert selected_block.strip() == full_block.strip()
+    full_lines = full.splitlines()
+    for lap in (0, 5, 35):
+        assert _run(long_synthetic_data_dir, *args, "--lap", str(lap)) == 0
+        selected = capsys.readouterr().out
+        start = next(
+            i for i, line in enumerate(full_lines) if line.startswith(f"Cutoff lap {lap}:")
+        )
+        end = next(
+            (
+                i
+                for i in range(start + 1, len(full_lines))
+                if full_lines[i].startswith("Cutoff lap ")
+            ),
+            len(full_lines),
+        )
+        full_block = "\n".join(full_lines[start:end])
+        assert selected.strip() == full_block.strip()
 
 
 def test_invalid_replay_values_are_refused_before_state_or_simulation(

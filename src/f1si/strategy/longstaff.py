@@ -159,6 +159,7 @@ class LongstaffSchwartzPolicy:
         n_simulations: int = 512,
         seed: int = 0,
         sc: SafetyCarModel | None = None,
+        wear_sd_by_compound: Mapping[str, float | None] | None = None,
     ) -> None:
         self._risk = _risk(risk_aversion)
         if (
@@ -176,6 +177,7 @@ class LongstaffSchwartzPolicy:
         self._n = n_simulations
         self._seed = seed
         self._sc = sc or SafetyCarModel(0.0, 4)
+        self._wear_sd_by_compound = wear_sd_by_compound
 
     def analyze(self, state: RaceState, *, driver: str) -> StrategyAnalysis:
         """Evaluate pit now, delays through five laps, and staying out on matching seeds."""
@@ -185,7 +187,12 @@ class LongstaffSchwartzPolicy:
         car = state.car(driver)
         if state.laps_total - state.laps_done_of(car) <= 0:
             raise ValueError(f"The race is over for {driver}; choose an earlier cutoff")
-        simulator = NumpySimulator(self._model, sc=self._sc, compounds=self._compounds)
+        simulator = NumpySimulator(
+            self._model,
+            sc=self._sc,
+            compounds=self._compounds,
+            wear_sd_by_compound=self._wear_sd_by_compound,
+        )
         next_lap = state.laps_done_of(car) + 1
         already_used = set(car.compounds_used)
         if car.compound is not None:

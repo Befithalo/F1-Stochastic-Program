@@ -13,7 +13,7 @@ import re
 import sys
 import time
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -28,7 +28,7 @@ from f1si.data.sources import RaceSource, SourceError
 from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
-from f1si.interfaces import DRY_COMPOUNDS, Plan
+from f1si.interfaces import DRY_COMPOUNDS, PaceModel, Plan
 from f1si.pace.kalman import (
     CutoffRow,
     current_stint_snapshots,
@@ -45,6 +45,7 @@ from f1si.pace.linear import (
     fit_linear_pace,
     measure_pit_loss,
 )
+from f1si.pace.sparse_fallback import PACE_OFFSET_SD_S, SparsePaceFallback
 from f1si.plots.simulate import prepare_sim_plot_data, render_sim_plot, sim_file_name
 from f1si.plots.stints import (
     UnknownDriverError,
@@ -942,6 +943,7 @@ class _ReplayCutoff:
     lap: int
     analysis: StrategyAnalysis | None
     unavailable_reason: str | None = None
+    is_fallback: bool = False
 
 
 def _replay_at_cutoff(
@@ -954,33 +956,63 @@ def _replay_at_cutoff(
     risk: float,
     seed: int,
 ) -> _ReplayCutoff:
-    """Rebuild every input from one cutoff; unsupported fits remain explicitly unavailable."""
+    """Rebuild every input from one cutoff and fall back without leaving its as-of snapshot."""
 
     at = asof.AsOf(race_id, lap)
     snapshot = accessor.snapshot(at)
     history = accessor.history(at)
     fit = fit_linear_pace(snapshot)
-    if not fit.is_identified or not fit.fitted_compounds:
-        return _ReplayCutoff(lap, None, fit.report.message)
     pit = measure_pit_loss(snapshot, fit)
     wear = current_stint_snapshots(filter_stints(snapshot, fit))
     state = build_race_state(
         snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
     )
     estimate = estimate_sc_rate(history)
+    is_fallback = not fit.is_identified or not fit.fitted_compounds
+    model: PaceModel = fit
+    compounds = fit.fitted_compounds
+    wear_sd_by_compound: dict[str, float | None] | None = None
+    if is_fallback:
+        fallback = SparsePaceFallback(snapshot)
+        model = fallback
+        compounds = DRY_COMPOUNDS
+        wear_sd_by_compound = fallback.wear_sd_by_compound
+        state = replace(
+            state,
+            cars=tuple(
+                replace(
+                    car,
+                    pace_offset_s=fallback.driver_offsets[car.driver_number],
+                    pace_offset_sd=PACE_OFFSET_SD_S,
+                )
+                for car in state.cars
+            ),
+        )
     policy = LongstaffSchwartzPolicy(
-        fit,
-        compounds=fit.fitted_compounds,
+        model,
+        compounds=compounds,
         risk_aversion=risk,
         n_simulations=n_simulations,
         seed=seed,
         sc=SafetyCarModel(estimate.rate_per_lap, estimate.duration_laps),
+        wear_sd_by_compound=wear_sd_by_compound,
     )
     try:
         analysis = policy.analyze(state, driver=code)
     except ValueError as err:
         return _ReplayCutoff(lap, None, str(err))
-    return _ReplayCutoff(lap, analysis)
+    if is_fallback:
+        basis = (
+            f"{fallback.clean_laps_for(state.car(code).driver_number)} driver and "
+            f"{fallback.visible_clean_laps} field cutoff-visible clean laps, generic DEC-091 "
+            f"fuel/wear/noise priors, [ASSUMED] {PACE_OFFSET_SD_S:.1f} s pace-offset SD, "
+            "uncalibrated"
+        )
+        analysis = replace(
+            analysis,
+            reason=f"{analysis.reason.rstrip('.')}; sparse fallback basis: {basis}.",
+        )
+    return _ReplayCutoff(lap, analysis, is_fallback=is_fallback)
 
 
 def _print_replay_cutoff(
@@ -1005,7 +1037,7 @@ def _print_replay_cutoff(
         print(f"Reason: {unavailable_reason}")
         return
     report = cutoff.analysis
-    print("Status: available")
+    print("Status: fallback" if cutoff.is_fallback else "Status: available")
     print(
         f"risk aversion {risk:.2f}; options share {n_simulations} seeded race scenarios. "
         "CVaR10 is the exact worst decile; lower blended score ranks first."
