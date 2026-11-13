@@ -1,5 +1,8 @@
 """Selected-cutoff replay output and refusal behavior."""
 
+import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -78,6 +81,51 @@ def test_replay_parser_defaults() -> None:
     help_text = subparsers["replay"].format_help()
     assert "[0, 1]" in help_text
     assert "default 0.5" in help_text
+
+
+def test_replay_parser_allows_full_series() -> None:
+    args = build_parser().parse_args(["replay", "bahrain-2023", "--driver", "ALO"])
+    assert args.lap is None
+
+
+class ReplayParserTest(unittest.TestCase):
+    def test_full_series_does_not_require_a_selected_lap(self) -> None:
+        with redirect_stderr(StringIO()):
+            try:
+                args = build_parser().parse_args(["replay", "bahrain-2023", "--driver", "ALO"])
+            except SystemExit:
+                self.fail("full replay parser requires --lap")
+        assert args.lap is None
+
+
+def test_full_replay_emits_every_cutoff_and_marks_unsupported_cutoffs(
+    long_synthetic_data_dir: Path,
+    long_synthetic_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = _code(long_synthetic_db)
+    assert _run(long_synthetic_data_dir, "replay", LONG_SLUG, "--driver", code, "--n", "12") == 0
+    out = capsys.readouterr().out
+    laps = [int(line.split()[1]) for line in out.splitlines() if line.startswith("Cutoff lap ")]
+    assert laps == list(range(max(laps) + 1))
+    assert any("unavailable" in line.lower() for line in out.splitlines())
+    assert any("Recommendation:" in line for line in out.splitlines())
+
+
+def test_selected_replay_matches_full_replay_cutoff_block(
+    long_synthetic_data_dir: Path,
+    long_synthetic_db: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = _code(long_synthetic_db)
+    args = ("replay", LONG_SLUG, "--driver", code, "--n", "12")
+    assert _run(long_synthetic_data_dir, *args) == 0
+    full = capsys.readouterr().out
+    assert _run(long_synthetic_data_dir, *args, "--lap", "35") == 0
+    selected = capsys.readouterr().out
+    full_block = full.split("Cutoff lap 35", maxsplit=1)[1].split("Cutoff lap 36", maxsplit=1)[0]
+    selected_block = selected.split("Cutoff lap 35", maxsplit=1)[1]
+    assert selected_block.strip() == full_block.strip()
 
 
 def test_invalid_replay_values_are_refused_before_state_or_simulation(
