@@ -354,17 +354,20 @@ assert lo <= covered <= hi
 | A7 | Gate: 3.0 SD, active from the 3rd used lap, no two consecutive rejections | Pattern 2 | Too strict/lax on real data; tested only on synthetic contamination |
 | A8 | Forum fuel-per-kg figures (0.033 to 0.133 s/kg, 1.7 to 2.3 kg/lap) | Pattern 3 | Context only; not used to set a number except through the wide fuel SD |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **OQ1 (requirement risk, PAC-04 accuracy half): which restated target?**
    - Known: the 10% at stint lap 8 target is unattainable honestly (tables above); coverage and narrowing are attainable.
    - Unclear: whether the owner wants a longer horizon per compound, an information criterion, or a different quantity.
    - Recommendation: planner raises it as a checkpoint with the achievable numbers; until then implement the accuracy test as report-only and gate coverage and narrowing.
+   - RESOLVED: owner chose "Test optimal accuracy" (CONTEXT D-17): gate the closed-form (Bayes-optimal) match, error(lap 8) < error(lap 0), coverage and narrowing; the 10% figure is reported, not gated; revisit in Phase 7. Logged in DEC-092.
 2. **OQ2: minimum evidence before the Phase 2 fit becomes the prior.**
    - Known: Bahrain's as-of fit is first identified at lap 14 but is 3 to 5 SE from the final value until about lap 30 to 40.
    - Unclear: whether to add a "fit prior only after N laps / SE below X" rule.
    - Recommendation: ship with `tau_car` inflation only, run the demo at laps 14, 20, 30, and let the verifier report coverage on real data as an observation.
+   - RESOLVED: CONTEXT D-19: fit prior only when identified and the compound is fitted, inflated by `tau_car`; no "not before lap N" rule; 04-05 reports the Bahrain prior at laps 14, 20 and 30.
 3. **OQ3: ALO interval observation (Phase 3 open flag).** Not computable until the integration exists; the CLI/verification step should report ALO's 90% interval width with and without the filter at a mid-race lap.
+   - RESOLVED: reported as an observation (not a gate) by plan 04-05 Task 1 and the verifier.
 
 ## Runtime State Inventory
 
