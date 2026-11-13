@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from f1si.interfaces import DRY_COMPOUNDS, PaceModel, PitDecision, Plan
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel, _PathCheckpoint
 from f1si.state import RaceState
+from f1si.strategy.free_track import MIN_STINT_LAPS
 
 
 @dataclass(frozen=True)
@@ -85,19 +86,43 @@ def _backward_stop(
     stop_values: Mapping[int, NDArray[np.float64]],
     terminal_values: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], dict[int, NDArray[np.bool_]]]:
-    """Apply pathwise exercise decisions from the last decision time back to the first."""
+    """Apply one-action-per-time pathwise exercise decisions backward."""
+    options = {time: {"stop": values} for time, values in stop_values.items()}
+    realized, exercised, _ = _backward_stop_options(features, options, terminal_values)
+    return realized, exercised
+
+
+def _backward_stop_options(
+    features: Mapping[int, NDArray[np.float64]],
+    stop_values: Mapping[int, Mapping[str, NDArray[np.float64]]],
+    terminal_values: NDArray[np.float64],
+) -> tuple[
+    NDArray[np.float64],
+    dict[int, NDArray[np.bool_]],
+    dict[int, dict[str, NDArray[np.float64]]],
+]:
+    """Fit continuation means backward and retain each compound's pathwise action value."""
     values = np.asarray(terminal_values, dtype=np.float64).copy()
     decisions: dict[int, NDArray[np.bool_]] = {}
+    action_values: dict[int, dict[str, NDArray[np.float64]]] = {}
     for time in sorted(stop_values, reverse=True):
-        immediate = np.asarray(stop_values[time], dtype=np.float64)
         state = np.asarray(features[time], dtype=np.float64)
-        if immediate.shape != values.shape:
-            raise ValueError("stop and continuation outcomes must be path-aligned")
         continuation = _fit_continuation(state, values)
-        exercise = immediate <= continuation
-        values = np.where(exercise, immediate, values)
+        immediate = {
+            action: np.asarray(sample, dtype=np.float64)
+            for action, sample in stop_values[time].items()
+        }
+        if not immediate or any(sample.shape != values.shape for sample in immediate.values()):
+            raise ValueError("stop and continuation outcomes must be non-empty and path-aligned")
+        action_values[time] = {
+            action: np.where(sample <= continuation, sample, values)
+            for action, sample in immediate.items()
+        }
+        best_stop = np.minimum.reduce(tuple(immediate.values()))
+        exercise = best_stop <= continuation
+        values = np.where(exercise, best_stop, values)
         decisions[time] = exercise
-    return values, decisions
+    return values, decisions, action_values
 
 
 def _score_option(values: NDArray[np.float64], risk_aversion: float = 0.5) -> float:
@@ -161,22 +186,24 @@ class LongstaffSchwartzPolicy:
             raise ValueError(f"The race is over for {driver}; choose an earlier cutoff")
         simulator = NumpySimulator(self._model, sc=self._sc, compounds=self._compounds)
         next_lap = state.laps_done_of(car) + 1
-        options = [c for c in self._compounds if c != (car.compound or "").upper()]
+        already_used = set(car.compounds_used)
+        if car.compound is not None:
+            already_used.add(car.compound.upper())
+        options = [c for c in self._compounds if len(already_used | {c}) >= 2]
         stop_laps = [
-            next_lap + delay for delay in range(6) if next_lap + delay <= state.laps_total - 1
+            next_lap + delay
+            for delay in range(6)
+            if next_lap + delay <= state.laps_total - MIN_STINT_LAPS
         ]
-        compound = options[0] if options else None
-        candidates = (
-            [
-                (
-                    "pit now" if delay == 0 else f"pit in {delay} lap(s)",
-                    Plan((stop_lap,), (compound,), 0.0),
-                )
-                for delay, stop_lap in enumerate(stop_laps)
-            ]
-            if compound is not None
-            else []
-        )
+        if car.stops_done >= 2:
+            stop_laps = []
+        candidates: list[tuple[str, Plan]] = []
+        if options:
+            for delay, stop_lap in enumerate(stop_laps):
+                label = "pit now" if delay == 0 else f"pit in {delay} lap(s)"
+                for name in options:
+                    action = f"{label} ({name})" if len(options) > 1 else label
+                    candidates.append((action, Plan((stop_lap,), (name,), 0.0)))
         stay_out = Plan((), (), 0.0)
         branches = {action: {driver: plan} for action, plan in candidates}
         branches["stay out"] = {driver: stay_out}
@@ -249,22 +276,18 @@ class LongstaffSchwartzPolicy:
         # Reverse-time Longstaff-Schwartz: each time step regresses aligned later-policy
         # outcomes on that cutoff's pathwise state, then exercises stop-now per scenario.
         feature_by_time = {t: path_features(t - 1) for t in future_stops}
-        stop_values_by_time = {
-            t: np.asarray(
-                branched[
-                    next(name for name, plan in candidates if plan.stop_laps == (t,))
-                ].result.finish_positions[:, column],
-                dtype=np.float64,
-            )
-            for t in future_stops
-        }
-        _, exercise_by_time = _backward_stop(feature_by_time, stop_values_by_time, stay_values)
-        # Reconstruct each requested future action's pathwise value from the same reverse pass.
-        value_after_wait: dict[int, NDArray[np.float64]] = {}
-        running = stay_values.copy()
-        for stop_lap in sorted(future_stops, reverse=True):
-            running = np.where(exercise_by_time[stop_lap], stop_values_by_time[stop_lap], running)
-            value_after_wait[stop_lap] = running.copy()
+        stop_values_by_time: dict[int, dict[str, NDArray[np.float64]]] = {}
+        for stop_lap in future_stops:
+            stop_values_by_time[stop_lap] = {
+                action: np.asarray(
+                    branched[action].result.finish_positions[:, column], dtype=np.float64
+                )
+                for action, plan in candidates
+                if plan.stop_laps == (stop_lap,)
+            }
+        _, _, value_after_wait = _backward_stop_options(
+            feature_by_time, stop_values_by_time, stay_values
+        )
 
         rows: list[RankedOption] = []
         for action, plan in candidates:
@@ -272,12 +295,7 @@ class LongstaffSchwartzPolicy:
             sample = (
                 np.asarray(branched[action].result.finish_positions[:, column], dtype=np.float64)
                 if stop_lap <= state.lap
-                else value_after_wait.get(
-                    stop_lap,
-                    np.asarray(
-                        branched[action].result.finish_positions[:, column], dtype=np.float64
-                    ),
-                )
+                else value_after_wait[stop_lap][action]
             )
             tail = _cvar10(sample)
             rows.append(
@@ -287,7 +305,7 @@ class LongstaffSchwartzPolicy:
                     float(sample.mean()),
                     float(sample.std()),
                     tail,
-                    float((1.0 - self._risk) * sample.mean() + self._risk * tail),
+                    _score_option(sample, self._risk),
                 )
             )
         stay_plan = stay_out
@@ -299,7 +317,7 @@ class LongstaffSchwartzPolicy:
                 float(stay_values.mean()),
                 float(stay_values.std()),
                 tail,
-                float((1.0 - self._risk) * stay_values.mean() + self._risk * tail),
+                _score_option(stay_values, self._risk),
             )
         )
         if not rows:

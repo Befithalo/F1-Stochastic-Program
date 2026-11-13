@@ -216,10 +216,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--lap", type=int, required=True, metavar="N", help="cutoff after leader lap N"
     )
     replay.add_argument(
-        "--n", type=int, default=50000, metavar="N", help="positive simulation count"
+        "--n",
+        type=int,
+        default=50000,
+        metavar="N",
+        help="positive simulation count (default 50000)",
     )
     replay.add_argument(
-        "--risk", type=float, default=0.5, metavar="R", help="risk blend in [0, 1] (default 0.5)"
+        "--risk",
+        type=float,
+        default=0.5,
+        metavar="R",
+        help=("risk aversion in [0, 1]: 0 weights mean, 1 weights worst-decile CVaR (default 0.5)"),
     )
     replay.add_argument("--seed", type=int, default=0, metavar="S", help="random seed (default 0)")
     return parser
@@ -933,7 +941,7 @@ def _cmd_replay(
         return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
     if lap < 0:
         return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
-    if isinstance(n_simulations, bool) or n_simulations < 1:
+    if isinstance(n_simulations, bool) or not isinstance(n_simulations, int) or n_simulations < 1:
         return _refuse(f"--n must be positive, got {n_simulations}. {try_line}")
     try:
         risk = _risk(risk_aversion)
