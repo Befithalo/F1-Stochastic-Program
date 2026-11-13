@@ -171,7 +171,9 @@ def test_strategy_replay_ignores_future_at_a_supported_cutoff(
     assert "strategy_replay" in CONSUMERS
     tables = _db.read_all_tables(long_synthetic_db)
     at = AsOf(LONG_RACE_ID, 35)
-    assert CONSUMERS["strategy_replay"](long_synthetic_db, at)[0] == "available"
+    replay_result = CONSUMERS["strategy_replay"](long_synthetic_db, at)
+    assert isinstance(replay_result, tuple)
+    assert replay_result[0] == "available"
     assert_no_lookahead(
         CONSUMERS["strategy_replay"],
         tables,

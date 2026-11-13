@@ -1,5 +1,6 @@
 """Selected-cutoff replay output and refusal behavior."""
 
+import argparse
 import unittest
 from contextlib import redirect_stderr
 from io import StringIO
@@ -77,8 +78,11 @@ def test_bad_replay_inputs_refuse_before_running(
 def test_replay_parser_defaults() -> None:
     args = build_parser().parse_args(["replay", "bahrain-2023", "--driver", "ALO", "--lap", "20"])
     assert (args.lap, args.n, args.risk) == (20, 50000, 0.5)
-    subparsers = build_parser()._subparsers._group_actions[0].choices
-    help_text = " ".join(subparsers["replay"].format_help().split())
+    parser = build_parser()
+    subparsers = next(
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+    )
+    help_text = " ".join(subparsers.choices["replay"].format_help().split())
     assert "[0, 1]" in help_text
     assert "default 0.5" in help_text
     assert "--risk-aversion" in help_text

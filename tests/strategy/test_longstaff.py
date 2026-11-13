@@ -1,9 +1,12 @@
 """Longstaff-Schwartz continuation, current-action ranking, and policy contracts."""
 
 import math
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 from f1si.interfaces import Plan
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel, _PathCheckpoint
@@ -19,7 +22,14 @@ from f1si.strategy.longstaff import (
 
 
 class FlatPace:
-    def predict(self, *, driver, compound, tire_age, lap):
+    def predict(
+        self,
+        *,
+        driver: NDArray[np.int64],
+        compound: NDArray[np.str_],
+        tire_age: NDArray[np.int64],
+        lap: NDArray[np.int64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         return np.full(lap.shape, 90.0), np.full(lap.shape, 0.2)
 
 
@@ -82,7 +92,9 @@ def test_branch_paths_share_indexed_draws_and_default_result_shape() -> None:
     stayed = outcomes["stay"].result
     assert stopped.finish_positions.shape == stayed.finish_positions.shape == (32, 2)
     np.testing.assert_array_equal(stopped.sc_lap_mask, stayed.sc_lap_mask)
-    assert outcomes["stay"].checkpoints[11].order.shape == (32, 2)
+    order = outcomes["stay"].checkpoints[11].order
+    assert order is not None
+    assert order.shape == (32, 2)
     default_result = simulator.simulate(
         race, n_races=32, rng=np.random.default_rng(13), plans={"AAA": Plan((), (), 0.0)}
     )
@@ -187,17 +199,24 @@ def test_reason_is_one_stable_score_grounded_sentence() -> None:
 
 def test_tied_options_have_stable_action_order(monkeypatch: pytest.MonkeyPatch) -> None:
     class SameOutcomeSimulator:
-        def __init__(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        def __init__(self, *args: object, **kwargs: object) -> None:
             pass
 
         def _branch_paths(
-            self, checkpoint, *, actions, n_races, rng, checkpoint_laps, capture_actions
-        ):  # type: ignore[no-untyped-def]
+            self,
+            checkpoint: _PathCheckpoint,
+            *,
+            actions: Mapping[str, Mapping[str, Plan]],
+            n_races: int,
+            rng: np.random.Generator,
+            checkpoint_laps: Sequence[int],
+            capture_actions: Sequence[str],
+        ) -> dict[str, Any]:
             from types import SimpleNamespace
 
-            outcomes = {}
+            outcomes: dict[str, Any] = {}
             for name in actions:
-                checkpoints = (
+                checkpoints: dict[int, Any] = (
                     {
                         cutoff: SimpleNamespace(
                             order=np.tile(np.array([[0, 1]], dtype=np.int64), (n_races, 1)),

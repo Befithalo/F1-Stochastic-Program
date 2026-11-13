@@ -232,45 +232,53 @@ class LongstaffSchwartzPolicy:
                 checkpoint_state = branched["stay out"].checkpoints.get(cutoff)
             n = self._n
             if checkpoint_state is None:
-                pos = float(car.position or len(state.cars))
-                gap = 0.0 if car.gap_ahead_s is None else float(car.gap_ahead_s)
-                age = float(car.tire_age)
-                stops = float(car.stops_done)
-                sc = float(state.regime.get("sc", 0.0) >= 0.5)
+                position = float(car.position or len(state.cars))
+                gap_to_lead = 0.0 if car.gap_ahead_s is None else float(car.gap_ahead_s)
+                tire_age = float(car.tire_age)
+                stops_done = float(car.stops_done)
+                safety_car = float(state.regime.get("sc", 0.0) >= 0.5)
                 return np.tile(
                     np.asarray(
                         [
                             [
-                                pos / len(state.cars),
-                                gap / 60.0,
-                                age / max(1, state.laps_total),
+                                position / len(state.cars),
+                                gap_to_lead / 60.0,
+                                tire_age / max(1, state.laps_total),
                                 (state.laps_total - cutoff) / state.laps_total,
-                                stops / 3.0,
-                                sc,
+                                stops_done / 3.0,
+                                safety_car,
                             ]
                         ]
                     ),
                     (n, 1),
                 )
+            if (
+                checkpoint_state.order is None
+                or checkpoint_state.clock is None
+                or checkpoint_state.tire_age is None
+                or checkpoint_state.stops_done is None
+                or checkpoint_state.safety_car_remaining is None
+            ):
+                raise RuntimeError("simulator path checkpoint is missing Longstaff features")
             order = checkpoint_state.order
             ranks = np.empty_like(order)
             place_numbers = np.broadcast_to(np.arange(1, len(state.cars) + 1), order.shape)
             np.put_along_axis(ranks, order, place_numbers, axis=1)
-            place = ranks[:, column].astype(np.float64)
+            place_by_path = ranks[:, column].astype(np.float64)
             clocks = checkpoint_state.clock
-            gap = np.maximum(0.0, clocks[:, column] - clocks.min(axis=1))
-            age = checkpoint_state.tire_age[:, column].astype(np.float64)
-            stops = checkpoint_state.stops_done[:, column].astype(np.float64)
-            remaining = np.full(n, (state.laps_total - cutoff) / state.laps_total)
-            sc = (checkpoint_state.safety_car_remaining > 0).astype(np.float64)
+            gap_by_path = np.maximum(0.0, clocks[:, column] - clocks.min(axis=1))
+            age_by_path = checkpoint_state.tire_age[:, column].astype(np.float64)
+            stops_by_path = checkpoint_state.stops_done[:, column].astype(np.float64)
+            remaining_by_path = np.full(n, (state.laps_total - cutoff) / state.laps_total)
+            sc_by_path = (checkpoint_state.safety_car_remaining > 0).astype(np.float64)
             return np.column_stack(
                 (
-                    place / len(state.cars),
-                    gap / 60.0,
-                    age / max(1, state.laps_total),
-                    remaining,
-                    stops / 3.0,
-                    sc,
+                    place_by_path / len(state.cars),
+                    gap_by_path / 60.0,
+                    age_by_path / max(1, state.laps_total),
+                    remaining_by_path,
+                    stops_by_path / 3.0,
+                    sc_by_path,
                 )
             )
 
