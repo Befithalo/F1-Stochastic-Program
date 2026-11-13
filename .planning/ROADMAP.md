@@ -9,7 +9,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
 - [x] **Phase 1: Foundation & Data** - Repo, CI, seeded randomness, DuckDB cache, lap-time-by-stint plot, as-of accessor with look-ahead test (completed 2026-10-22)
 - [x] **Phase 2: Interfaces, Linear Tire Wear & Free-Track Optimizer** - Protocols and RaceState, fuel-corrected linear wear, brute-force 1/2-stop plan (completed 2026-11-12)
 - [x] **Phase 3: Monte Carlo Simulator** - Vectorized NumPy simulator, 50,000 races under 10 s, variance reduction, constant SC probability (completed 2026-11-12)
-- [ ] **Phase 4: Kalman Tire Filter** - Hidden tire wear estimated per car with uncertainty, verified on synthetic stints
+- [x] **Phase 4: Kalman Tire Filter** - Hidden tire wear estimated per car with uncertainty, verified on synthetic stints (completed 2026-11-13)
 - [ ] **Phase 5: Longstaff-Schwartz Strategy & Live Replay** - Ranked pit options with CVaR, risk setting, reasons, Bahrain 2023 replay end to end
 - [ ] **Phase 6: MVP Backtest, Streamlit View & README** - 10-race walk-forward backtest, team-call comparison, one-page view, README with real results
 - [ ] **Phase 7: Bayesian Pace Model** - Hierarchical PyMC pace model with era effect, recovered on synthetic data, beats linear baseline
@@ -164,7 +164,7 @@ Plans:
   3. On synthetic stints the 95% intervals contain the true value about 95% of the time
   4. The filter's wear mean and sd populate the `RaceState` fields the simulator reads
 
-**Plans:** 4/5 plans executed
+**Plans:** 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -185,7 +185,7 @@ Plans:
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 04-05-PLAN.md — Real Bahrain 2023 run and opt-in test, explainer, README, full gate (wave 5)
+- [x] 04-05-PLAN.md — Real Bahrain 2023 run and opt-in test, explainer, README, full gate (wave 5)
 
 ### Phase 5: Longstaff-Schwartz Strategy & Live Replay
 
@@ -258,7 +258,7 @@ Plans:
 | 1. Foundation & Data | 11/11 | Complete   | 2026-10-22 |
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
-| 4. Kalman Tire Filter | 4/5 | In Progress|  |
+| 4. Kalman Tire Filter | 5/5 | Complete   | 2026-11-13 |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |
