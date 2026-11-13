@@ -3,13 +3,15 @@
 Lap-time model. For driver `d` on lap `L` (1-based) with tyre compound `c` and `a` laps on the
 tyres at the end of the lap:
 
-    t(d, L) = base + offset_d + fuel * (L - 1) + wear[c] * a + eps(d, L)
+    t(d, L) = base + offset_d + fuel * (L - 1) + (wear[c] + dev_d) * a + eps(d, L)
               + start(d) * [L = 1] + pit_loss * [L is an out-lap after a stop]
 
 then multiplied by `vsc_slowdown_factor` on virtual-safety-car laps and by `sc_slowdown_factor`
 on safety-car laps. Here `offset_d = i * gap`
 for the driver at index `i`, `fuel` is negative (the car gets lighter), `wear[c]` is the
-degradation in seconds per lap on compound `c`, `eps ~ Normal(0, noise_sd)` is i.i.d. noise and
+degradation in seconds per lap on compound `c`, `dev_d` is the optional per-driver wear-rate
+deviation (`wear_rate_deviation_s_per_lap`, default 0, no random draw),
+`eps ~ Normal(0, noise_sd)` is i.i.d. noise and
 `start(d) = 3.0 + 0.2 * i` on lap 1 (a standing start costs time), or `3.0 + 5.0` for a pit-lane
 starter. A lap's end is its start plus its time; the next lap starts where this one ended and
 lap 1 starts at the race clock's zero (lights out).
@@ -86,6 +88,7 @@ class SyntheticRaceSpec:
     retire_after_lap: int | None = None
     pit_lane_start_index: int | None = None
     race_start_utc: datetime | None = None
+    wear_rate_deviation_s_per_lap: Mapping[int, float] = field(default_factory=dict)
 
     def sc_windows(self) -> tuple[tuple[int, int], ...]:
         """(first lap, last lap) of every safety-car period, validated.
@@ -142,6 +145,7 @@ class SyntheticTruth:
     pit_laps: Mapping[int, tuple[int, ...]]
     vsc_laps: tuple[int, ...]
     sc_laps: tuple[int, ...] = ()
+    driver_wear_rate_s_per_lap: Mapping[int, Mapping[str, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -296,6 +300,13 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
     """Generate one synthetic race with the lap-time model in the module docstring."""
     ref = _ref(spec)
     wear = dict(spec.wear_rate_s_per_lap)
+    dev = dict(spec.wear_rate_deviation_s_per_lap)
+    for key, value in dev.items():
+        if not 0 <= key < spec.n_drivers or not np.isfinite(value):
+            raise ValueError(
+                f"wear_rate_deviation_s_per_lap entry {key!r}: {value!r} needs a driver index in "
+                f"0..{spec.n_drivers - 1} and a finite value"
+            )
     # All lap noise first, driver-major, so the stream layout does not depend on later branching.
     noise = rng.normal(0.0, spec.noise_sd_s, size=(spec.n_drivers, spec.n_laps))
 
@@ -346,7 +357,7 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
                 spec.base_lap_time_s
                 + offset
                 + spec.fuel_effect_s_per_lap * (lap - 1)
-                + wear[compound] * tyre_life
+                + (wear[compound] + dev.get(i, 0.0)) * tyre_life
                 + float(noise[i, lap - 1])
             )
             if lap == 1:
@@ -409,6 +420,9 @@ def generate_race(spec: SyntheticRaceSpec, *, rng: np.random.Generator) -> Synth
         pit_laps=pit_laps,
         vsc_laps=spec.vsc_laps,
         sc_laps=spec.sc_laps,
+        driver_wear_rate_s_per_lap={
+            10 + i: {c: r + dev.get(i, 0.0) for c, r in wear.items()} for i in range(spec.n_drivers)
+        },
     )
     return SyntheticRace(spec=spec, truth=truth, race=NormalizedRace(ref=ref, tables=tables))
 

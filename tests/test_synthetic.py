@@ -272,3 +272,67 @@ def test_non_positive_sc_slowdown_raises() -> None:
     spec = SyntheticRaceSpec(2023, 1, "Sc Grand Prix", sc_laps=(3,), sc_slowdown_factor=0.0)
     with pytest.raises(ValueError, match="sc_slowdown_factor"):
         spec.sc_windows()
+
+
+# sha256 of the pandas-hashed laps table, captured before the wear-deviation field existed.
+_DEFAULT_LAPS_HASHES = (
+    "adc62075c363c9d71839ce3c58e4bc1c0a524ad45f6df5cac9cc32036b68e966",
+    "4652d679ac836f0a405f91d58cd8373f5f353e7e3a17830cac58b0a93eea5351",
+    "be291ec1298b09781bcc77689020ace47feaade3702afb2f18e92fc9df2701ff",
+    "63fc25cc057e8bc32362d8d7a908a55be435cff1fa174bfea78894f622cfd3c7",
+)
+_LONG_LAPS_HASH = "b37c7035f6beb08dee80412ed0a3cf17a796bcbc3a539b0620020d227651d941"
+_LONG_SPEC = SyntheticRaceSpec(
+    2023, 1, "Long Grand Prix", n_drivers=20, n_laps=57, start_tyre_age=3
+)
+
+
+def _laps_hash(race: SyntheticRace) -> str:
+    laps = race.race.tables["laps"]
+    return hashlib.sha256(
+        pd.util.hash_pandas_object(laps, index=True).to_numpy().tobytes()
+    ).hexdigest()
+
+
+def test_default_fixtures_are_byte_identical_without_deviations() -> None:
+    default = generate_dataset(default_specs(), rng=make_rng(DEFAULT_SEED))
+    assert tuple(_laps_hash(r) for r in default) == _DEFAULT_LAPS_HASHES
+    long = generate_dataset([_LONG_SPEC], rng=make_rng(DEFAULT_SEED))
+    assert _laps_hash(long[0]) == _LONG_LAPS_HASH
+
+
+def test_wear_deviation_changes_only_its_driver() -> None:
+    base = SyntheticRaceSpec(2023, 1, "Dev Grand Prix", n_drivers=3, n_laps=12)
+    dev = SyntheticRaceSpec(
+        2023, 1, "Dev Grand Prix", n_drivers=3, n_laps=12, wear_rate_deviation_s_per_lap={0: 0.03}
+    )
+    a = generate_dataset([base], rng=make_rng(5))[0].race.tables["laps"]
+    b = generate_dataset([dev], rng=make_rng(5))[0].race.tables["laps"]
+    for number in (10, 11, 12):
+        ta = a[a["driver_number"] == number].reset_index(drop=True)
+        tb = b[b["driver_number"] == number].reset_index(drop=True)
+        diff = tb["lap_time_s"] - ta["lap_time_s"]
+        if number == 10:
+            np.testing.assert_allclose(diff, 0.03 * ta["tyre_life"], atol=1e-9)
+        else:
+            assert (diff == 0.0).all()
+
+
+def test_truth_exposes_per_driver_wear_rates() -> None:
+    spec = SyntheticRaceSpec(
+        2023, 1, "Dev Grand Prix", n_drivers=3, wear_rate_deviation_s_per_lap={1: -0.01}
+    )
+    truth = generate_dataset([spec], rng=make_rng(5))[0].truth
+    assert set(truth.driver_wear_rate_s_per_lap) == {10, 11, 12}
+    for compound, rate in truth.wear_rate_s_per_lap.items():
+        assert truth.driver_wear_rate_s_per_lap[10][compound] == pytest.approx(rate)
+        assert truth.driver_wear_rate_s_per_lap[11][compound] == pytest.approx(rate - 0.01)
+
+
+@pytest.mark.parametrize("bad", [{3: 0.01}, {-1: 0.01}, {0: float("nan")}, {0: float("inf")}])
+def test_invalid_wear_deviation_raises(bad: dict[int, float]) -> None:
+    spec = SyntheticRaceSpec(
+        2023, 1, "Dev Grand Prix", n_drivers=3, wear_rate_deviation_s_per_lap=bad
+    )
+    with pytest.raises(ValueError, match="wear_rate_deviation_s_per_lap"):
+        generate_dataset([spec], rng=make_rng(5))
