@@ -14,6 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from f1si.interfaces import DRY_COMPOUNDS, PaceModel, PitDecision, Plan
+from f1si.rng import make_rng
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel, _PathCheckpoint
 from f1si.state import RaceState
 from f1si.strategy.free_track import MIN_STINT_LAPS
@@ -214,7 +215,7 @@ class LongstaffSchwartzPolicy:
             checkpoint,
             actions=branches,
             n_races=self._n,
-            rng=np.random.default_rng(self._seed),
+            rng=make_rng(self._seed),
             checkpoint_laps=capture_cutoffs,
             capture_actions=("stay out",),
         )
