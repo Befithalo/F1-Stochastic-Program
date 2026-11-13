@@ -11,6 +11,7 @@ PHASE1 = ROOT / "docs" / "explained" / "phase-01.md"
 PHASE2 = ROOT / "docs" / "explained" / "phase-02.md"
 PHASE3 = ROOT / "docs" / "explained" / "phase-03.md"
 PHASE4 = ROOT / "docs" / "explained" / "phase-04.md"
+PHASE5 = ROOT / "docs" / "explained" / "phase-05.md"
 README = ROOT / "README.md"
 
 HEADINGS = (
@@ -96,6 +97,15 @@ def test_readme_commands_and_links() -> None:
         "hindsight",
         "hindsight simulation",
         "prior only",
+        "uv run f1si replay bahrain-2023 --driver ALO",
+        "uv run f1si replay bahrain-2023 --driver ALO --lap 20",
+        "--risk-aversion",
+        "positive simulation count",
+        "0 to one less than the race lap count",
+        "default 50,000",
+        "[0, 1]",
+        "default 0.5",
+        "docs/explained/phase-05.md",
         "DECISIONS.md",
     ):
         assert needle in readme, needle
@@ -161,3 +171,54 @@ def test_phase4_tour_names_new_modules_and_tests() -> None:
         "tests/guards/consumers.py",
     ):
         assert path in tour, path
+
+
+def test_phase5_tour_names_strategy_replay_guards_and_docs() -> None:
+    tour = _section(_text(PHASE5), "## File-by-file tour")
+    for path in (
+        "src/f1si/strategy/longstaff.py",
+        "src/f1si/sim/numpy_backend.py",
+        "src/f1si/cli.py",
+        "tests/strategy/test_longstaff.py",
+        "tests/test_cli_replay.py",
+        "tests/guards/consumers.py",
+        "tests/guards/scramble.py",
+        "tests/guards/test_future_scramble.py",
+        "tests/conformance/registry.py",
+        "tests/conformance/test_suites.py",
+        "tests/test_docs.py",
+        "tests/test_decisions_log.py",
+        "DECISIONS.md",
+    ):
+        assert path in tour, path
+
+
+def test_phase5_explainer_distinguishes_continuation_from_action_ranking() -> None:
+    text = _text(PHASE5)
+    for phrase in (
+        "conditional-mean continuation",
+        "CVaR-aware current-cutoff ranking",
+        "does not make this dynamically CVaR-optimal",
+        "double-counting",
+        "Phase 6",
+    ):
+        assert phrase in text
+
+
+def test_phase5_decisions_record_assumptions_and_revisit_path() -> None:
+    text = (ROOT / "DECISIONS.md").read_text(encoding="utf-8")
+    for phrase in (
+        "DEC-096",
+        "DEC-097",
+        "DEC-098",
+        "DEC-099",
+        "[ASSUMED]",
+        "conditional-mean",
+        "CVaR10",
+        "branch",
+        "tie",
+        "Phase 6",
+        "double-counting",
+        "revisit",
+    ):
+        assert phrase in text

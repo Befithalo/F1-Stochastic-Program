@@ -81,6 +81,18 @@ def test_replay_parser_defaults() -> None:
     help_text = subparsers["replay"].format_help()
     assert "[0, 1]" in help_text
     assert "default 0.5" in help_text
+    assert "--risk-aversion" in help_text
+    assert "default 50000" in help_text
+    assert "0 to one less than the race lap count" in help_text
+    assert "catalog (for example bahrain-2023)" in help_text
+    assert "known driver code for that race" in help_text
+
+
+def test_replay_parser_accepts_risk_aversion_alias() -> None:
+    args = build_parser().parse_args(
+        ["replay", "bahrain-2023", "--driver", "ALO", "--risk-aversion", "0.25"]
+    )
+    assert args.risk == 0.25
 
 
 def test_replay_parser_allows_full_series() -> None:
