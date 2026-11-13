@@ -93,6 +93,30 @@ def test_invalid_replay_values_are_refused_before_state_or_simulation(
 
     monkeypatch.setattr(cli, "build_race_state", forbidden)
     monkeypatch.setattr(NumpySimulator, "_simulate", forbidden)
+    assert (
+        _run(
+            long_synthetic_data_dir,
+            "replay",
+            "not-a-race-2023",
+            "--driver",
+            "AAA",
+            "--lap",
+            "10",
+        )
+        == 1
+    )
+    assert (
+        _run(
+            long_synthetic_data_dir,
+            "replay",
+            LONG_SLUG,
+            "--driver",
+            "ZZZ",
+            "--lap",
+            "10",
+        )
+        == 1
+    )
     assert _run(long_synthetic_data_dir, "replay", LONG_SLUG, "--driver", "AAA", "--lap", "-1") == 1
     assert (
         _run(
