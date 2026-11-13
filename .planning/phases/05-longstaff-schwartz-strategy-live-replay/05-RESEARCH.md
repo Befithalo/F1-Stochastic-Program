@@ -61,7 +61,7 @@ Descriptions copied from [VERIFIED: .planning/REQUIREMENTS.md:52-55 — `Longsta
 - Start file changes through a GSD workflow command. CLAUDE.md says to use `/gsd-quick` for small fixes and docs, `/gsd-debug` for investigations, and `/gsd-execute-phase` for planned execution; do not edit outside a GSD workflow unless explicitly asked.
 - The owner is new to coding; provide a plain-language explanation after each phase.
 - Respect the documented Windows development environment, existing Python package conventions, no-look-ahead rule, explicit seeded NumPy generators, and CI quality gate.
-- Project skill directories `.claude/skills/` and `.agents/skills/` and root `AGENTS.md` were checked; none were present.
+- Project skill directories `.claude/skills/` and `.agents/skills/` and root `AGENTS.md` were checked; none were present. [VERIFIED: project directory probe.]
 
 ## Summary
 
@@ -69,7 +69,7 @@ Implement a Longstaff–Schwartz policy that estimates continuation value by reg
 
 For ranking, retain shared scenarios across the competing actions, then report mean finishing position, spread, CVaR@10%, and the user-selected blended score. Lower positions are better, so compute and sort all objective values consistently as costs. [VERIFIED: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-CONTEXT.md:22 — “Rank options by a blend of expected finishing position and worst-decile CVaR, with lower values better.”] Make the blend, empirical tail convention for ties, stable tie-break, default risk setting, regression basis, fallback on an unstable regression, and reason-rule thresholds explicit implementation decisions. The linear blend formula and thresholds are not fully locked and remain assumptions for discussion or easy later revision.
 
-Replay should mirror the established wear-filter path: for each requested lap cutoff rebuild the snapshot, fit, filter result, and `RaceState` from that cutoff; use that state for one recommendation; and never pass the accessor into the strategy or simulator. [VERIFIED: DECISIONS.md:1045-1047 — “builds a fresh `RaceSnapshot` with `AsOfAccessor.snapshot(AsOf(race, L))` for every cutoff L = 1..N”; “The accessor stays in cli.py; only `RaceSnapshot` and `LinearPaceFit` reach the filter”; “Reusing one fit would be faster but would leak the future into every earlier lap.”] Current environment note: `uv` is installed, but `uv run python --version` could not spawn Python because Windows Application Control blocked the child process (OS error 4551); plan verification accordingly.
+Replay should mirror the established wear-filter path: for each requested lap cutoff rebuild the snapshot, fit, filter result, and `RaceState` from that cutoff; use that state for one recommendation; and never pass the accessor into the strategy or simulator. [VERIFIED: DECISIONS.md:1045-1047 — “builds a fresh `RaceSnapshot` with `AsOfAccessor.snapshot(AsOf(race, L))` for every cutoff L = 1..N”; “The accessor stays in cli.py; only `RaceSnapshot` and `LinearPaceFit` reach the filter”; “Reusing one fit would be faster but would leak the future into every earlier lap.”] Current environment note: `uv` is installed, but `uv run python --version` could not spawn Python because Windows Application Control blocked the child process (OS error 4551). [VERIFIED: environment probe.]
 
 **Primary recommendation:** Use an explicit backward stopping recursion with small least-squares continuation regressions over shared simulator paths; add only the minimal path/state outputs the regression needs; retain existing interfaces and as-of replay architecture.
 
@@ -81,8 +81,8 @@ The public decision output also needs a planning decision: `PitDecision` current
 |------------|-------------|----------------|-----------|
 | Pit-now versus wait valuation | API / Backend | — | Pure policy computation over `RaceState` and injected model/simulator; strategy has no data accessor. [VERIFIED: src/f1si/interfaces.py:167-175 — “The state is never mutated.”] |
 | Monte Carlo continuation scenarios | API / Backend | — | Simulator owns stochastic race evolution and accepts an explicit generator. [VERIFIED: src/f1si/interfaces.py:180-190 — simulator signature accepts `rng: np.random.Generator`.] |
-| Replay cutoff preparation | API / Backend | Database / Storage | CLI/replay driver owns `AsOfAccessor`; storage provides snapshots and history. [VERIFIED: 05-CONTEXT.md — “its replay driver owns the AsOfAccessor”.] |
-| Human-readable recommendation and table | API / Backend | — | Existing `f1si` CLI owns parsing and friendly refusal patterns. [VERIFIED: 05-CONTEXT.md — “Use the existing CLI command and plain-text table patterns”; “return a friendly refusal instead of exposing a traceback for expected data limitations.”] |
+| Replay cutoff preparation | API / Backend | Database / Storage | CLI/replay driver owns `AsOfAccessor`; storage provides snapshots and history. [VERIFIED: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-CONTEXT.md:89 — “its replay driver owns the AsOfAccessor”.] |
+| Human-readable recommendation and table | API / Backend | — | Existing `f1si` CLI owns parsing and friendly refusal patterns. [VERIFIED: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-CONTEXT.md:26,85 — “Use the existing CLI command and plain-text table patterns”; “return a friendly refusal instead of exposing a traceback for expected data limitations.”] |
 
 ## Standard Stack
 
@@ -139,7 +139,7 @@ The diagram reflects the locked separation: the replay driver holds the accessor
 
 ### Recommended Project Structure
 
-Follow existing `src/f1si/` layout and module boundaries rather than introducing a new package tier. A new `src/f1si/strategy/` policy module is explicitly the intended home; replay composition belongs in `src/f1si/cli.py` or a replay driver module that keeps accessor ownership. [VERIFIED: 05-CONTEXT.md — “Add the Longstaff-Schwartz policy under src/f1si/strategy/” and “Add f1si replay through src/f1si/cli.py; its replay driver owns the AsOfAccessor”.]
+Follow existing `src/f1si/` layout and module boundaries rather than introducing a new package tier. A new `src/f1si/strategy/` policy module is explicitly the intended home; replay composition belongs in `src/f1si/cli.py` or a replay driver module that keeps accessor ownership. [VERIFIED: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-CONTEXT.md:88-89 — “Add the Longstaff-Schwartz policy under src/f1si/strategy/” and “Add f1si replay through src/f1si/cli.py; its replay driver owns the AsOfAccessor”.]
 
 ### Pattern 1: Discrete Longstaff–Schwartz backward induction
 
@@ -166,6 +166,8 @@ The pseudo-code is conceptual, not an API contract. It captures the direction of
 **What:** Compare options under the same random scenarios. The existing simulator already generates unconditional draws indexed by race, car and lap, and its draw dimensions for wear are kept fixed when plans are forced. [VERIFIED: src/f1si/sim/numpy_backend.py:28-39 — “Every draw is indexed by (race, car, lap) and generated unconditionally”; “wear normals use a fixed slot per canonical compound name (`DRAW_COMPOUNDS`), so the dimension and every compound's draw are the same whatever plans are forced”.]
 
 **When to use:** For pit-now, each fixed-delay candidate, stay-out, and continuation targets, where the simulator permits forcing comparable options. The policy owns/reset-derives its seed per decision so the conformance contract that repeated `decide` calls are identical still holds. [VERIFIED: src/f1si/interfaces.py:167-175 — `class StrategyPolicy(Protocol):`; “Deterministic: the contract has no rng. The state is never mutated.”] Keep Monte Carlo sample size/draw layout stable across actions.
+
+For common random numbers across separate simulator calls, initialize a fresh generator for each alternative from the same stable decision seed. Reusing and advancing one generator sequentially would give each alternative a different random block; derive the seed from policy configuration plus decision identity or use a deterministic state seed, then reconstruct it per candidate. `[ASSUMED]` The seed derivation is an implementation detail and should not alter the public protocol.
 
 **Numerical note:** SciPy’s current Sobol guidance recommends `random_base2` for `2**m` samples to preserve balance and warns that arbitrary sample sizes, skipping the first point, or thinning loses the balance properties. [CITED: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.qmc.Sobol.html] The project already fixes variance-reduction conventions; do not change those as part of the policy without a measured reason.
 
@@ -220,13 +222,20 @@ The pseudo-code is conceptual, not an API contract. It captures the direction of
 **Why it happens:** Blend scaling is unspecified and reason thresholds are discretionary.  
 **How to avoid:** Use a transparent, documented blend on the same position scale (for example `(1-risk)*mean + risk*CVaR`, explicitly an `[ASSUMED]` formula pending confirmation); test endpoints and a constructed case where ranking flips. Reasons must be deterministic and grounded in visible state plus score differences; use a score-based sentence when no specific cause is supported. Do not claim a cliff or predict an unobserved regime per D-06.
 
-### Pitfall 6: Incorrect pit legality or lap semantics at boundaries
+### Pitfall 6: Treating static CVaR ranking as dynamic CVaR-optimal stopping
+
+**What goes wrong:** An LSM recursion that fits expected continuation position and then ranks the final options by CVaR does not by itself prove the policy is optimal under a tail-risk objective.  
+**Why it happens:** LSM continuation regression estimates a conditional expectation, while CVaR describes a tail functional over a distribution of outcomes; these are different objects. [CITED: https://academic.oup.com/rfs/article/14/1/113/1587472; https://sites.math.washington.edu/~rtr/papers/rtr179-CVaR1.pdf]  
+**How to avoid:** Explicitly scope the MVP interpretation: either LSM learns expected-position continuation and CVaR only ranks the current cutoff’s candidate action distributions, or define a dynamic, time-consistent risk recursion and extra state it requires. Do not claim the first design is dynamically CVaR-optimal. [ASSUMED: this consequence follows from combining the LSM conditional-expectation method with static tail-risk ranking.]  
+**Warning signs:** Risk changes only printed scores while the decision logic is described as “CVaR-optimal” without showing how tail risk enters continuation values.
+
+### Pitfall 7: Incorrect pit legality or lap semantics at boundaries
 
 **What goes wrong:** “Pit now” means the leader’s next lap instead of the driver’s own next lap, or a delayed stop becomes illegal / impossible when fewer race laps remain.  
 **Why it happens:** At one cutoff cars can have different `laps_done`; existing plan rules enforce stint minimums and dry-compound usage.  
 **How to avoid:** Reuse `state.laps_done_of(car)` and existing plan legality; enumerate only feasible actions, document how unavailable candidates are represented in ranked output, and handle race-over/last-lap/no-legal-action cases with the established friendly refusal style. [VERIFIED: src/f1si/strategy/free_track.py:5-12 — “A car that has completed N laps (`RaceState.laps_done_of(car)`) is planned from its own next lap”; “pit now is k = N+1”.]
 
-### Pitfall 7: Seeded output confused with cross-platform bitwise identity
+### Pitfall 8: Seeded output confused with cross-platform bitwise identity
 
 **What goes wrong:** Tests promise identical stochastic arrays across all machines or dependency builds.  
 **Why it happens:** “Seeded” is interpreted as unlimited stream compatibility.  
@@ -252,7 +261,7 @@ The pseudo-code is conceptual, not an API contract. It captures the direction of
 | STR-03 | Risk endpoints and intermediate setting alter score/ranking as defined and remain deterministic | unit | `uv run pytest -q tests/strategy/test_longstaff.py -k risk` | Add Phase 5 tests. |
 | STR-04 | One-sentence reason deterministic and claims supported by state/simulation; unsupported narrative falls back to score | unit | `uv run pytest -q tests/strategy/test_longstaff.py -k reason` | Add Phase 5 tests. |
 | RPL-01 | All cutoffs and selected `--lap N` replay use same-cutoff fit/filter/state and honor driver lap count | integration + future-scramble guard | `uv run pytest -q tests/test_cli_replay.py tests/guards/test_future_scramble.py` | Add replay tests; guard exists at `tests/guards/test_future_scramble.py`. |
-| RPL-02 | Cached Bahrain 2023 completes end-to-end; outputs recommendations and expected friendly refusals | smoke / manual CLI | `uv run f1si replay bahrain-2023 --driver ALO` | Add CLI end-to-end test and perform one manual run when Python execution is available. |
+| RPL-02 | Cached Bahrain 2023 completes end-to-end; outputs recommendations and expected friendly refusals | smoke / manual CLI | `uv run f1si replay <race> --driver <driver>` | Add CLI end-to-end test and perform one manual run when Python execution is available. |
 
 **Existing contract evidence:** `check_strategy_policy` verifies structural protocol, `PitDecision` return, no state mutation, repeated-call determinism, correct driver/lap, legal compounds, and that `best_plan` is first in `ranked_plans`. [VERIFIED: tests/conformance/suites.py:115-150 — “decision = policy.decide(state, driver=case.driver)”; “determinism: the same state gave different decisions”; “best_plan != ranked_plans[0]”.] Add its invocation for the new policy instead of duplicating these checks.
 
@@ -295,9 +304,9 @@ Security enforcement is enabled because `.planning/config.json` does not set `se
 
 | Dependency | Required By | Available | Version | Fallback |
 |------------|------------|-----------|---------|----------|
-| `uv` | Python env and test commands | yes | `0.13.5` | — |
-| Python runtime | Strategy, replay, pytest, lint/typecheck | blocked | Probe `uv run python --version` failed: “An Application Control policy has blocked this file. (os error 4551)” | Run validation in CI/another authorized Python environment; local end-to-end execution remains blocked until runtime is available. |
-| Cached race data | Bahrain 2023 replay | data directory exists | not probed | Expected friendly refusal if cache entry is missing; load using established data workflow. |
+| `uv` | Python env and test commands | yes | `0.13.5` [VERIFIED: `uv --version` probe] | — |
+| Python runtime | Strategy, replay, pytest, lint/typecheck | blocked | Probe `uv run python --version` failed: “An Application Control policy has blocked this file. (os error 4551)” [VERIFIED: runtime probe] | Run validation in CI/another authorized Python environment; local end-to-end execution remains blocked until runtime is available. |
+| Cached race data | Bahrain 2023 replay | data directory exists | not probed [VERIFIED: `Test-Path data` probe] | Expected friendly refusal if cache entry is missing; load using established data workflow. |
 
 **Missing dependencies with no local fallback:** Python execution is blocked in this environment by Application Control. The planner should make an available CI/runner validation step explicit and avoid treating a CLI run here as completed.
 
@@ -344,6 +353,7 @@ Keep reason thresholds stable, centralized and documented. Never infer an unobse
 | A2 | Use fractional boundary weighting for empirical worst-decile CVaR when the sample has tied integer finishes or its size is not divisible by ten. | Code Examples | Different estimator conventions can produce slightly different tail scores and option ranks. |
 | A3 | A compact normalized basis plus rank/finite checks and a simple fallback is sufficient for this MVP’s simulated continuation regression. | Pattern 1 / Pitfall 3 | Basis may omit predictive state or regressions may be unstable; use synthetic recovery and seed/sample sensitivity. |
 | A4 | Python execution remains blocked locally until environment policy changes; CI/another runner can perform execution checks. | Environment Availability | If CI also lacks supported Python, planning must include a runtime setup resolution before execution. |
+| A5 | CVaR may be used only to rank candidate distributions at the current cutoff while LSM regression optimizes conditional mean position. | Pitfall 6 | This scope can satisfy the reported risk ranking but is not a dynamic CVaR-optimal policy; clarify desired claim before locking the implementation. |
 
 ## Open Questions
 
@@ -351,11 +361,15 @@ Keep reason thresholds stable, centralized and documented. Never infer an unobse
    - What we know: `SimulationResult` provides final outcomes and optional cumulative clocks; current `StrategyPolicy` receives only `RaceState`.
    - What's unclear: Whether a minimal trailing diagnostics addition, internal simulator method, or separate path result best supports the LSM regression.
    - Recommendation: Planner should inspect the simulator kernel and choose the smallest typed extension; preserve `decide(state, *, driver)` and conformance contracts.
-2. **Which risk blend and exact default risk value should the CLI use?**
+2. **Where does CVaR enter the stopping recursion?**
+   - What we know: LSM estimates expected continuation value, while the decision also reports and blends tail risk.
+   - What's unclear: Whether risk appetite should affect only the current cutoff’s ranking of complete option distributions or the continuation rule itself.
+   - Recommendation: State the MVP interpretation explicitly and avoid labeling it dynamically CVaR-optimal unless a dynamic risk recursion is implemented.
+3. **Which risk blend and exact default risk value should the CLI use?**
    - What we know: risk lies between mean-only and tail-only endpoints; both metrics remain visible.
    - What's unclear: exact algebra/default and the required CLI spelling/format.
    - Recommendation: Use the linear normalized blend as a labeled initial assumption unless discussion locks a different formula; make default and bounds visible in help.
-3. **How should unavailable actions at the race boundary appear?**
+4. **How should unavailable actions at the race boundary appear?**
    - What we know: candidates are pit now, pit in 1–5 laps, and stay out; existing strategy legality includes minimum stint constraints.
    - What's unclear: whether impossible delays are omitted or retained with a refusal marker in the output.
    - Recommendation: Keep ranked plans legal and explain omitted actions plainly; never rank an invalid plan as a valid recommendation.
