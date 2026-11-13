@@ -13,6 +13,7 @@ import re
 import sys
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -63,7 +64,7 @@ from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
-from f1si.strategy.longstaff import LongstaffSchwartzPolicy
+from f1si.strategy.longstaff import LongstaffSchwartzPolicy, StrategyAnalysis
 
 _FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate", "wear-filter", "replay"})
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
@@ -209,11 +210,11 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="replay up to the leader's lap N (default: the whole race)",
     )
-    replay = sub.add_parser("replay", help="rank pit actions from a selected as-of race cutoff")
+    replay = sub.add_parser("replay", help="replay pit actions from as-of race cutoffs")
     replay.add_argument("slug", metavar="SLUG", help="cached race slug (for example bahrain-2023)")
     replay.add_argument("--driver", required=True, metavar="CODE", help="known driver code")
     replay.add_argument(
-        "--lap", type=int, required=True, metavar="N", help="cutoff after leader lap N"
+        "--lap", type=int, default=None, metavar="N", help="only show the cutoff after lap N"
     )
     replay.add_argument(
         "--n",
@@ -923,52 +924,33 @@ def _cmd_wear_filter(
     return 0
 
 
-def _cmd_replay(
-    data_dir: Path,
-    slug: str,
-    driver: str,
+@dataclass(frozen=True)
+class _ReplayCutoff:
+    lap: int
+    analysis: StrategyAnalysis | None
+    unavailable_reason: str | None = None
+
+
+def _replay_at_cutoff(
+    accessor: asof.AsOfAccessor,
+    race_id: str,
+    laps_total: int,
+    code: str,
     lap: int,
     n_simulations: int,
-    risk_aversion: float,
+    risk: float,
     seed: int,
-) -> int:
-    """Build a single cutoff state from as-of data and print policy evidence."""
-    from f1si.strategy.longstaff import _risk
+) -> _ReplayCutoff:
+    """Rebuild every input from one cutoff; unsupported fits remain explicitly unavailable."""
 
-    try_line = f"Try: uv run f1si replay {slug} --driver CODE --lap 20"
-    code = driver.upper()
-    if not _DRIVER_CODE.fullmatch(code):
-        return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
-    if lap < 0:
-        return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
-    if isinstance(n_simulations, bool) or not isinstance(n_simulations, int) or n_simulations < 1:
-        return _refuse(f"--n must be positive, got {n_simulations}. {try_line}")
-    try:
-        risk = _risk(risk_aversion)
-    except ValueError as err:
-        return _refuse(f"{err}. {try_line}")
-    if isinstance(seed, bool) or seed < 0:
-        return _refuse(f"--seed must be 0 or more, got {seed}. {try_line}")
-
-    db = paths.db_path(data_dir)
-    race_id = asof.resolve_slug(db, slug)
-    accessor = asof.AsOfAccessor(db)
-    try:
-        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
-        laps_total = int(end.laps["lap_number"].max())
-        if lap >= laps_total:
-            return _refuse(f"--lap must be in 0..{laps_total - 1}, got {lap}. {try_line}")
-        known = set(str(v) for v in end.entries["driver_code"])
-        if code not in known:
-            return _refuse(f"Unknown driver {code!r}; choose a driver in {slug}. {try_line}")
-        snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
-        history = accessor.history(asof.AsOf(race_id, lap))
-    except OutOfSampleLockedError as err:
-        return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+    at = asof.AsOf(race_id, lap)
+    snapshot = accessor.snapshot(at)
+    history = accessor.history(at)
     fit = fit_linear_pace(snapshot)
+    if not fit.is_identified or not fit.fitted_compounds:
+        return _ReplayCutoff(lap, None, fit.report.message)
     pit = measure_pit_loss(snapshot, fit)
-    results = filter_stints(snapshot, fit)
-    wear = current_stint_snapshots(results)
+    wear = current_stint_snapshots(filter_stints(snapshot, fit))
     state = build_race_state(
         snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
     )
@@ -982,10 +964,30 @@ def _cmd_replay(
         sc=SafetyCarModel(estimate.rate_per_lap, estimate.duration_laps),
     )
     try:
-        report = policy.analyze(state, driver=code)
+        analysis = policy.analyze(state, driver=code)
     except ValueError as err:
-        return _refuse(f"Cannot replay {code} after lap {lap}: {err}. {try_line}")
-    print(f"{end.race.event_name} {end.race.season}: {code}, recommendation after lap {lap}")
+        return _ReplayCutoff(lap, None, str(err))
+    return _ReplayCutoff(lap, analysis)
+
+
+def _print_replay_cutoff(
+    race: asof.RaceSnapshot,
+    code: str,
+    cutoff: _ReplayCutoff,
+    n_simulations: int,
+    risk: float,
+) -> None:
+    """Print the shared row format used by selected and full replay."""
+    print(
+        f"Cutoff lap {cutoff.lap}: {race.race.event_name} {race.race.season}, {code}; "
+        f"recommendation after lap {cutoff.lap}"
+    )
+    if cutoff.analysis is None:
+        print("Status: unavailable")
+        print(f"Reason: {cutoff.unavailable_reason or 'No cutoff-local model is available.'}")
+        return
+    report = cutoff.analysis
+    print("Status: available")
     print(
         f"risk aversion {risk:.2f}; options share {n_simulations} seeded race scenarios. "
         "CVaR10 is the exact worst decile; lower blended score ranks first."
@@ -1005,6 +1007,61 @@ def _cmd_replay(
     )
     print(f"Recommendation: {report.best.action}")
     print(f"Reason: {report.reason}")
+
+
+def _cmd_replay(
+    data_dir: Path,
+    slug: str,
+    driver: str,
+    lap: int | None,
+    n_simulations: int,
+    risk_aversion: float,
+    seed: int,
+) -> int:
+    """Replay cutoff-local policy evidence, or print one selected cutoff."""
+    from f1si.strategy.longstaff import _risk
+
+    try_line = f"Try: uv run f1si replay {slug} --driver CODE --lap 20"
+    code = driver.upper()
+    if not _DRIVER_CODE.fullmatch(code):
+        return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
+    if lap is not None and lap < 0:
+        return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
+    if isinstance(n_simulations, bool) or not isinstance(n_simulations, int) or n_simulations < 1:
+        return _refuse(f"--n must be positive, got {n_simulations}. {try_line}")
+    try:
+        risk = _risk(risk_aversion)
+    except ValueError as err:
+        return _refuse(f"{err}. {try_line}")
+    if isinstance(seed, bool) or seed < 0:
+        return _refuse(f"--seed must be 0 or more, got {seed}. {try_line}")
+
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    accessor = asof.AsOfAccessor(db)
+    try:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+    except OutOfSampleLockedError as err:
+        return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+    if end.laps.empty:
+        return _refuse(f"No lap data available for {slug}; cannot replay this race.")
+    laps_total = int(end.laps["lap_number"].max())
+    if lap is not None and lap >= laps_total:
+        return _refuse(f"--lap must be in 0..{laps_total - 1}, got {lap}. {try_line}")
+    known = set(str(v) for v in end.entries["driver_code"])
+    if code not in known:
+        return _refuse(f"Unknown driver {code!r}; choose a driver in {slug}. {try_line}")
+    cutoffs = range(laps_total) if lap is None else (lap,)
+    for cutoff_lap in cutoffs:
+        try:
+            result = _replay_at_cutoff(
+                accessor, race_id, laps_total, code, cutoff_lap, n_simulations, risk, seed
+            )
+        except OutOfSampleLockedError as err:
+            return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+        except ValueError as err:
+            result = _ReplayCutoff(cutoff_lap, None, str(err))
+        _print_replay_cutoff(end, code, result, n_simulations, risk)
     return 0
 
 

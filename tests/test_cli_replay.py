@@ -106,7 +106,11 @@ def test_full_replay_emits_every_cutoff_and_marks_unsupported_cutoffs(
     code = _code(long_synthetic_db)
     assert _run(long_synthetic_data_dir, "replay", LONG_SLUG, "--driver", code, "--n", "12") == 0
     out = capsys.readouterr().out
-    laps = [int(line.split()[1]) for line in out.splitlines() if line.startswith("Cutoff lap ")]
+    laps = [
+        int(line.split()[2].rstrip(":"))
+        for line in out.splitlines()
+        if line.startswith("Cutoff lap ")
+    ]
     assert laps == list(range(max(laps) + 1))
     assert any("unavailable" in line.lower() for line in out.splitlines())
     assert any("Recommendation:" in line for line in out.splitlines())
