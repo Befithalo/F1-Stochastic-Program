@@ -130,6 +130,14 @@ def test_policy_returns_deterministic_decision_without_mutating_state() -> None:
     assert len(policy.analyze(race, driver="AAA").options) >= 1
 
 
+def test_policy_ranks_stay_out_when_no_second_compound_is_available() -> None:
+    race = state(lap=10, laps_total=16)
+    policy = LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD",), n_simulations=12, seed=5)
+    analysis = policy.analyze(race, driver="AAA")
+    assert [option.action for option in analysis.options] == ["stay out"]
+    assert analysis.best == analysis.options[0]
+
+
 @pytest.mark.parametrize("count", [0, -1])
 def test_policy_refuses_nonpositive_sample_count_before_simulation(count: int) -> None:
     with pytest.raises(ValueError, match="positive"):
