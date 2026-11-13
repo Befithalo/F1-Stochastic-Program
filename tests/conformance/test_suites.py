@@ -1,5 +1,6 @@
 """Honest implementations pass; every planted single-defect stub is rejected (D-11, INT-02)."""
 
+import unittest
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -51,6 +52,11 @@ SIM_KEYS = {
     "MissingSimulate": "structure",
 }
 LEGAL = frozenset({"SOFT", "MEDIUM", "HARD"})
+
+
+class LongstaffConformanceRegistrationTest(unittest.TestCase):
+    def test_longstaff_strategy_is_in_shared_policy_suite(self) -> None:
+        assert "longstaff_schwartz" in POLICIES
 
 
 @pytest.mark.parametrize("name", sorted(PACE_MODELS))
