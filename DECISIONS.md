@@ -958,3 +958,36 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A separate random stream for non-canonical compounds (adds a stream for names that do not occur in F1 data). Keeping the plan-dependent layout and documenting it (breaks the plan-comparison use).
 **Consequences:** The scrambled points differ from earlier runs, so every simulated number moved within sampling noise. Re-measured variance ratios (R = 120, N = 1024): mean finish 3.81, total time 11.74, safety-car share 2.47, P(top 5) 3.27, against 4.52, 16.43, 3.19, 4.25 before. The gain is real but smaller than the figures in DEC-083, which stay as the first measurement. The total-time ratio sits just under its 12.0 test margin.
 **Refs:** DEC-080, D-14, SIM-03
+
+## DEC-088 — Three-state local linear trend with a fuel nuisance state for the wear filter
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** PAC-03 needs a per-car, per-lap estimate of the hidden tyre-wear rate with an honest band. D-01 chose a Kalman filter; D-18 requires the reported SD to include the fuel uncertainty. Inside one stint fuel and wear are the same straight line, so the data cannot separate them.
+**Decision:** `f1si.pace.kalman.WearFilter` carries x = [level, rate, fuel_dev] with a 3x3 covariance. Dynamic form: F = [[1,1,1],[0,1,0],[0,0,1]] (the level moves by rate + fuel_dev each lap), H = [1,0,0], Q = diag(0, q^2, 0), Joseph-form update with symmetrisation. The level is diffuse (SD 1000 s, set to the first usable lap time). The reported rate SD is the marginal sqrt(P[1,1]), so it includes the fuel error. With q = 0 the recursion equals Bayesian linear regression y_d = level_0 + (rate + fuel_dev) d, checked to 1e-9 against a closed-form oracle, and the rate SD matches `posterior_rate_sd` (for example 0.0173 for tau 0.02, fuel_sd 0.02, sigma 0.15 after 7 laps).
+**Why:** The dynamic form is the one that still works when q > 0 and when laps are skipped (a skipped lap only predicts); the fuel state makes the band honest instead of pretending fuel is known.
+**Alternatives rejected:** A two-state filter that treats fuel as known (the band would be too narrow by the fuel floor tau*fuel_sd/sqrt(tau^2+fuel_sd^2)). The static regression form with observation row [1, d, d] (identical at q = 0, but it cannot take process noise). A library filter (filterpy) for a 3x3 recursion.
+**Consequences:** Fuel and wear stay inseparable inside a stint; only the prior separates them, so the rate SD cannot fall below the floor however many laps arrive.
+**Refs:** D-01, D-03, D-06, D-18, PAC-03
+
+## DEC-089 — Zero process noise by default; q > 0 accepted with stated limits
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** A tyre can change its wear rate during a stint (graining, a cliff, track temperature). A random-walk rate would model this but widens the band forever.
+**Decision:** `WearPrior.q` defaults to 0.0 (a constant rate within a stint, D-02). A positive q is accepted and adds q^2 to the rate variance each lap in the prediction step; the band then no longer shrinks to the q = 0 value as laps accumulate (tested). Limits: the filter has no cliff model, no thermal or compound-specific dynamics, and the rate is linear in tyre age.
+**Why:** q = 0 gives the exact regression equivalence that the tests prove, and the synthetic truth has a constant rate. Accepting q > 0 keeps the door open for real races without changing the code.
+**Alternatives rejected:** Tuning q on real races now (no ground truth for the rate). A non-linear cliff state (out of scope for a linear filter).
+**Consequences:** On real tyres with a cliff the constant-rate band is too narrow after the cliff; Phase 6 calibration is where this would show.
+**Refs:** D-02, PAC-03
+
+## DEC-090 — Which laps update the filter: clean-lap rule and the outlier gate
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** Laps behind a safety car, in and out laps and lap 1 are not representative tyre-wear laps, and a clean-looking lap can still be a mistake (traffic, an error). A lap that moves the estimate wrongly cannot be un-learned.
+**Decision:** The caller passes `f1si.laps.fade_reason(...)` as the skip reason (lap 1, pit in, pit out, safety car/VSC/red); a skipped lap only predicts, so with q = 0 the rate SD is unchanged on it. A usable lap is rejected by the gate (reason "outlier gate", counted) when at least 3 laps have been used and |innovation| > 3.0 sqrt(S); the lap right after a rejection is never rejected, so a true step change cannot lock the filter out. Non-finite lap times are skipped with the reason "non-finite lap time". Contamination caveat: with 5% contaminated laps the 95% interval covered 0.926 with the gate (0.900 without), not 0.95; on clean data the gate changed coverage from 0.959 to 0.958.
+**Why:** The gate starts at the 3rd used lap because with a diffuse level the first innovation variance is about 1e6 and a rejection after one or two laps would be arbitrary; the no-two-in-a-row rule bounds the cost of a wrong rejection to one lap.
+**Alternatives rejected:** A gate from the first lap (never fires, no protection). A hard cap on rejections per stint (harder to explain). Student-t observation noise (not a Kalman filter any more).
+**Consequences:** Contaminated laps lower coverage below nominal, and the honest figure is stated, not hidden.
+**Refs:** D-08, PAC-03

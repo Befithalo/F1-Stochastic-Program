@@ -125,6 +125,7 @@ DESIGNATED_MODULES: Final = (
     "f1si.data.asof",
     "f1si.plots.stints",
     "f1si.pace.linear",
+    "f1si.pace.kalman",
     "f1si.state",
     "f1si.plots.wear",
     "f1si.regime.sc_rate",
@@ -148,6 +149,7 @@ CONSUMED: Final[dict[str, str]] = {
 }
 
 # qualified name -> why no scramble consumer is needed
+_PURE_MATHS: Final = "pure array maths; takes numbers, never a snapshot or accessor (D-09)"
 EXEMPT: Final[dict[str, str]] = {
     "f1si.data.asof.catalog": "calendar facts (names, dates, eras) of every race are public",
     "f1si.data.asof.resolve_slug": "maps a name to a race id using the calendar only",
@@ -164,4 +166,7 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.pace.linear.truncated_variance_factor": "pure math of a number, reads no race data",
     "f1si.pace.linear.untruncated_sigma": "pure math of two numbers, reads no race data",
     "f1si.state.RaceState.laps_done_of": "pure lookup of a value already stored in the state",
+    "f1si.pace.kalman.WearFilter.observe": _PURE_MATHS,
+    "f1si.pace.kalman.WearFilter.snapshot": _PURE_MATHS,
+    "f1si.pace.kalman.posterior_rate_sd": _PURE_MATHS,
 }
