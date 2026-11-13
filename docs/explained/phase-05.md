@@ -16,7 +16,7 @@ Higher finishing-position numbers are worse, so the worst tail is sorted from hi
 
 **Actions share the same simulated luck.** The candidate set includes a stop now, stops delayed by up to five laps when legal, and staying out. The choices are run from common simulator paths so traffic and safety-car variation are comparable. Tied scores use a fixed tie order, recorded as an assumption in DEC-099. The reason is deterministic and reports the winning action and its score, mean and CVaR10; it does not invent an undercut, tire cliff or future safety-car story.
 
-**Each replay row is rebuilt as of its lap.** `f1si replay` with no `--lap` emits rows over the race; `--lap N` uses the same builder and formatter for one cutoff. At each cutoff, the CLI makes a fresh snapshot, pace fit, wear-filter output and `RaceState`; the policy receives the state, not the data accessor. A row can be unavailable when the visible data cannot identify a dry-compound pace fit. The full replay does not fill such a row using later laps.
+**Each replay row is rebuilt as of its lap.** `f1si replay` with no `--lap` emits rows over the race; `--lap N` uses the same builder and formatter for one cutoff. At each cutoff, the CLI makes a fresh snapshot, pace fit, wear-filter output and `RaceState`; the policy receives the state, not the data accessor. When the visible data cannot identify a dry-compound pace fit, the row uses a visibly labeled sparse fallback. It centers each driver's median clean-lap residual after the existing generic fuel and wear assumptions; a driver without a visible clean lap gets the neutral center. At lap zero, the observed starting order is retained and all relative pace centers are zero. The fallback uses generic wear uncertainty and an **[ASSUMED] 1.0 s** driver-offset SD, and its reason reports the driver's and field's visible clean-lap counts. It never borrows later laps.
 
 ## How the pieces connect
 
@@ -38,7 +38,7 @@ current-cutoff mean + spread + CVaR10 -> risk blend -> ranked options and reason
 full replay row or the selected --lap N row
 ```
 
-Race distance is read as public metadata (D-21). All observation-derived inputs for a recommendation are reconstructed at that row's cutoff. The future-scramble guard changes future observations and checks that a supported cutoff's output remains the same.
+Race distance is read as public metadata (D-21). All observation-derived inputs for a recommendation are reconstructed at that row's cutoff. The future-scramble guard changes future observations and checks supported and fallback cutoff outputs remain the same. Fallback spreads describe variation under the stated generic assumptions; they are prior-driven and uncalibrated, not calibrated confidence intervals or proof of real-race performance.
 
 ## File-by-file tour
 
@@ -47,22 +47,23 @@ Paths are relative to the repository root. Package marker `__init__.py` files ar
 ### Strategy and replay
 
 - `src/f1si/strategy/longstaff.py` contains the immutable analysis/result rows, exact fractional-boundary CVaR10, risk validation, conditional-mean least-squares fit and backward pathwise stop/continue recursion. It builds same-seed pit and stay-out candidates, scores them at the current cutoff and generates the score-only reason.
+- `src/f1si/pace/sparse_fallback.py` derives generic-prior pace predictions, cutoff-visible clean-lap residual centers and robust lap-noise uncertainty for unsupported joint fits.
 - `src/f1si/sim/numpy_backend.py` owns the private `_PathCheckpoint` and `_branch_paths` seam. It captures enough interaction state to continue the same simulated race from a decision time without changing the public simulation-result contract.
-- `src/f1si/cli.py` registers `replay`, validates catalog-backed race and driver inputs and rebuilds every cutoff through the shared selected/full replay builder. Unsupported cutoff-local pace fits are printed as unavailable.
+- `src/f1si/cli.py` registers `replay`, validates catalog-backed race and driver inputs and rebuilds every cutoff through the shared selected/full replay builder. Unsupported cutoff-local fits use the ranked sparse fallback with its evidence basis in the reason.
 
 ### Tests and guards
 
 - `tests/strategy/test_longstaff.py` covers conditional-mean recovery, pathwise decisions, rank fallback, common scenarios, CVaR orientation and boundary mass, risk endpoints, deterministic reasons, legal actions and policy behavior.
-- `tests/test_cli_replay.py` covers accepted defaults and help, invalid-input refusals, all-cutoff ordering, unavailable early rows and exact selected/full row equivalence.
+- `tests/test_cli_replay.py` covers accepted defaults and help, invalid-input refusals, all-cutoff ordering, sparse fallback evidence and exact selected/full row equivalence at fallback and supported cutoffs.
 - `tests/conformance/registry.py` registers the Longstaff policy; `tests/conformance/test_suites.py` runs it through the shared `StrategyPolicy` contract.
 - `tests/guards/consumers.py` registers the replay cutoff builder as an as-of consumer.
 - `tests/guards/scramble.py` preserves public race-distance metadata while scrambling observations and ensuring synthetic future rows do not alter that distance.
-- `tests/guards/test_future_scramble.py` checks supported replay output after future observations are changed; `tests/guards/test_consumer_registry.py` checks that guarded consumers are registered.
+- `tests/guards/test_future_scramble.py` checks supported and fallback replay output after future observations are changed; `tests/guards/test_consumer_registry.py` checks that guarded consumers are registered.
 - `tests/test_docs.py` checks the five headings, answered questions, file tour and README replay instructions. `tests/test_decisions_log.py` checks consecutive decision IDs, required labels and references.
 
 ### Decisions and user guide
 
-- `DECISIONS.md` records DEC-096 through DEC-100: the assumed regression basis and fallback, current-cutoff risk score, same-path simulator branching, tie order and reason, and the as-of replay/input rules.
+- `DECISIONS.md` records DEC-096 through DEC-101: the assumed regression basis, current-cutoff risk score, same-path simulator branching, tie order and reason, as-of replay/input rules, and the sparse cutoff fallback assumption.
 - `README.md` gives the full replay and selected-cutoff commands, accepted inputs and defaults, and links to this explainer.
 - `docs/explained/phase-05.md` is this owner-facing method, limitations and file-tour page.
 
@@ -76,9 +77,9 @@ At each future stopping time the code regresses the later policy's realized fini
 
 CVaR10 is used with the mean to rank the option distributions at the current cutoff. The backward regression still estimates conditional mean finishing position, so the method is not a dynamic CVaR optimizer.
 
-### Q3. Why can an early replay row say unavailable?
+### Q3. Why can an early replay row say fallback?
 
-The row is built from only its visible laps. If those laps do not identify the dry-compound pace fit required by the simulator, the CLI reports that limit instead of borrowing the later race fit.
+The row is still built from only its visible laps. If those laps do not identify the dry-compound pace fit, the CLI ranks options with visible clean-lap residuals and generic fuel, wear and noise assumptions. With no clean laps, relative pace centers are neutral and the fallback carries an **[ASSUMED] 1.0 s** driver-offset SD. The row is labeled prior-driven and uncalibrated instead of borrowing a later race fit.
 
 ### Q4. What does the risk setting do?
 
@@ -95,5 +96,5 @@ The assumed basis and tie order need walk-forward measurement. Phase 6 also meas
 - **Model limits.** The pace model uses linear tire wear and has hidden fuel and tire state; the simulator does not model tire cliffs, lapping, retirements, VSCs or red flags. Rivals follow the simulator's current plan rules. These are model limits, not evidence about actual team decisions.
 - **A carried measurement question.** DEC-091 records that a field-fit wear prior can include a driver's current-stint laps, which are then reused in that driver's filter update. That possible double-counting is documented but not measured or changed in Phase 5; Phase 6 is the planned measurement point.
 - **Real Bahrain smoke.** The authorized local Python 3.12 runtime and the Bahrain cache are available. The full and selected-cutoff smoke commands and their observed result are recorded separately in the Plan 05-03 execution summary; no real-race performance metrics are claimed here.
-- **Where decisions live.** DEC-096 to DEC-100 in `DECISIONS.md` record the conditional-mean regression and its assumptions, exact CVaR10 ranking, shared branch draws, action boundaries, tie order, and replay validation.
+- **Where decisions live.** DEC-096 to DEC-101 in `DECISIONS.md` record the conditional-mean regression and its assumptions, exact CVaR10 ranking, shared branch draws, action boundaries, tie order, replay validation and sparse fallback basis.
 - **What comes next.** Phase 6 adds the ten-race walk-forward backtest and the one-page view; Phase 7 and Phase 8 own the Bayesian pace and Markov regime upgrades.
