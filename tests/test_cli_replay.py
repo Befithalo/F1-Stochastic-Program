@@ -5,6 +5,7 @@ import unittest
 from contextlib import redirect_stderr
 from io import StringIO
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
@@ -58,10 +59,6 @@ def test_selected_cutoff_replay_prints_ranked_options(
     assert "Reason:" in out
 
 
-def test_sparse_fallback_model_is_available_for_unsupported_cutoffs() -> None:
-    assert hasattr(cli, "SparsePaceFallback")
-
-
 def test_sparse_fallback_replay_returns_ranked_options_at_lap_zero_and_fallback_lap(
     long_synthetic_data_dir: Path,
     long_synthetic_db: Path,
@@ -98,7 +95,7 @@ def test_sparse_fallback_noise_floor_is_generic_at_lap_zero(
     long_synthetic_db: Path,
 ) -> None:
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, 0))
-    fallback = cli.SparsePaceFallback(snapshot)
+    fallback = SparsePaceFallback(snapshot)
     assert fallback.sigma_sparse == GENERIC_SIGMA_S
     assert fallback.visible_clean_laps == 0
     assert set(fallback.driver_offsets.values()) == {0.0}
@@ -123,7 +120,8 @@ def test_sparse_fallback_uses_cutoff_clean_residuals_and_robust_noise(
     centers = clean.groupby("driver")["residual"].median()
     field_center = float(centers.median())
     for driver_number, center in centers.items():
-        assert fallback.driver_offsets[int(driver_number)] == pytest.approx(center - field_center)
+        number = cast(int, driver_number)
+        assert fallback.driver_offsets[number] == pytest.approx(center - field_center)
     within_driver = np.array(
         [
             value - centers.loc[number]

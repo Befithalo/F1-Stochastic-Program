@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from statistics import median
-from typing import Final
+from typing import Final, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -35,17 +35,18 @@ class SparsePaceFallback:
     def __init__(self, snapshot: RaceSnapshot) -> None:
         table = _classify(snapshot.laps)
         clean = table.loc[table["reason"].isna()].copy()
-        clean["residual"] = np.array(
-            [
-                float(row.time)
-                - GENERIC_FUEL_MEAN * (float(row.lap) - 1.0)
-                - GENERIC_RATE_MEAN[str(row.compound)] * float(row.age)
-                for row in clean.itertuples(index=False)
-            ],
-            dtype=np.float64,
+        residuals = (
+            clean["time"].to_numpy(dtype=np.float64)
+            - GENERIC_FUEL_MEAN * (clean["lap"].to_numpy(dtype=np.float64) - 1.0)
+            - np.array(
+                [GENERIC_RATE_MEAN[str(value)] for value in clean["compound"].tolist()],
+                dtype=np.float64,
+            )
+            * clean["age"].to_numpy(dtype=np.float64)
         )
+        clean["residual"] = residuals
         raw_centers = {
-            int(number): float(group["residual"].median())
+            cast(int, number): float(group["residual"].median())
             for number, group in clean.groupby("driver", sort=True)
         }
         center = float(median(raw_centers.values())) if raw_centers else 0.0
@@ -56,13 +57,17 @@ class SparsePaceFallback:
         self.report = SparseFallbackReport(self.driver_offsets)
         self.pace_offset_sd_s = PACE_OFFSET_SD_S
         self.clean_laps_by_driver = {
-            int(number): len(group) for number, group in clean.groupby("driver", sort=True)
+            cast(int, number): len(group) for number, group in clean.groupby("driver", sort=True)
         }
         self.visible_clean_laps = len(clean)
         within_driver = np.array(
             [
-                float(row.residual) - raw_centers[int(row.driver)]
-                for row in clean[["driver", "residual"]].itertuples(index=False)
+                float(value) - raw_centers[int(number)]
+                for number, value in zip(
+                    clean["driver"].to_numpy(dtype=np.int64),
+                    clean["residual"].to_numpy(dtype=np.float64),
+                    strict=True,
+                )
             ],
             dtype=np.float64,
         )
@@ -71,7 +76,9 @@ class SparsePaceFallback:
             self.sigma_sparse = max(GENERIC_SIGMA_S, 1.4826 * residual_mad)
         else:
             self.sigma_sparse = GENERIC_SIGMA_S
-        self.wear_sd_by_compound = {name: GENERIC_RATE_SD for name in DRY_COMPOUNDS}
+        self.wear_sd_by_compound: dict[str, float | None] = {
+            name: GENERIC_RATE_SD for name in DRY_COMPOUNDS
+        }
 
     def clean_laps_for(self, driver_number: int) -> int:
         """Number of clean laps for a driver visible in the supplied snapshot."""
