@@ -1,24 +1,25 @@
 # Plan 05-01 Execution Checkpoint
 
-**Status:** Task 1 focused tracer gate passed. Task 2 has not started.
+**Status:** Tasks 1 and 2 are complete. The plan summary is written, and GSD tracking is updated.
 
-## Current Work
+## Delivered
 
-- Added the private per-lap checkpoint capture and same-seed branch path support in `src/f1si/sim/numpy_backend.py`.
-- Added a path-aligned backward conditional-mean regression and pathwise stop/continue decisions, plus current-cutoff CVaR scoring in `src/f1si/strategy/longstaff.py`.
-- Added the selected-cutoff `replay` command and input validation in `src/f1si/cli.py`.
-- Added focused strategy and CLI tests in `tests/strategy/test_longstaff.py` and `tests/test_cli_replay.py`.
+- Private per-lap simulator checkpoints and branch replay reuse identical seeded scenario draws while leaving the default `SimulationResult` layout unchanged.
+- The policy runs a backward conditional-mean regression over aligned path states, applies pathwise stop-or-continue decisions, and ranks current-cutoff distributions with the exact mean/CVaR10 blend.
+- The selected-cutoff `f1si replay` command validates catalog identifiers, cutoff bounds, positive sample count, finite risk in `[0, 1]`, and seed before building or simulating a state.
 
 ## Verification
 
-Focused tracer command, using the user-local CPython 3.12.10 interpreter signed by the Python Software Foundation:
+Using the official signed CPython 3.12.10 interpreter at the user-local installation path:
 
 ```text
-uv run --python <CPython 3.12.10 path> python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py
+uv run --python C:/Users/befit/AppData/Local/Programs/Python/Python312/python.exe python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py
 ```
 
-Result: **18 passed**. The initially blocked `uv`-managed Python was replaced with the official signed user-local interpreter. A branch RNG fix now deep-copies the full NumPy generator so spawned child streams stay identical across candidate branches. The synthetic selected-cutoff test uses lap 35, where the as-of pace fit is identified; cutoffs before a fitted dry compound is available currently return a refusal and need explicit handling in the all-cutoff replay work. The repository's pre-commit Ruff check and format hooks passed on the prior checkpoint commit; the pending code changes will be checked on commit.
+Result: **26 passed**. Ruff check passed on all changed Python files; Ruff format check passed after formatting `src/f1si/cli.py`. `git diff --check` reported no whitespace errors.
 
-## Gate and Handoff
+The first launch attempt under uv's managed interpreter was blocked by Windows Application Control (OS error 4551). The focused tests were later rerun successfully using the authorized signed interpreter; the blocked attempt is not counted as a pass.
 
-The focused test command is the Task 1 tracer verification, and it now passes. Continue with Task 2 on branch `agent-05-01`. Commits `bc0d615` and `b76e5f2` preserve the earlier checkpoint and state update; no plan-completion summary exists yet.
+## Plan 05-02 Handoff
+
+The selected-cutoff CLI integration test uses lap 35 because the synthetic race's as-of pace fit is not identified before then. The current replay path refuses when the as-of fit lacks an identified dry compound. Plan 05-02 must decide how to represent earlier cutoffs using only cutoff-visible evidence; do not use future race laps to identify the fit.

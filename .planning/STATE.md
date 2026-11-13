@@ -4,16 +4,16 @@ milestone: v1.0
 current_phase: 05
 current_phase_name: Longstaff-Schwartz Strategy & Live Replay
 status: executing
-stopped_at: Phase 5 context gathered; ready to plan
-last_updated: "2026-11-13T09:37:22.116Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-11-13T15:43:58.287Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 05 planning complete
-state_head: d6e4207692c8b3ce877c754a1aa74b61903528c9
+state_head: a0aefff25155f6b77c5c0a98718a4f7f21604e50
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 31
-  completed_plans: 28
+  completed_plans: 29
 milestone_name: milestone
 ---
 
@@ -28,10 +28,12 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 
 ## Current Position
 
-Phase: 05 (Longstaff-Schwartz Strategy & Live Replay) — READY TO EXECUTE
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-11-13 — Phase 05 planning complete
+Phase: 05 (Longstaff-Schwartz Strategy & Live Replay) — IN PROGRESS
+Current Plan: 2
+Total Plans in Phase: 3
+Plan: 2 of 3
+Status: Executing Plan 05-02
+Last activity: 2026-11-13 — Plan 05-01 complete; early-cutoff fit concern handed to Plan 05-02
 
 Progress: [██████████] 100%
 
@@ -57,6 +59,11 @@ Progress: [██████████] 100%
 | 3 | 7 | - | - |
 | Phase 04 P01 | 1h | 3 tasks | 12 files |
 | 4 | 5 | - | - |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 05 P01 | 9min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -102,6 +109,9 @@ Progress: [██████████] 100%
 - [Phase 03]: DEC-083/084: Sobol+antithetic variance ratios 4.5/16.4/3.2; 50k benchmark 1.4 s
 - [Phase 03]: DEC-085: simulate command - hindsight rule, bounds, warm-up excluded, limitations printed
 - [Phase ?]: [Phase 04-01]: DEC-088..090 three-state wear filter with fuel nuisance state; q=0 default; gate 3.0 SD from the 3rd used lap, never twice in a row
+- [Phase 05]: D-01/D-02/D-08: use conditional-mean LSM recursion and the locked current-cutoff mean/CVaR10 score, default risk 0.5.
+- [Phase 05]: Use a normalized cutoff-visible basis with intercept-only conditional-mean fallback when data are undersized or rank-deficient.
+- [Phase 05]: Keep reasons score-only without supporting visible evidence; enforce the existing five-lap minimum final stint.
 
 ### Pending Todos
 
@@ -115,6 +125,6 @@ Progress: [██████████] 100%
 
 ## Session Continuity
 
-Last session: 2026-11-13T15:33:33Z
-Stopped at: Phase 5 Plan 05-01 focused tracer gate passed (18 tests); ready to continue Task 2
-Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-01-CHECKPOINT.md
+Last session: 2026-11-13T15:43:57.702Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-02-PLAN.md
