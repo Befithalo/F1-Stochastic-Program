@@ -1,7 +1,7 @@
 ---
 phase: "05"
 slug: "longstaff-schwartz-strategy-live-replay"
-status: draft
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-13"
@@ -38,26 +38,23 @@ created: "2026-11-13"
 
 ## Per-Task Verification Map
 
-Plan and task IDs are provisional until the planner assigns the final plan structure.
+Plan and task IDs below match the finalized Phase 05 plans. Existing tests and verification evidence cover every task; no new test file was needed in this audit.
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 05-01-01 | TBD | TBD | STR-01 | T-05-02 | Synthetic paths recover conditional continuation values; stopping is pathwise, checkpoint branches are reproducible, fallback is rank-aware, and policy conformance passes | unit + conformance | uv run python -m pytest -q tests/strategy/test_longstaff.py tests/conformance/test_suites.py | New strategy tests; shared suite exists | pass |
-| 05-01-02 | TBD | TBD | STR-02 | — | Pit now, pit in 1-5 laps, and stay out use common scenarios and expose mean, spread, worst-decile CVaR, and blended score; fractional tail boundary and ties are covered | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py | New strategy tests | pass |
-| 05-01-03 | TBD | TBD | STR-03 | T-05-01 | Finite risk input is bounded to [0,1]; both endpoints and a sample that changes rank are covered | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py | New strategy tests | pass |
-| 05-01-04 | TBD | TBD | STR-04 | T-05-02 | Repeated same-state calls return the same evidence-based reason; reasons use cutoff-visible inputs and never invent future events | unit | uv run python -m pytest -q tests/strategy/test_longstaff.py | New strategy tests | pass |
-| 05-01-05 | TBD | TBD | RPL-01 | T-05-02 | Every cutoff rebuilds snapshot, fit, filter output, and RaceState through AsOfAccessor; future-scramble and selected-lap equivalence pass | integration + future-scramble | uv run python -m pytest -q tests/test_cli_replay.py tests/guards/test_future_scramble.py | New replay tests; guard exists | pass |
-| 05-01-06 | TBD | TBD | RPL-02 | T-05-01, T-05-03 | Bahrain replay accepts known drivers and refuses invalid input without exposing a traceback | smoke + manual CLI | uv run f1si replay bahrain-2023 --driver ALO | New CLI coverage; local cache availability to confirm | pass |
-
----
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | Test Files / Evidence | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|----------------------|--------|
+| 05-01-01 | 05-01 | 1 | STR-01, RPL-02 | T-05-02, T-05-03 | Synthetic paths recover conditional-mean continuation; pathwise stopping and common draws are tested; selected-cutoff replay uses an as-of RaceState and refuses invalid input before simulation. | unit + CLI integration | `uv run python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py` | `tests/strategy/test_longstaff.py`, `tests/test_cli_replay.py` | pass |
+| 05-01-02 | 05-01 | 1 | STR-02, STR-03, STR-04 | T-05-01, T-05-02 | Legal timing actions expose mean, spread, exact CVaR10 and score; risk bounds, rank changes, stable ordering and evidence-grounded reasons are covered. | unit + CLI integration | `uv run python -m pytest -q tests/strategy/test_longstaff.py tests/test_cli_replay.py` | `tests/strategy/test_longstaff.py`, `tests/test_cli_replay.py` | pass |
+| 05-02-01 | 05-02 | 2 | RPL-01, RPL-02 | T-05-02, T-05-03 | Full replay prints ordered cutoff results, selected replay matches its full-replay row, and expected refusal paths are covered. | CLI integration | `uv run python -m pytest tests/test_cli_replay.py tests/test_cli.py tests/test_cli_simulate.py -x -q` | `tests/test_cli_replay.py`, `tests/test_cli.py`, `tests/test_cli_simulate.py` | pass |
+| 05-02-02 | 05-02 | 2 | RPL-01, STR-01 | T-05-02 | Replay is registered as a future-scramble consumer and LongstaffSchwartzPolicy runs the shared StrategyPolicy conformance suite. | guard + conformance | `uv run python -m pytest tests/guards tests/test_decisions_log.py -x -q`; `uv run python -m pytest tests/conformance -x -q` | `tests/guards/consumers.py`, `tests/guards/test_future_scramble.py`, `tests/guards/test_consumer_registry.py`, `tests/conformance/test_suites.py` | pass |
+| 05-03-01 | 05-03 | 3 | STR-04, RPL-02 | T-05-01, T-05-03 | Explainer, README, decision records and CLI help document actual behavior, accepted inputs and limitations; docs tests assert the tour and replay contract. | docs + CLI integration | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | `tests/test_docs.py`, `tests/test_decisions_log.py`, `tests/test_cli_replay.py` | pass |
+| 05-03-02 | 05-03 | 3 | RPL-02 | T-05-02 | The full lint, format, type and test gate passes; cached Bahrain full and selected replay smoke is separately recorded. | full automated gate + manual smoke | `uv run ruff check .`; `uv run ruff format --check .`; `uv run python -m mypy`; `uv run python -m pytest` | GitHub Actions run 43502700902; cached Bahrain evidence in 05-03-SUMMARY.md | pass |
 
 ## Wave 0 Requirements
 
-- [ ] tests/strategy/test_longstaff.py — synthetic conditional-mean continuation recovery, pathwise stopping, same-checkpoint/common-draw branch behavior, rank-aware fallback, CVaR orientation and fractional boundary, risk endpoints, deterministic reasons, and StrategyPolicy conformance.
-- [ ] tests/test_cli_replay.py — all-cutoff replay, selected-lap equality, driver selection, and expected refusal paths.
-- [ ] tests/guards/consumers.py — register the replay command's as-of data consumer.
-- [ ] Extend tests/conformance so the Longstaff-Schwartz policy runs through the shared StrategyPolicy suite.
-
+- [x] `tests/strategy/test_longstaff.py` covers conditional-mean continuation recovery, pathwise stopping, same-checkpoint/common-draw branches, rank-aware fallback, CVaR orientation and fractional boundary, risk endpoints, deterministic reasons, and policy behavior.
+- [x] `tests/test_cli_replay.py` covers selected and all-cutoff replay, selected-lap equality, driver selection, and expected refusal paths.
+- [x] `tests/guards/consumers.py` registers the replay consumer; future-scramble and consumer-registry tests exercise the registration.
+- [x] `tests/conformance` runs Longstaff-Schwartz through the shared StrategyPolicy suite.
 ## Security Coverage
 
 The project security gate is ASVS L1 with a high-severity block threshold. This CLI phase adopts the applicable versioned controls below as a focused verification contract, not as a certification claim. Control definitions are from ASVS 5.0.0.
@@ -80,13 +77,11 @@ The project security gate is ASVS L1 with a high-severity block threshold. This 
 
 ## Manual-Only Verifications
 
-| Behavior | Requirement | Why Manual | Test Instructions |
-|----------|-------------|------------|------------------|
-| Run a cached Bahrain 2023 replay for a real driver and inspect the complete recommendation table | RPL-02 | CI does not carry the user's local cache; the current Python runtime is blocked locally | In an authorized Python environment with the Bahrain cache present, run uv run f1si replay bahrain-2023 --driver ALO and uv run f1si replay bahrain-2023 --driver ALO --lap 20; confirm every cutoff is printed, lap 20 matches the full replay row, and each reason is one evidence-based sentence. |
+| Behavior | Requirement | Why Manual | Test Instructions / Result |
+|----------|-------------|------------|----------------------------|
+| Run a cached Bahrain 2023 replay for a real driver and inspect the complete recommendation table | RPL-02 | CI does not carry the local race cache, so the real-data smoke remains separate from automated coverage. | Passed with the local signed CPython 3.12.10 runtime and Bahrain cache. `f1si replay bahrain-2023 --driver ALO` printed all 57 ordered cutoffs; `f1si replay bahrain-2023 --driver ALO --lap 20` exactly matched the full replay's lap-20 block. All unavailable reasons were sentence-complete. |
 
-**Observed local smoke:** Both default-size commands exited 0. Full replay printed ordered cutoffs 0 through 56 (57 rows: 41 available and 16 explicitly unavailable while the cutoff-local pace fit was unsupported). The selected lap-20 block exactly matched the full-replay block. After adding punctuation to unavailable reasons, a second real-cache full replay at `--n 12` confirmed all 57 reasons end as sentences and lap 20 still matches. The default-size lap-20 recommendation was `pit in 5 lap(s) (HARD)` (mean 7.927, spread 1.567, CVaR10 10.742, score 9.334); these are one-run observations, not calibration results.
-
----
+**Observed local smoke:** Default-size full replay had 41 available and 16 explicitly unavailable cutoffs. A post-fix `--n 12` run confirmed all 57 reason lines were punctuated and lap 20 matched. The default-size lap-20 recommendation was `pit in 5 lap(s) (HARD)` (mean 7.927, spread 1.567, CVaR10 10.742, score 9.334); these are one-run observations, not calibration results.
 
 ## Validation Sign-Off
 
@@ -95,8 +90,16 @@ The project security gate is ASVS L1 with a high-severity block threshold. This 
 - [x] Wave 0 covers all missing test files and registrations.
 - [x] No watch-mode flags.
 - [x] Local Nyquist validation is complete; full local suite and focused post-fix tests pass.
-- [ ] CI is green on Windows and Ubuntu.
+- [x] CI is green on Windows and Ubuntu.
 
-**CI evidence:** Current local branch `agent-05-01` is not present on `origin`, so its commits have no GitHub Actions run. The last observed run on `main` (`fcec2f2`, run [43390811407](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43390811407)) passed both Ubuntu and Windows; that run predates Phase 5 and is not evidence for these commits. No push was made.
+**CI evidence:** Pushed branch `agent-05-01` at commit `b224399` passed GitHub Actions run [43502700902](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43502700902); both Ubuntu and Windows jobs succeeded.
 
-**Approval:** pending current-branch CI
+**Approval:** validated
+
+## Validation Audit 2026-11-13
+
+| Metric | Count |
+|---|---|
+| Gaps found | 4 |
+| Resolved | 4 |
+| Escalated | 0 |
