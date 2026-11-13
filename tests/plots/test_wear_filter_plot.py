@@ -129,3 +129,11 @@ def test_module_imports_without_pyplot() -> None:
         "sys.exit(1 if 'matplotlib.pyplot' in sys.modules else 0)"
     )
     assert subprocess.run([sys.executable, "-I", "-c", code], check=False).returncode == 0
+
+
+def test_trailing_newline_is_unsafe() -> None:
+    """IN-03: `$` would accept a trailing newline; fullmatch must not."""
+    with pytest.raises(ValueError, match="Unsafe race slug"):
+        wear_filter_file_name("bahrain\n", "ALO")
+    with pytest.raises(ValueError, match="Unsafe driver code"):
+        wear_filter_file_name("bahrain-2023", "ALO\n")

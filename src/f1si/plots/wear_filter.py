@@ -194,8 +194,8 @@ def wear_filter_file_name(slug: str, driver: str) -> str:
     Raises:
         ValueError: if the slug or the driver code has unexpected characters.
     """
-    if not _SLUG.match(slug):
+    if not _SLUG.fullmatch(slug):
         raise ValueError(f"Unsafe race slug for a file name: {slug!r}")
-    if not _DRIVER.match(driver):
+    if not _DRIVER.fullmatch(driver):
         raise ValueError(f"Unsafe driver code for a file name: {driver!r}")
     return f"wear-filter-{slug}-{driver}.png"
