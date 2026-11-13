@@ -44,24 +44,50 @@ used lap on, a lap whose innovation exceeds GATE_Z standard deviations of S is r
 that the lap right after a rejection is never rejected (a real step change must not freeze the
 filter). Non-finite lap times are skipped before they can touch the covariance.
 
-The array core sees no snapshot; the snapshot adapter in this module (added in plan 04-02) is the
-only reader of race data.
+The array core sees no snapshot. `filter_stints` is the only function in this module that reads
+race data, and it receives a `RaceSnapshot` (plain data), never the accessor (D-09).
+
+Priors (D-05, D-06, D-07, D-19). Each stint is its own filter (D-03). The rate prior, the fuel
+correction and the noise all come from `fit_linear_pace` of the SAME snapshot, so nothing from a
+later lap can leak in. Each quantity falls back on its own to a generic prior when the fit does
+not identify it, and the result says which ("fit" or a string starting "prior only"):
+
+    quantity            from the fit                          generic fallback [ASSUMED] (DEC-091)
+    wear rate (s/lap)   N(wear_c, se_c^2 + TAU_CAR^2)          N(0.10 / 0.08 / 0.06, 0.05^2)  S/M/H
+    fuel effect (s/lap) mean fuel, SD sqrt(se^2 + 0.02^2)     N(-0.05, 0.025^2)
+    lap-time noise (s)  sigma_s of the fit                    0.30
+
+The fit prior is used only when the fit is identified and the compound is fitted (D-19). The fuel
+correction removes `fuel_mean * (lap - 1)` from each lap time, the same convention as
+`LinearPaceFit.predict`; what is left of the fuel error is the filter's fuel state.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 
 import numpy as np
 from numpy.typing import NDArray
 
-from f1si.pace.linear import CI_Z
+from f1si.data.asof import RaceSnapshot
+from f1si.interfaces import DRY_COMPOUNDS
+from f1si.pace.linear import CI_Z, LinearPaceFit, _classify
 
 GATE_Z: Final = 3.0
 GATE_MIN_USED: Final = 3
 DIFFUSE_LEVEL_SD: Final = 1000.0
+
+# Generic priors, each [ASSUMED] (DEC-091): used only where the fit does not identify a quantity.
+GENERIC_RATE_MEAN: Final = {"SOFT": 0.10, "MEDIUM": 0.08, "HARD": 0.06}  # [ASSUMED] DEC-091
+GENERIC_RATE_SD: Final = 0.05  # [ASSUMED] DEC-091
+GENERIC_FUEL_MEAN: Final = -0.05  # [ASSUMED] DEC-091
+GENERIC_FUEL_SD: Final = 0.025  # [ASSUMED] DEC-091
+GENERIC_SIGMA_S: Final = 0.30  # [ASSUMED] DEC-091
+TAU_CAR: Final = 0.03  # [ASSUMED] DEC-091: car-to-car spread added to the fitted compound rate
+FUEL_SD_EXTRA: Final = 0.02  # [ASSUMED] DEC-091: extra fuel SD (track evolution absorbed, D-25)
 
 _F: Final[NDArray[np.float64]] = np.array(
     [[1.0, 1.0, 1.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64
@@ -270,3 +296,168 @@ def posterior_rate_sd(tau: float, sigma: float, fuel_sd: float, n_measured: int)
         return tau
     data_var = sigma**2 / sxx
     return math.sqrt(tau**2 - tau**4 / (tau**2 + fuel_sd**2 + data_var))
+
+
+@dataclass(frozen=True)
+class ResolvedPriors:
+    """Priors of one stint and where each came from ("fit" or "prior only: <why>")."""
+
+    prior: WearPrior
+    fuel_mean: float
+    rate_source: str
+    fuel_source: str
+    noise_source: str
+
+
+@dataclass(frozen=True)
+class LapRow:
+    """One lap of a stint after the filter has seen it (`reason` is None when used)."""
+
+    race_lap: int
+    tyre_age: int
+    used: bool
+    reason: str | None
+    rate_mean: float
+    rate_sd: float
+    rate_lo: float
+    rate_hi: float
+
+
+@dataclass(frozen=True)
+class StintFilterResult:
+    """Lap-by-lap wear estimate of one driver's stint, as of the snapshot's cutoff."""
+
+    driver_number: int
+    stint: int
+    compound: str
+    priors: ResolvedPriors
+    rows: tuple[LapRow, ...]
+    n_used: int
+    n_gate_rejections: int
+    is_current: bool
+    cutoff_lap: int
+
+
+def resolve_priors(fit: LinearPaceFit, compound: str) -> ResolvedPriors:
+    """Priors for a stint on `compound` from `fit`, falling back per quantity (D-06, D-19)."""
+    report = fit.report
+    fuel_known = report.fuel_s_per_lap is not None
+    rate = fit.wear_rate(compound) if fuel_known else None
+    se = fit.wear_se(compound) if fuel_known else None
+    if rate is not None and se is not None and math.isfinite(rate) and math.isfinite(se):
+        rate_mean, rate_sd, rate_source = rate, math.sqrt(se**2 + TAU_CAR**2), "fit"
+    else:
+        rate_mean = GENERIC_RATE_MEAN.get(compound, GENERIC_RATE_MEAN["MEDIUM"])
+        rate_sd = GENERIC_RATE_SD
+        why = "compound not fitted yet" if fuel_known else "fit not identified yet"
+        rate_source = f"prior only: {why}"
+    fuel = report.fuel_s_per_lap
+    if fuel is not None and report.fuel_se is not None and math.isfinite(fuel):
+        fuel_mean = fuel
+        fuel_sd = math.sqrt(report.fuel_se**2 + FUEL_SD_EXTRA**2)
+        fuel_source = "fit"
+    else:
+        fuel_mean, fuel_sd = GENERIC_FUEL_MEAN, GENERIC_FUEL_SD
+        fuel_source = "prior only: fuel effect not identified yet"
+    sigma = report.sigma_s
+    if sigma is not None and math.isfinite(sigma) and sigma > 0:
+        noise, noise_source = float(sigma), "fit"
+    else:
+        noise, noise_source = GENERIC_SIGMA_S, "prior only: noise not estimated yet"
+    return ResolvedPriors(
+        prior=WearPrior(rate_mean=rate_mean, rate_sd=rate_sd, fuel_sd=fuel_sd, sigma=noise),
+        fuel_mean=fuel_mean,
+        rate_source=rate_source,
+        fuel_source=fuel_source,
+        noise_source=noise_source,
+    )
+
+
+def filter_stints(
+    snapshot: RaceSnapshot,
+    fit: LinearPaceFit,
+    *,
+    driver_numbers: Sequence[int] | None = None,
+) -> tuple[StintFilterResult, ...]:
+    """Run one `WearFilter` per driver stint over the laps visible in `snapshot`.
+
+    `fit` must be the fit of the same snapshot (D-07). Laps are read in race order; the clean-lap
+    rule is `f1si.pace.linear._classify` (D-08). Never raises on an empty snapshot.
+    """
+    laps = snapshot.laps
+    if laps.empty:
+        return ()
+    table = _classify(laps)
+    table = table[table["stint"].notna()].reset_index(drop=True)
+    if table.empty:
+        return ()
+    at_lap = snapshot.at.lap
+    cutoff = at_lap if isinstance(at_lap, int) else int(laps["lap_number"].max())
+    wanted = None if driver_numbers is None else {int(n) for n in driver_numbers}
+    results: list[StintFilterResult] = []
+    for driver, mine in table.groupby("driver", sort=True):
+        number = int(str(driver))
+        if wanted is not None and number not in wanted:
+            continue
+        last_stint = float(str(mine.loc[mine["lap"].idxmax(), "stint"]))
+        for stint_no, grp in mine.groupby("stint", sort=True):
+            stint_value = float(str(stint_no))
+            names = [str(c) for c in grp["compound"] if isinstance(c, str)]
+            if not names or any(c not in DRY_COMPOUNDS for c in names):
+                continue
+            compound = max(set(names), key=names.count)
+            priors = resolve_priors(fit, compound)
+            wear_filter = WearFilter(priors.prior)
+            rows: list[LapRow] = []
+            previous_age = -1
+            for _, lap in grp.sort_values("lap").iterrows():
+                race_lap = int(lap["lap"])
+                age = previous_age + 1 if math.isnan(lap["age"]) else int(lap["age"])
+                previous_age = age
+                reason = lap["reason"] if isinstance(lap["reason"], str) else None
+                y: float | None = None
+                if reason is None:
+                    y = float(lap["time"]) - priors.fuel_mean * (race_lap - 1)
+                update = wear_filter.observe(y, reason)
+                rows.append(
+                    LapRow(
+                        race_lap=race_lap,
+                        tyre_age=age,
+                        used=update.used,
+                        reason=update.reason,
+                        rate_mean=update.rate_mean,
+                        rate_sd=update.rate_sd,
+                        rate_lo=update.rate_lo,
+                        rate_hi=update.rate_hi,
+                    )
+                )
+            results.append(
+                StintFilterResult(
+                    driver_number=number,
+                    stint=int(stint_value),
+                    compound=compound,
+                    priors=priors,
+                    rows=tuple(rows),
+                    n_used=wear_filter.n_used,
+                    n_gate_rejections=wear_filter.n_gate_rejections,
+                    is_current=stint_value == last_stint,
+                    cutoff_lap=cutoff,
+                )
+            )
+    return tuple(results)
+
+
+def current_stint_snapshots(results: Sequence[StintFilterResult]) -> dict[int, FilterSnapshot]:
+    """Driver number -> posterior of the driver's current stint, only when it used a lap."""
+    out: dict[int, FilterSnapshot] = {}
+    for r in results:
+        if r.is_current and r.n_used >= 1 and r.rows:
+            last = r.rows[-1]
+            out[r.driver_number] = FilterSnapshot(
+                rate_mean=last.rate_mean,
+                rate_sd=last.rate_sd,
+                n_used=r.n_used,
+                prior_only=False,
+                cutoff_lap=r.cutoff_lap,
+            )
+    return out

@@ -26,10 +26,11 @@ Paths are relative to the repository folder. `__init__.py` files are empty packa
 
 ### The package `src/f1si`
 
-- `src/f1si/pace/kalman.py` is the filter: `WearPrior` (starting belief and noise), `WearFilter` (one lap at a time, with an outlier gate), `LapUpdate` and `FilterSnapshot` (what it reports), and `posterior_rate_sd` (the exact answer it must reproduce).
+- `src/f1si/pace/kalman.py` is the filter: `WearPrior` (starting belief and noise), `WearFilter` (one lap at a time, with an outlier gate), `LapUpdate` and `FilterSnapshot` (what it reports), and `posterior_rate_sd` (the exact answer it must reproduce). The adapter half (`filter_stints`, `resolve_priors`, `current_stint_snapshots`) turns an as-of race snapshot into per-stint, per-lap rate rows and says whether each prior came from the fit or is "prior only".
 
 ### Tests
 
+- `tests/pace/test_kalman_adapter.py` checks the snapshot adapter, its labelled sources and the clean-lap rule.
 - `tests/pace/test_kalman_math.py` checks the filter against exact Bayesian regression and the closed-form band.
 - `tests/pace/test_kalman_incremental.py`, `test_kalman_narrowing.py` and `test_kalman_gate.py` check lap-by-lap equals batch, the narrowing band and the outlier gate.
 - `tests/sim/test_phase3_reference.py` guards the stored Phase 3 simulator output.

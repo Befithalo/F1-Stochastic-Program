@@ -991,3 +991,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** A gate from the first lap (never fires, no protection). A hard cap on rejections per stint (harder to explain). Student-t observation noise (not a Kalman filter any more).
 **Consequences:** Contaminated laps lower coverage below nominal, and the honest figure is stated, not hidden.
 **Refs:** D-08, PAC-03
+
+## DEC-091 — Wear filter priors: fit-derived when identified, generic [ASSUMED] otherwise
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** Every stint needs a prior for the wear rate, a fuel correction and a lap-time noise level, and the first stint of every driver is seen before the Phase 2 fit is identified (Bahrain 2023: first identified at lap 14). No authoritative per-compound s/lap source exists.
+**Decision:** `f1si.pace.kalman.resolve_priors` takes each quantity from `fit_linear_pace` of the same snapshot when identified, else from a generic prior, independently per quantity, and labels each source "fit" or "prior only: <why>". Fit rule (D-19): the fit prior is used only when the fit's fuel effect is identified and the compound is fitted; no "not before lap N" rule. Rate prior N(wear_c, se_c^2 + TAU_CAR^2) with TAU_CAR 0.03; fuel mean = fitted fuel effect with SD sqrt(se^2 + FUEL_SD_EXTRA^2), FUEL_SD_EXTRA 0.02; noise = sigma_s. Generic [ASSUMED] values: rate mean SOFT 0.10, MEDIUM 0.08, HARD 0.06 with SD 0.05; fuel -0.05 +/- 0.025; sigma 0.30 s. All seven constants are [ASSUMED]. The fuel correction is `lap_time - fuel_mean * (lap - 1)`, the convention of `LinearPaceFit.predict`.
+**Why:** Evidence is thin and says so: Bahrain 2023 whole-race fits give HARD 0.121 and SOFT 0.125 s/lap, which contradicts a SOFT >> HARD ordering, so the generic means are kept close together with a wide SD (0.0 to 0.2 at 2 SD). Hindsight HARD stint slopes at Bahrain have SD about 0.03 after removing estimation noise, hence TAU_CAR; the field-mean SE (0.004) alone would make each car's prior absurdly tight. Fuel in a stint includes track evolution (Bahrain -0.078 s/lap), hence the wide fuel SD.
+**Alternatives rejected:** A "fit only after lap N or SE below X" rule (an extra tuned threshold with no ground truth). Tuning any constant to make the 10% target pass (D-17). Reading noise from another snapshot (look-ahead).
+**Consequences:** Early-fit values (laps 14 to 25) are several reported SE from the final answer at Bahrain; TAU_CAR softens but does not remove that bias. The look-ahead guard covers the adapter through a registered consumer.
+**Refs:** D-05, D-06, D-07, D-09, D-19, PAC-03

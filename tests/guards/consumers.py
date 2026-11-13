@@ -12,6 +12,7 @@ from typing import Final
 import numpy as np
 
 from f1si.data.asof import AsOf, AsOfAccessor
+from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
 from f1si.plots.wear import prepare_wear_plot_data
@@ -100,6 +101,15 @@ def sc_rate(db_path: Path, at: AsOf) -> object:
     return estimate_sc_rate(AsOfAccessor(db_path).history(at))
 
 
+def wear_filter(db_path: Path, at: AsOf) -> object:
+    """Per-stint Kalman wear estimates from the snapshot and its own fit, and current posteriors."""
+    snapshot = AsOfAccessor(db_path).snapshot(at)
+    fit = fit_linear_pace(snapshot)
+    results = filter_stints(snapshot, fit)
+    priors = resolve_priors(fit, "MEDIUM")
+    return results, current_stint_snapshots(results), priors
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -112,6 +122,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "race_state": race_state,
     "wear_plot_data": wear_plot_data,
     "sc_rate": sc_rate,
+    "wear_filter": wear_filter,
 }
 
 
@@ -146,6 +157,9 @@ CONSUMED: Final[dict[str, str]] = {
     "f1si.state.RaceState.car": "race_state",
     "f1si.state.RaceState.to_arrays": "race_state",
     "f1si.regime.sc_rate.estimate_sc_rate": "sc_rate",
+    "f1si.pace.kalman.filter_stints": "wear_filter",
+    "f1si.pace.kalman.resolve_priors": "wear_filter",
+    "f1si.pace.kalman.current_stint_snapshots": "wear_filter",
 }
 
 # qualified name -> why no scramble consumer is needed
