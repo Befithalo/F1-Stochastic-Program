@@ -43,7 +43,7 @@ created: "2026-11-13"
 | 06-01-01 | 01 | 1 | BKT-01 | T-06-01 | Ten fixed race IDs and full-cache preflight precede a prediction-only tracer row | integration | `uv run python -m pytest tests/backtest/test_walk_forward.py -q` | yes | passed (7 tests) |
 | 06-01-02 | 01 | 1 | BKT-01 | T-06-02 | Every prediction uses its cutoff snapshot and earlier history; all ten races freeze before results access/scoring; future-scramble output is invariant; 2026 stays locked | integration/property | `uv run python -m pytest tests/guards tests/test_decisions_log.py -x -q`<br>`uv run python -m pytest tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -x -q` | yes | passed (224 + 58 tests) |
 | 06-02-01 | 02 | 2 | BKT-02 | T-06-03 | Brier masks, neutral past-only baseline, interval endpoints, equal-race means, and paired bootstrap semantics are exact | unit | `uv run python -m pytest tests/backtest/test_metrics.py -q` | yes | passed (7 metrics tests at 87610f9; scorer API RED contract was added later by bf07561 for Plan 06-04) |
-| 06-03-01 | 03 | 3 | BKT-02 | T-06-13 | Every strategy option carries same-draw podium/top-10 probabilities and inclusive inverted-CDF P05/P95 summaries before prediction freeze; no raw draws or results access | unit/integration | `uv run python -m pytest tests/strategy/test_longstaff.py -q` | yes | pending |
+| 06-03-01 | 03 | 3 | BKT-02 | T-06-13 | Every strategy option carries same-draw podium/top-10 probabilities and inclusive inverted-CDF P05/P95 summaries before prediction freeze; no raw draws or results access | unit/integration | `uv run python -m pytest tests/strategy/test_longstaff.py -q` | yes | passed (17 tests) |
 | 06-04-01 | 04 | 4 | BKT-02 | T-06-04 | `test_preflight_requires_all_ten_races_before_scoring`, `test_incomplete_trace_stops_before_results_open_or_score`, and `test_predictions_freeze_before_first_results_open_and_score` prove all-ten preflight, fail-closed trace validation, and full eligible prediction freeze before first ResultsAccessor access or scoring | integration | `uv run python -m pytest tests/backtest/test_metrics.py -x -q` | yes (Wave 0-created; Plan 06-04 adds cases) | pending |
 | 06-04-02 | 04 | 4 | BKT-02 | T-06-14 | `test_backtest_report_incomplete_cache_writes_no_completed_report` proves nonzero exit and no new or overwritten completed report; JSON preserves the ten IDs, paired Brier/interval metrics, denominators, seeds and conventions | integration/CLI | `uv run python -m pytest tests/backtest/test_metrics.py tests/backtest/test_walk_forward.py tests/test_cli.py -x -q` | yes | pending |
 | 06-05-01 | 05 | 5 | BKT-04 | T-06-05 | Every actual stop matches once to the latest strictly earlier recommendation; intervals resample races | integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | yes | pending |
@@ -74,6 +74,12 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 
 - Walk-forward tests passed (7); guards plus the decision log passed (224); the final walk-forward and future-scramble run passed (58). Ruff check and format check passed.
 - Full pytest collection still cannot start because the scorer, team strategy, and wear-proxy modules are scheduled for Waves 4 and 5. Mypy reports only those missing future-wave modules; rerun both gates as those modules land.
+
+### Wave 3 execution record
+
+- The same-draw distribution summary tests passed (17). `python -m compileall -q src` passed.
+- Full pytest collection remains blocked because `f1si.backtest.strategy` is assigned to Plan 06-05; rerun the full suite after that module lands.
+- Post-wave schema-drift and UI-safety gates passed. The codebase-drift check was skipped because the repository has no `STRUCTURE.md`.
 
 ---
 
