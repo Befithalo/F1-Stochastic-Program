@@ -1,8 +1,8 @@
 ---
 phase: "05"
 slug: "longstaff-schwartz-strategy-live-replay"
-status: validated
-nyquist_compliant: true
+status: pending_exact_head_ci
+nyquist_compliant: false
 wave_0_complete: true
 created: "2026-11-13"
 ---
@@ -48,6 +48,9 @@ Plan and task IDs below match the finalized Phase 05 plans. Existing tests and v
 | 05-02-02 | 05-02 | 2 | RPL-01, STR-01 | T-05-02 | Replay is registered as a future-scramble consumer and LongstaffSchwartzPolicy runs the shared StrategyPolicy conformance suite. | guard + conformance | `uv run python -m pytest tests/guards tests/test_decisions_log.py -x -q`; `uv run python -m pytest tests/conformance -x -q` | `tests/guards/consumers.py`, `tests/guards/test_future_scramble.py`, `tests/guards/test_consumer_registry.py`, `tests/conformance/test_suites.py` | pass |
 | 05-03-01 | 05-03 | 3 | STR-04, RPL-02 | T-05-01, T-05-03 | Explainer, README, decision records and CLI help document actual behavior, accepted inputs and limitations; docs tests assert the tour and replay contract. | docs + CLI integration | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | `tests/test_docs.py`, `tests/test_decisions_log.py`, `tests/test_cli_replay.py` | pass |
 | 05-03-02 | 05-03 | 3 | RPL-02 | T-05-02 | The full lint, format, type and test gate passes; cached Bahrain full and selected replay smoke is separately recorded. | full automated gate + manual smoke | `uv run ruff check .`; `uv run ruff format --check .`; `uv run python -m mypy`; `uv run python -m pytest` | GitHub Actions run 43502700902; cached Bahrain evidence in 05-03-SUMMARY.md | pass |
+| 05-04-01 | 05-04 | 4 | RPL-01 | T-05-05 | Sparse fallback uses only the cutoff snapshot, exposes generic-prior basis and broad uncertainty, and returns ranked finite options for lap 0 and a sparse cutoff; selected and full output agree at laps 0 and 5. | model + CLI integration | `uv run python -m pytest -q tests/test_cli_replay.py` | `tests/test_cli_replay.py::test_sparse_fallback_replay_returns_ranked_options_at_lap_zero_and_fallback_lap`; `::test_sparse_fallback_noise_floor_is_generic_at_lap_zero`; `::test_sparse_fallback_uses_cutoff_clean_residuals_and_robust_noise`; selected/full equality tests | green |
+| 05-04-02 | 05-04 | 4 | STR-04, RPL-01 | T-05-05 | DEC-101, README, and explainer disclose cutoff-visible residuals, DEC-091 generic priors, assumed 1.0 s offset SD, and uncalibrated limits; existing tour, wording, and decision sequence assertions remain active. | docs + decision-log integration | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | `tests/test_docs.py`; `tests/test_decisions_log.py`; 05-04-SUMMARY.md focused docs/replay/decision run | green |
+| 05-04-03 | 05-04 | 4 | RPL-01, RPL-02 | T-05-05 | Registered replay consumer compares fallback status, all ranked metrics, and reason after future-row scrambling; existing full-grid, metadata, and locked-race guards remain in the guard suite. | property/integration + full quality gate | `uv run python -m pytest tests/guards/test_future_scramble.py tests/guards/test_consumer_registry.py tests/test_cli_replay.py -x -q`; `uv run ruff check .`; `uv run ruff format --check .`; `uv run python -m mypy`; `uv run python -m pytest` | `tests/guards/test_future_scramble.py::test_strategy_replay_fallback_ignores_future_at_sparse_cutoff`; 05-04-SUMMARY.md records 93 focused guard/replay tests, 989 passed/25 deselected, Ruff/format/mypy green | local green; exact-head cross-platform CI pending |
 
 ## Wave 0 Requirements
 
@@ -79,9 +82,9 @@ The project security gate is ASVS L1 with a high-severity block threshold. This 
 
 | Behavior | Requirement | Why Manual | Test Instructions / Result |
 |----------|-------------|------------|----------------------------|
-| Run a cached Bahrain 2023 replay for a real driver and inspect the complete recommendation table | RPL-02 | CI does not carry the local race cache, so the real-data smoke remains separate from automated coverage. | Passed with the local signed CPython 3.12.10 runtime and Bahrain cache. `f1si replay bahrain-2023 --driver ALO` printed all 57 ordered cutoffs; `f1si replay bahrain-2023 --driver ALO --lap 20` exactly matched the full replay's lap-20 block. All unavailable reasons were sentence-complete. |
+| Run a cached Bahrain 2023 replay for a real driver and inspect the complete recommendation table | RPL-02 | CI does not carry the local race cache, so the real-data smoke remains separate from automated coverage. | Plan 05-03 passed: full replay printed 57 ordered cutoffs and selected lap 20 matched. Plan 05-04 passed: `f1si replay bahrain-2023 --driver ALO --n 12` printed 57 ascending rows (43 identified-fit, 14 fallback, no unavailable rows); selected laps 0 and 5 matched their full-replay blocks. This smoke is separate from pytest and CI. |
 
-**Observed local smoke:** Default-size full replay had 41 available and 16 explicitly unavailable cutoffs. A post-fix `--n 12` run confirmed all 57 reason lines were punctuated and lap 20 matched. The default-size lap-20 recommendation was `pit in 5 lap(s) (HARD)` (mean 7.927, spread 1.567, CVaR10 10.742, score 9.334); these are one-run observations, not calibration results.
+**Observed local smoke:** Plan 05-03's default-size replay had 41 identified-fit and 16 unavailable cutoffs; its post-fix `--n 12` run confirmed punctuation and lap-20 equivalence. Plan 05-04 closes the unavailable rows with fallback: its `--n 12` run reported 43 identified-fit and 14 fallback rows; laps 0 and 5 matched selected/full output. These are smoke observations, not calibration results.
 
 ## Validation Sign-Off
 
@@ -89,12 +92,12 @@ The project security gate is ASVS L1 with a high-severity block threshold. This 
 - [x] Sampling continuity has no three consecutive tasks without automated verification.
 - [x] Wave 0 covers all missing test files and registrations.
 - [x] No watch-mode flags.
-- [x] Local Nyquist validation is complete; full local suite and focused post-fix tests pass.
-- [x] CI is green on Windows and Ubuntu.
+- [x] Local Nyquist validation is complete; final full suite: 989 passed, 25 deselected; focused docs/replay/decision tests: 70 passed; Ruff, format, and mypy passed.
+- [ ] Exact-head CI is pending: run 43530884555 used the implementation SHA but Windows hit the old 20-minute job timeout; the workflow timeout was raised to 30 minutes and the new exact-head run must finish both Ubuntu and Windows jobs.
 
-**CI evidence:** Pushed branch `agent-05-01` at commit `b224399` passed GitHub Actions run [43502700902](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43502700902); both Ubuntu and Windows jobs succeeded.
+**Historical CI evidence:** Plan 05-03's earlier phase head passed both jobs in run [43502700902](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43502700902). It does not validate Plan 05-04. The Plan 05-04 run [43530884555](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43530884555) was for implementation head `3f979f84f2ae81292230779402635d5b7b077e24`; Ubuntu passed, Windows was cancelled at the old 20-minute limit. The timeout is now 30 minutes; exact-head cross-platform completion remains pending.
 
-**Approval:** validated
+**Approval:** pending exact-head Ubuntu/Windows CI completion
 
 ## Validation Audit 2026-11-13
 
@@ -103,3 +106,15 @@ The project security gate is ASVS L1 with a high-severity block threshold. This 
 | Gaps found | 4 |
 | Resolved | 4 |
 | Escalated | 0 |
+
+## Validation Audit 2026-11-14 — Plan 05-04
+
+| Metric | Count |
+|---|---:|
+| Plan 05-04 tasks mapped to concrete tests/commands | 3/3 |
+| Behavioral coverage gaps found | 0 |
+| Local automated checks green | yes |
+| Bahrain real-data smoke green | yes |
+| Exact-head cross-platform CI | pending 30-minute timeout run |
+
+No new test file was needed. The sparse model and CLI behaviors are exercised by the named tests in `tests/test_cli_replay.py`; the docs task is checked by existing docs and decision-log tests; fallback future-scramble coverage is explicit at a sparse cutoff and runs with the registered consumer/full-grid guard suite. Final local evidence is **989 passed, 25 deselected**, **70 focused docs/replay/decision tests passed**, and Ruff, format, and mypy passed. The real Bahrain smoke is separately recorded above. The exact-head CI gate is the sole outstanding validation item; do not mark the phase fully validated until both matrix jobs pass on the current implementation HEAD.
