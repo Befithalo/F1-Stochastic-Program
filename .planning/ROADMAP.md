@@ -223,7 +223,7 @@ Plans:
 
 **Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
 
-**Plans:** 8/8 plans executed
+**Plans:** 8/9 plans executed
 
 Plans:
 
@@ -250,6 +250,9 @@ Plans:
 
 **Wave 7**
 - [x] 06-07-PLAN.md — Measured README results, explainer, decisions, and docs checks
+
+**Wave 8**
+- [ ] 06-08-PLAN.md — Close replay UI review findings and record responsive verification
 
 **UI hint**: yes
 
@@ -293,6 +296,6 @@ Plans:
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
-| 6. MVP Backtest, Streamlit View & README | 8/8 | In Progress | - |
+| 6. MVP Backtest, Streamlit View & README | 8/9 | In Progress | - |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |
 | 8. Markov Regimes & Full Backtest | 0/0 | Not started | - |
