@@ -19,6 +19,7 @@ from f1si.backtest.walk_forward import (
     PredictionRow,
     WalkForwardTrace,
     _preflight_database,
+    _race_laps_total,
     run_walk_forward,
 )
 from f1si.data import asof
@@ -40,9 +41,7 @@ def _expected_prediction_keys(db_path: Path) -> set[tuple[str, int, str]]:
     expected: set[tuple[str, int, str]] = set()
     for race_id in REGISTERED_RACE_IDS:
         first = accessor.snapshot(asof.AsOf(race_id, 0))
-        laps_total = first.race.scheduled_laps
-        if not laps_total:
-            raise ValueError(f"No scheduled race distance available for {race_id}.")
+        laps_total = _race_laps_total(accessor, race_id, first)
         for lap in range(int(laps_total)):
             snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
             for driver in snapshot.entries["driver_code"]:

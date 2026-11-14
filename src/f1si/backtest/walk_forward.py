@@ -73,6 +73,30 @@ def _seed(race_id: str, driver: str, lap: int, seed: int) -> int:
     return (seed + zlib.crc32(f"{race_id}:{driver}:{lap}".encode())) & 0x7FFFFFFF
 
 
+def _race_laps_total(accessor: asof.AsOfAccessor, race_id: str, first_snapshot: object) -> int:
+    """Return the race cutoff horizon, using completed lap rows when schedule metadata is absent.
+
+    Some OpenF1 cache entries do not include the scheduled distance. In that case the completed
+    lap table supplies only the finite evaluation horizon; every prediction still uses its own
+    cutoff snapshot and strictly earlier history.
+    """
+    scheduled_laps = getattr(first_snapshot.race, "scheduled_laps", None)
+    if scheduled_laps is not None and int(scheduled_laps) > 0:
+        return int(scheduled_laps)
+
+    end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+    laps = getattr(end, "laps", None)
+    if laps is None or laps.empty or "lap_number" not in laps:
+        raise ValueError(f"No race distance or completed laps available for {race_id}.")
+    observed_laps = laps["lap_number"].dropna()
+    if observed_laps.empty:
+        raise ValueError(f"No race distance or completed laps available for {race_id}.")
+    laps_total = int(observed_laps.max())
+    if laps_total < 1:
+        raise ValueError(f"No race distance or completed laps available for {race_id}.")
+    return laps_total
+
+
 def _predict_from_accessor(
     accessor: asof.AsOfAccessor,
     race_id: str,
@@ -82,14 +106,14 @@ def _predict_from_accessor(
     n_simulations: int,
     risk: float,
     seed: int,
+    laps_total: int | None = None,
 ) -> PredictionRow:
     """Build one row from the shared replay cutoff builder; never reads final outcomes."""
     if race_id not in REGISTERED_RACE_IDS:
         raise ValueError(f"Race {race_id} is outside the registered 2023-2025 backtest sample.")
     snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
-    laps_total = snapshot.race.scheduled_laps
-    if not laps_total:
-        raise ValueError(f"No scheduled race distance available for {race_id}.")
+    if laps_total is None:
+        laps_total = _race_laps_total(accessor, race_id, snapshot)
     code = driver.upper()
     known = set(str(value) for value in snapshot.entries["driver_code"])
     if code not in known:
@@ -147,14 +171,12 @@ def cutoff_consumer(db_path: Path, at: asof.AsOf) -> PredictionRow:
         raise ValueError(f"Race {at.race_id} is outside the registered backtest sample.")
     # The scramble harness can supply RACE_END as a boundary marker. Resolve it to the last
     # scheduled strategy cutoff so the marker never grants access to future observations.
-    lap = at.lap if isinstance(at.lap, int) else 0
     accessor = _new_accessor(db_path)
-    snapshot = accessor.snapshot(asof.AsOf(at.race_id, lap))
-    if not isinstance(at.lap, int) and snapshot.race.scheduled_laps:
-        lap = int(snapshot.race.scheduled_laps) - 1
-        snapshot = accessor.snapshot(asof.AsOf(at.race_id, lap))
-    elif snapshot.race.scheduled_laps:
-        lap = min(lap, int(snapshot.race.scheduled_laps) - 1)
+    first = accessor.snapshot(asof.AsOf(at.race_id, 0))
+    laps_total = _race_laps_total(accessor, at.race_id, first)
+    lap = at.lap if isinstance(at.lap, int) else laps_total - 1
+    lap = min(lap, laps_total - 1)
+    snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(at.race_id, lap))
     drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
     if not drivers:
         raise ValueError(f"No drivers available in {at.race_id} at lap {at.lap}.")
@@ -166,6 +188,7 @@ def cutoff_consumer(db_path: Path, at: asof.AsOf) -> PredictionRow:
         n_simulations=1,
         risk=0.5,
         seed=0,
+        laps_total=laps_total,
     )
 
 
@@ -182,9 +205,7 @@ def run_walk_forward(
     rows: list[PredictionRow] = []
     for race_id in REGISTERED_RACE_IDS:
         first = accessor.snapshot(asof.AsOf(race_id, 0))
-        laps_total = first.race.scheduled_laps
-        if not laps_total:
-            raise ValueError(f"No scheduled race distance for registered race {race_id}.")
+        laps_total = _race_laps_total(accessor, race_id, first)
         for lap in range(laps_total):
             snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
             drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
@@ -198,6 +219,7 @@ def run_walk_forward(
                         n_simulations=n_simulations,
                         risk=risk,
                         seed=seed,
+                        laps_total=laps_total,
                     )
                 )
     return WalkForwardTrace(tuple(rows))

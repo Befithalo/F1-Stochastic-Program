@@ -170,6 +170,47 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
     assert len(trace.predictions) == len(expected)
 
 
+def test_full_runner_uses_completed_lap_horizon_when_schedule_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, at: asof.AsOf) -> object:
+            if at.lap == asof.RACE_END:
+                return SimpleNamespace(
+                    race=SimpleNamespace(scheduled_laps=None),
+                    laps=pd.DataFrame({"lap_number": [1, 2, 3]}),
+                    entries=pd.DataFrame({"driver_code": ["AAA"]}),
+                )
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=None),
+                laps=pd.DataFrame(columns=["lap_number"]),
+                entries=pd.DataFrame({"driver_code": ["AAA"]}),
+            )
+
+    monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+    calls: list[tuple[str, int]] = []
+
+    def prediction(
+        _accessor: object,
+        race_id: str,
+        driver: str,
+        lap: int,
+        **_options: object,
+    ) -> PredictionRow:
+        calls.append((race_id, lap))
+        return PredictionRow(race_id, driver, lap, None, "test row")
+
+    monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
+    trace = run_walk_forward(Path("cache.duckdb"))
+    assert calls == [(race_id, lap) for race_id in EXPECTED_RACES for lap in range(3)]
+    assert len(trace.predictions) == len(EXPECTED_RACES) * 3
+
+
 def test_requesting_2026_race_is_rejected_before_prediction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
