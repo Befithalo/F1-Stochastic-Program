@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pandas as pd
 import pytest
 
+import f1si.backtest.walk_forward as walk_forward
 from f1si.backtest.walk_forward import (
     REGISTERED_RACE_IDS,
     PredictionRow,
@@ -16,6 +18,8 @@ from f1si.backtest.walk_forward import (
     run_walk_forward,
 )
 from f1si.cli import main
+from f1si.data import asof
+from f1si.strategy.longstaff import StrategyAnalysis
 
 EXPECTED_RACES = (
     "2023-01",
@@ -61,9 +65,7 @@ def test_preflight_requires_every_registered_race_complete() -> None:
 def test_incomplete_sample_stops_before_prediction_or_results_access(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from f1si.backtest import walk_forward
-
-    monkeypatch.setattr(walk_forward.asof, "catalog", lambda _db: _catalog(missing=("2024-02",)))
+    monkeypatch.setattr(asof, "catalog", lambda _db: _catalog(missing=("2024-02",)))
     monkeypatch.setattr(
         walk_forward,
         "_predict_from_accessor",
@@ -76,11 +78,10 @@ def test_incomplete_sample_stops_before_prediction_or_results_access(
 def test_reference_cli_returns_prediction_row_after_full_preflight(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from f1si.backtest import walk_forward
     from f1si.cli import _ReplayCutoff
 
     events: list[str] = []
-    monkeypatch.setattr(walk_forward.asof, "catalog", lambda _db: _catalog())
+    monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
 
     class Accessor:
         def __init__(self, _db: Path) -> None:
@@ -100,10 +101,11 @@ def test_reference_cli_returns_prediction_row_after_full_preflight(
     def replay(accessor: object, *_args: object, **_kwargs: object) -> object:
         assert isinstance(accessor, Accessor)
         events.append("prediction")
-        return _ReplayCutoff(
-            0,
+        analysis = cast(
+            StrategyAnalysis,
             SimpleNamespace(best=SimpleNamespace(action="stay out"), reason="cutoff-local"),
         )
+        return _ReplayCutoff(0, analysis)
 
     monkeypatch.setattr("f1si.cli._replay_at_cutoff", replay)
     result = main(
@@ -130,10 +132,8 @@ def test_prediction_runner_has_no_results_or_scoring_imports() -> None:
 def test_full_runner_freezes_every_driver_and_cutoff_in_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from f1si.backtest import walk_forward
-
     calls: list[tuple[str, int, str]] = []
-    monkeypatch.setattr(walk_forward.asof, "catalog", lambda _db: _catalog())
+    monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
 
     class Accessor:
         def __init__(self, _db: Path) -> None:
@@ -173,10 +173,8 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
 def test_requesting_2026_race_is_rejected_before_prediction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from f1si.backtest import walk_forward
-
     monkeypatch.setattr(
-        walk_forward.asof,
+        asof,
         "catalog",
         lambda _db: pytest.fail("out-of-sample request reached cache preflight"),
     )

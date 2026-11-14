@@ -5,7 +5,7 @@ from __future__ import annotations
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, Protocol
+from typing import Final
 
 from f1si.data import asof
 from f1si.data.errors import OutOfSampleLockedError
@@ -25,13 +25,7 @@ REGISTERED_RACE_IDS: Final = (
 )
 
 
-class _AsOfReader(Protocol):
-    def snapshot(self, at: asof.AsOf) -> Any: ...
-
-    def history(self, at: asof.AsOf) -> Any: ...
-
-
-def _new_accessor(db_path: Path) -> _AsOfReader:
+def _new_accessor(db_path: Path) -> asof.AsOfAccessor:
     """Ask the CLI composition layer to create the sole cache-reading capability."""
     from f1si.cli import _make_asof_accessor
 
@@ -80,7 +74,7 @@ def _seed(race_id: str, driver: str, lap: int, seed: int) -> int:
 
 
 def _predict_from_accessor(
-    accessor: _AsOfReader,
+    accessor: asof.AsOfAccessor,
     race_id: str,
     driver: str,
     lap: int,
