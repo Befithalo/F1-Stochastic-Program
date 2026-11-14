@@ -223,7 +223,7 @@ Plans:
 
 **Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
 
-**Plans:** 2/8 plans executed
+**Plans:** 3/8 plans executed
 
 Plans:
 
@@ -234,7 +234,7 @@ Plans:
 - [x] 06-01-PLAN.md — Cache-gated fixed-sample walk-forward tracer and cutoff predictions
 
 **Wave 2**
-- [ ] 06-02-PLAN.md — Brier, baseline, interval, and race-cluster metric primitives
+- [x] 06-02-PLAN.md — Brier, baseline, interval, and race-cluster metric primitives
 
 **Wave 3**
 - [ ] 06-03-PLAN.md — Compact same-draw strategy probabilities and finishing endpoints
