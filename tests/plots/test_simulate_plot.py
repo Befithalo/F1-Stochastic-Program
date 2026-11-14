@@ -3,6 +3,7 @@
 import subprocess
 import sys
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
@@ -79,16 +80,21 @@ def test_selected_finish_summary_uses_neutral_bars_accent_marker_and_readable_ro
 
     assert ax.get_xlabel() == "Finishing position"
     assert [line.get_label() for line in ax.get_lines()] == ["Mean finish at selected cutoff"]
-    assert ax.get_lines()[0].get_xdata()[0] == pytest.approx(float(np.mean([2, 4, 4, 6])))
-    assert ax.get_lines()[0].get_color().lower() == "#d90429"
-    assert all(patch.get_facecolor() != to_rgba("#D90429") for patch in ax.patches)
+    x_data = cast(NDArray[np.float64], ax.get_lines()[0].get_xdata())
+    assert x_data[0] == pytest.approx(float(np.mean([2, 4, 4, 6])))
+    assert cast(str, ax.get_lines()[0].get_color()).lower() == "#d90429"
+    accent = to_rgba("#D90429")
+    assert all(
+        cast(tuple[float, float, float, float], patch.get_facecolor()) != accent
+        for patch in ax.patches
+    )
     assert ax.xaxis.label.get_fontsize() == 12
     assert ax.yaxis.label.get_fontsize() == 12
     assert ax.get_xticklabels()[0].get_fontsize() == 10.5
-    assert ax.get_legend().get_texts()[0].get_fontsize() == 10.5
-    assert data.caption in fig._suptitle.get_text() or any(
-        data.caption in text.get_text() for text in fig.texts
-    )
+    legend = ax.get_legend()
+    assert legend is not None
+    assert legend.get_texts()[0].get_fontsize() == 10.5
+    assert any(data.caption in text.get_text() for text in fig.texts)
 
 
 def test_render_writes_a_png(tmp_path: Path) -> None:
