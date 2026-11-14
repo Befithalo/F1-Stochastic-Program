@@ -39,18 +39,12 @@ def _data_file() -> Path:
 
 
 def _model_identity(data_path: Path) -> str:
-    """Use immutable cache metadata plus model-source digests in the cache identity."""
+    """Use immutable cache metadata plus all package source in the cache identity."""
     stat = data_path.stat()
     digest = hashlib.sha256()
-    for relative in (
-        "src/f1si/app.py",
-        "src/f1si/cli.py",
-        "src/f1si/strategy/longstaff.py",
-        "src/f1si/sim/numpy_backend.py",
-        "src/f1si/pace/linear.py",
-        "src/f1si/state.py",
-    ):
-        source = PROJECT_ROOT / relative
+    package_root = PROJECT_ROOT / "src" / "f1si"
+    for source in sorted(package_root.rglob("*.py")):
+        relative = source.relative_to(PROJECT_ROOT).as_posix()
         digest.update(relative.encode())
         digest.update(source.read_bytes())
     return f"{stat.st_size}:{stat.st_mtime_ns}:{digest.hexdigest()}"

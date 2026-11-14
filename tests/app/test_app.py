@@ -85,6 +85,24 @@ def test_page_uses_full_immutable_replay_cache_identity() -> None:
     assert "cache_resource" not in source
 
 
+def test_replay_cache_identity_includes_walk_forward_dependency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = import_module("f1si.app")
+    monkeypatch.setattr(app, "PROJECT_ROOT", tmp_path)
+    source = tmp_path / "src" / "f1si" / "backtest" / "walk_forward.py"
+    source.parent.mkdir(parents=True)
+    source.write_text("horizon = 1\n", encoding="utf-8")
+    data_path = tmp_path / "cache.duckdb"
+    data_path.write_bytes(b"immutable cache")
+
+    first = app._model_identity(data_path)
+    source.write_text("horizon = 2\n", encoding="utf-8")
+    second = app._model_identity(data_path)
+
+    assert first != second
+
+
 @pytest.mark.parametrize(
     "state_text",
     [
