@@ -6,11 +6,11 @@ findings:
   - id: WR-01
     severity: warning
     disposition: fixed
-    title: "Coverage count is paired with a differently weighted percentage"
+    title: "Invalid report JSON escapes the CLI's handled-error path"
   - id: CR-01
     severity: critical
     disposition: fixed
-    title: "Required schedule distance is absent from the cache source"
+    title: "Diagnostics extension preserves an unbound carry-forward claim"
   - id: CR-02
     severity: critical
     disposition: fixed
@@ -25,15 +25,15 @@ findings:
     title: "Diagnostics-only mode accepts incomplete probability reports"
 open: 0
 total: 5
-recorded: 2026-11-14T12:01:28.334Z
+recorded: 2026-11-14T12:37:13.823Z
 ---
 
 # Phase 06: Code Review Disposition
 
 | Finding | Severity | Disposition | Source |
 |---------|----------|-------------|--------|
-| WR-01 | warning | fixed | 06-REVIEW-FIX.md (not in the current review) |
-| CR-01 | critical | fixed | 06-REVIEW-FIX.iter3.md (not in the current review) |
+| WR-01 | warning | fixed | 06-REVIEW-FIX.iter2.md (not in the current review) |
+| CR-01 | critical | fixed | 06-REVIEW-FIX.md (not in the current review) |
 | CR-02 | critical | fixed | 06-REVIEW-FIX.iter3.md (not in the current review) |
 | WR-02 | warning | fixed | 06-REVIEW-FIX.iter2.md (not in the current review) |
 | WR-03 | warning | fixed | 06-REVIEW-FIX.iter2.md (not in the current review) |
