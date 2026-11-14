@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.135" timestamp="2026-11-14T05:28:53.666334-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.app.test_app" name="test_page_shows_fixed_sample_scores_and_denominators" time="0.001"><failure message="AssertionError: assert False&#10; +  where False = is_file()&#10; +    where is_file = WindowsPath('src/f1si/app.py').is_file">def test_page_shows_fixed_sample_scores_and_denominators() -&gt; None:
+&gt;       source = app_source().lower()
+                 ^^^^^^^^^^^^
+
+tests\app\test_app.py:61: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def app_source() -&gt; str:
+&gt;       assert APP_PATH.is_file()
+E       AssertionError: assert False
+E        +  where False = is_file()
+E        +    where is_file = WindowsPath('src/f1si/app.py').is_file
+
+tests\app\test_app.py:15: AssertionError</failure></testcase></testsuite></testsuites>

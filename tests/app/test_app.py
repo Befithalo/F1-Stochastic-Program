@@ -57,6 +57,38 @@ def test_page_exposes_measured_summary_and_required_outputs(
     assert required_text.lower() in app_source().lower()
 
 
+def test_page_shows_fixed_sample_scores_and_denominators() -> None:
+    source = app_source().lower()
+    for measured_value in (
+        "0.04996",
+        "0.08174",
+        "0.14533",
+        "0.19090",
+        "8,004 / 9,602",
+        "388",
+        "0.7899",
+        "1.40 laps",
+    ):
+        assert measured_value in source
+
+
+def test_page_uses_full_immutable_replay_cache_identity() -> None:
+    source = app_source().lower()
+    for cache_input in (
+        "race_id",
+        "driver",
+        "cutoff_lap",
+        "risk",
+        "n_simulations",
+        "seed",
+        "data_path",
+        "model_identity",
+    ):
+        assert cache_input in source
+    assert "st.cache_data" in source
+    assert "cache_resource" not in source
+
+
 @pytest.mark.parametrize(
     "state_text",
     [
