@@ -126,6 +126,39 @@ def test_brier_scores_reject_invalid_probabilities(column: str, invalid_probabil
         brier_scores(rows, paired=True)
 
 
+def test_diagnostics_extension_rejects_incomplete_phase_six_probability_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    from f1si.backtest import scoring
+    from f1si.backtest.walk_forward import REGISTERED_RACE_IDS
+
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "race_ids": list(REGISTERED_RACE_IDS),
+        "metadata": {
+            "base_seed": 3,
+            "n_simulations_per_prediction": 64,
+            "risk_aversion": 0.5,
+        },
+        "metrics": {},
+    }
+    before = json.loads(json.dumps(report))
+    monkeypatch.setattr(
+        scoring,
+        "score_team_strategy_sample",
+        lambda *_args, **_kwargs: pytest.fail("diagnostics ran on an incomplete report"),
+    )
+
+    with pytest.raises(ValueError, match="required probability metrics are missing"):
+        scoring.extend_existing_report(
+            Path("cache.duckdb"), report, n_simulations=64, risk=0.5, seed=3
+        )
+
+    assert report == before
+
+
 def test_race_aggregation_weights_races_equally_not_rows() -> None:
     rows = pd.DataFrame({"race_id": ["a", "a", "a", "b"], "loss": [0, 0, 0, 1]})
     result = summarize_by_race(rows, value="loss")

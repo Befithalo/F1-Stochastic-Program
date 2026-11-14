@@ -410,7 +410,8 @@ def extend_existing_report(
     seed: int,
 ) -> dict[str, Any]:
     """Add the task 06-05 diagnostics to a matching measured Phase 6 probability report."""
-    metadata = report.get("metadata", {})
+    metadata_value = report.get("metadata")
+    metadata = metadata_value if isinstance(metadata_value, dict) else {}
     expected = {
         "base_seed": seed,
         "n_simulations_per_prediction": n_simulations,
@@ -423,8 +424,63 @@ def extend_existing_report(
     ]
     if report.get("race_ids") != list(REGISTERED_RACE_IDS):
         mismatches.append("race_ids do not match the registered ten-race sample")
-    if not isinstance(report.get("metrics"), dict):
+    if not isinstance(metadata_value, dict):
+        mismatches.append("metadata section is missing")
+    if report.get("schema_version") != 1:
+        mismatches.append("schema_version is missing or unsupported")
+    metrics = report.get("metrics")
+    if not isinstance(metrics, dict):
         mismatches.append("metrics section is missing")
+    else:
+        required_metrics = (
+            "podium_brier",
+            "top10_brier",
+            "brier_observation_count",
+            "finish_interval_90",
+        )
+        missing_metrics = [name for name in required_metrics if name not in metrics]
+        if missing_metrics:
+            mismatches.append(
+                "required probability metrics are missing: " + ", ".join(missing_metrics)
+            )
+        for name in ("podium_brier", "top10_brier"):
+            score = metrics.get(name)
+            if not isinstance(score, dict):
+                mismatches.append(f"{name} score structure is incomplete")
+                continue
+            for part in ("model", "baseline"):
+                component = score.get(part)
+                if not isinstance(component, dict) or not all(
+                    field in component for field in ("mean", "per_race", "race_count")
+                ):
+                    mismatches.append(f"{name}.{part} probability summary is incomplete")
+                    continue
+                per_race = component.get("per_race")
+                if (
+                    not isinstance(per_race, dict)
+                    or set(per_race) != set(REGISTERED_RACE_IDS)
+                    or component.get("race_count") != len(REGISTERED_RACE_IDS)
+                ):
+                    mismatches.append(f"{name}.{part} race denominator is incomplete")
+            paired = score.get("model_minus_baseline_95")
+            if not isinstance(paired, dict) or not all(
+                field in paired for field in ("mean", "low", "high", "cluster_count")
+            ):
+                mismatches.append(f"{name} paired uncertainty summary is incomplete")
+        count = metrics.get("brier_observation_count")
+        if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+            mismatches.append("brier_observation_count is missing or invalid")
+        interval = metrics.get("finish_interval_90")
+        if not isinstance(interval, dict) or not isinstance(interval.get("coverage"), dict):
+            mismatches.append("finish_interval_90 structure is incomplete")
+        elif not all(
+            field in interval.get("coverage", {}) for field in ("mean", "per_race", "race_count")
+        ):
+            mismatches.append("finish_interval_90 coverage summary is incomplete")
+        if isinstance(interval, dict) and any(
+            field not in interval for field in ("covered", "classified_finishers")
+        ):
+            mismatches.append("finish_interval_90 denominator fields are incomplete")
     if mismatches:
         detail = "; ".join(mismatches)
         raise ValueError("Existing report does not match diagnostic inputs: " + detail)
