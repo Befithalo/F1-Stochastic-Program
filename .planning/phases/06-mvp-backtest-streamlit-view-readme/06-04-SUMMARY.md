@@ -94,7 +94,7 @@ status: complete
 |---|---:|---:|---:|
 | Podium Brier | 0.049963 | 0.081737 | -0.031774 [-0.056724, -0.005364] |
 | Top-10 Brier | 0.145334 | 0.190904 | -0.045570 [-0.080525, -0.010128] |
-| Finish interval coverage | 82.95% (8,004 / 9,602) | — | 95% interval [76.08%, 88.43%] |
+| Finish interval coverage (equal-race mean) | 82.95% (8,004 covered; 9,602 classified observations) | — | 95% interval [76.08%, 88.43%] |
 
 The output metadata records base seed 0, 1,000 simulations per prediction, risk 0.5, bootstrap seed 61409, 2,000 race-cluster resamples, and the inclusive inverted-CDF P05/P95 convention. The carry-forward ALO P3 miss is reported without tuning the endpoints.
 
