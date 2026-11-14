@@ -106,3 +106,53 @@ def test_streamlit_harness_can_open_page_for_zero_one_many_and_layout_assertions
     result = app_test.from_file(APP_PATH).run()
     assert not result.exception
     assert any("Complete ten-race evaluation" in item.value for item in result.subheader)
+
+
+def test_empty_local_cache_shows_copy_without_empty_result_components(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("F1SI_DATA_DIR", str(tmp_path))
+    app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
+    result = app_test.from_file(APP_PATH).run()
+    assert not result.exception
+    assert any(item.value == "No race data available" for item in result.subheader)
+    assert any(
+        "Load the local race cache, then reload this page." in item.value
+        for item in result.markdown
+    )
+    assert len(result.dataframe) == 0
+    assert len(result.get("imgs")) == 0
+
+
+def test_zero_one_many_actions_use_singular_labels_and_count_visible_rows() -> None:
+    app = import_module("f1si.app")
+    assert hasattr(app, "_action_heading")
+    assert app._action_heading(0) == "No ranked strategy actions available"
+    assert app._action_heading(1) == "Ranked strategy actions · 1 action"
+    assert app._action_heading(13) == "Ranked strategy actions · 13 actions"
+
+
+def test_replay_error_state_cannot_reuse_stale_selected_output() -> None:
+    app = import_module("f1si.app")
+    assert hasattr(app, "_safe_replay_result")
+    failed = app._safe_replay_result(lambda: (_ for _ in ()).throw(ValueError("bad cutoff")))
+    assert failed == {"status": "error", "value": None}
+    assert "Replay could not be built for this selection." in app.ERROR_COPY
+
+
+def test_fallback_rows_are_labeled_adjacent_to_each_strategy_action() -> None:
+    app = import_module("f1si.app")
+    assert hasattr(app, "_annotate_strategy_options")
+    columns, rows = app._annotate_strategy_options(
+        ("Action", "Score"), (("pit now", 2.1), ("stay out", 2.4)), True
+    )
+    assert columns[-1] == "Basis"
+    assert [row[-1] for row in rows] == ["UNCALIBRATED", "UNCALIBRATED"]
+
+
+def test_responsive_layout_stacks_panels_scrolls_table_and_wraps_long_text() -> None:
+    source = app_source()
+    assert "@media (max-width: 760px)" in source
+    assert "overflow-x: auto" in source
+    assert "overflow-wrap: anywhere" in source
+    assert "white-space: normal" in source
