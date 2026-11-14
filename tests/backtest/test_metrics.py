@@ -344,6 +344,62 @@ def test_diagnostics_extension_rejects_inconsistent_probability_summaries_withou
     assert report == before
 
 
+@pytest.mark.parametrize(
+    "tamper",
+    ["coherent-race-subset", "arbitrary-denominators", "altered-interval", "metadata"],
+)
+def test_diagnostics_extension_rejects_coherent_tampering_of_trusted_probability_evidence(
+    monkeypatch: pytest.MonkeyPatch, tamper: str
+) -> None:
+    import copy
+    import json
+
+    from f1si.backtest import scoring
+
+    report = json.loads(
+        (Path(__file__).parents[2] / "reports/backtest/phase-06.json").read_text(encoding="utf-8")
+    )
+    if tamper == "coherent-race-subset":
+        coverage = report["metrics"]["finish_interval_90"]["coverage"]
+        race_id, value = next(iter(coverage["per_race"].items()))
+        coverage["per_race"] = {race_id: value}
+        coverage["mean"] = value
+        coverage["race_count"] = 1
+        cluster = report["metrics"]["finish_interval_90"]["race_cluster_95"]
+        cluster.update(mean=value, low=value, high=value, cluster_count=1)
+    elif tamper == "arbitrary-denominators":
+        report["metrics"]["brier_observation_count"] = 100
+        interval = report["metrics"]["finish_interval_90"]
+        interval["classified_finishers"] = 100
+        interval["covered"] = 83
+    elif tamper == "altered-interval":
+        interval = report["metrics"]["finish_interval_90"]["race_cluster_95"]
+        interval["low"] = 0.80
+        interval["high"] = 0.86
+    else:
+        report["metadata"]["paired_model_baseline_mask"] = "separately selected rows"
+        report["metadata"]["bootstrap_seed"] += 1
+
+    before = copy.deepcopy(report)
+    monkeypatch.setattr(
+        scoring,
+        "score_team_strategy_sample",
+        lambda *_args, **_kwargs: pytest.fail("diagnostics ran on tampered evidence"),
+    )
+    monkeypatch.setattr(
+        scoring,
+        "wear_proxy_diagnostic",
+        lambda *_args, **_kwargs: pytest.fail("diagnostics ran on tampered evidence"),
+    )
+
+    with pytest.raises(ValueError, match="code-pinned Phase 6 measurements"):
+        scoring.extend_existing_report(
+            Path("cache.duckdb"), report, n_simulations=1000, risk=0.5, seed=0
+        )
+
+    assert report == before
+
+
 def test_race_aggregation_weights_races_equally_not_rows() -> None:
     rows = pd.DataFrame({"race_id": ["a", "a", "a", "b"], "loss": [0, 0, 0, 1]})
     result = summarize_by_race(rows, value="loss")

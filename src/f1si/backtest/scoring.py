@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from pathlib import Path
 from typing import Any, cast
@@ -32,6 +34,44 @@ from f1si.rng import make_rng
 BOOTSTRAP_RESAMPLES = 2_000
 BOOTSTRAP_SEED_OFFSET = 61_409
 STRATEGY_BOOTSTRAP_SEED_OFFSET = 71_633
+
+# This digest binds diagnostics-only extensions to the checked-in Phase 6
+# probability measurements. It covers the ten-race sample, all deterministic
+# scoring metadata, masks, denominators, scores, and interval endpoints. Keep
+# the expected value in code: a hash stored only in the editable report cannot
+# establish provenance.
+PHASE_6_PROBABILITY_EVIDENCE_SHA256 = (
+    "9d5f0d57274fb40e34d55fe223f8b89a5bc869ed637dbfa3d6921f2444d7b2f7"
+)
+
+
+def _probability_evidence_digest(report: dict[str, Any]) -> str | None:
+    """Hash the probability payload whose provenance diagnostics extension trusts."""
+    metrics = report.get("metrics")
+    metadata = report.get("metadata")
+    if not isinstance(metrics, dict) or not isinstance(metadata, dict):
+        return None
+    probability_names = (
+        "podium_brier",
+        "top10_brier",
+        "brier_observation_count",
+        "finish_interval_90",
+    )
+    if any(name not in metrics for name in probability_names):
+        return None
+    payload = {
+        "schema_version": report.get("schema_version"),
+        "race_ids": report.get("race_ids"),
+        "metadata": metadata,
+        "metrics": {name: metrics[name] for name in probability_names},
+    }
+    try:
+        encoded = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), allow_nan=False
+        ).encode("utf-8")
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _new_results_accessor(db_path: Path) -> Any:
@@ -621,6 +661,10 @@ def extend_existing_report(
                 mismatches.append(
                     "finish_interval_90 counts must have a positive consistent denominator"
                 )
+    if _probability_evidence_digest(report) != PHASE_6_PROBABILITY_EVIDENCE_SHA256:
+        mismatches.append(
+            "probability evidence does not match the code-pinned Phase 6 measurements"
+        )
     if mismatches:
         detail = "; ".join(mismatches)
         raise ValueError("Existing report does not match diagnostic inputs: " + detail)
