@@ -209,7 +209,7 @@ Plans:
 
 ### Phase 6: MVP Backtest, Streamlit View & README
 
-**Goal**: User can see how well the platform's calls and probabilities hold up across 10 real races, in one page and a README of measured results, and decide go or no-go
+**Goal**: As a strategist, I want to see ten-race prediction and strategy results in one page, so that I can decide to proceed.
 **Mode:** mvp
 **Depends on**: Phase 5
 **Requirements**: BKT-01, BKT-02, BKT-04, UI-01, UI-02
