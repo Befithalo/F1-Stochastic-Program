@@ -6,11 +6,14 @@ import zlib
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
 from f1si.data import asof
 from f1si.data.errors import OutOfSampleLockedError
 from f1si.strategy.longstaff import StrategyAnalysis
+
+if TYPE_CHECKING:
+    from f1si.cli import _PreparedReplayContext
 
 REGISTERED_RACE_IDS: Final = (
     "2023-01",
@@ -140,7 +143,9 @@ def _predict_cutoff_worker(
     )
 
 
-def _race_laps_total(accessor: asof.AsOfAccessor, race_id: str, first_snapshot: object) -> int:
+def _race_laps_total(
+    accessor: asof.AsOfAccessor, race_id: str, first_snapshot: asof.RaceSnapshot
+) -> int:
     """Return the race cutoff horizon, using completed lap rows when schedule metadata is absent.
 
     Some OpenF1 cache entries do not include the scheduled distance. In that case the completed
@@ -174,7 +179,7 @@ def _predict_from_accessor(
     risk: float,
     seed: int,
     laps_total: int | None = None,
-    prepared_context: object | None = None,
+    prepared_context: _PreparedReplayContext | None = None,
 ) -> PredictionRow:
     """Build one row from the shared replay cutoff builder; never reads final outcomes."""
     if race_id not in REGISTERED_RACE_IDS:

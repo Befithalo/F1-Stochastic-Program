@@ -102,9 +102,15 @@ def finish_interval(
             raise ValueError("coverage rows require finish_samples and finish_position")
         classified = pd.to_numeric(samples["finish_position"], errors="coerce").notna()
         covered = 0
-        for row in samples.loc[classified].itertuples(index=False):
-            low, high = finish_interval(np.asarray(row.finish_samples), coverage=coverage)
-            covered += int(low <= float(row.finish_position) <= high)
+        classified_rows = samples.loc[classified]
+        observed_finishes = pd.to_numeric(
+            classified_rows["finish_position"], errors="coerce"
+        ).to_numpy(dtype=np.float64)
+        for sample, observed_finish in zip(
+            classified_rows["finish_samples"].tolist(), observed_finishes, strict=True
+        ):
+            low, high = finish_interval(np.asarray(sample), coverage=coverage)
+            covered += int(low <= observed_finish <= high)
         return {"covered": covered, "classified_finishers": int(classified.sum())}
     positions = np.asarray(samples, dtype=np.float64).reshape(-1)
     if positions.size == 0 or not np.isfinite(positions).all():

@@ -34,7 +34,10 @@ def test_backtest_report_writes_completed_json_to_output_override(
 ) -> None:
     from f1si.backtest import scoring
 
-    report = {"race_ids": ["2023-01"], "metrics": {"podium_brier": {"model": {"mean": 0.2}}}}
+    report: dict[str, object] = {
+        "race_ids": ["2023-01"],
+        "metrics": {"podium_brier": {"model": {"mean": 0.2}}},
+    }
     calls: list[tuple[Path, dict[str, object], dict[str, object]]] = []
 
     def score(db_path: Path, **options: object) -> dict[str, object]:

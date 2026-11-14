@@ -67,6 +67,7 @@ def test_interval_coverage_excludes_unclassified_finishers_and_reports_denominat
         }
     )
     result = finish_interval(rows, coverage=0.9, observed=True)
+    assert isinstance(result, dict)
     assert result["classified_finishers"] == 2
     assert result["covered"] == 1
 
@@ -108,8 +109,7 @@ def test_preflight_requires_all_ten_races_before_scoring(
 
     events: list[str] = []
     monkeypatch.setattr(
-        scoring.asof,
-        "catalog",
+        "f1si.backtest.scoring.asof.catalog",
         lambda _db: pd.DataFrame(
             {
                 "race_id": ["2023-01"],
@@ -147,6 +147,8 @@ def _scoring_fakes(
         PredictionRow,
         WalkForwardTrace,
     )
+    from f1si.interfaces import Plan
+    from f1si.strategy.longstaff import RankedOption, StrategyAnalysis
 
     trace_events = events if events is not None else []
     race_ids = REGISTERED_RACE_IDS
@@ -155,13 +157,24 @@ def _scoring_fakes(
             race_id,
             "AAA",
             0,
-            SimpleNamespace(
-                best=SimpleNamespace(
-                    podium_probability=0.2,
-                    top10_probability=0.7,
-                    finish_p05=2,
-                    finish_p95=8,
-                )
+            StrategyAnalysis(
+                driver="AAA",
+                lap=0,
+                options=(
+                    RankedOption(
+                        action="stay out",
+                        plan=Plan((), (), 0.0),
+                        mean_finish=4.0,
+                        spread=1.0,
+                        cvar10=8.0,
+                        score=6.0,
+                        podium_probability=0.2,
+                        top10_probability=0.7,
+                        finish_p05=2,
+                        finish_p95=8,
+                    ),
+                ),
+                reason="test prediction",
             ),
         )
         for race_id in race_ids
@@ -170,7 +183,7 @@ def _scoring_fakes(
     if duplicate:
         predictions += (predictions[0],)
     trace = WalkForwardTrace(predictions)
-    real_brier_scores = scoring.brier_scores
+    from f1si.backtest.metrics import brier_scores as real_brier_scores
 
     class AsOf:
         def __init__(self, _db: Path) -> None:
@@ -214,13 +227,12 @@ def _scoring_fakes(
         trace_events.append("score")
         return real_brier_scores(rows, paired=paired)
 
-    monkeypatch.setattr(scoring.asof, "AsOfAccessor", AsOf)
+    monkeypatch.setattr("f1si.backtest.scoring.asof.AsOfAccessor", AsOf)
     monkeypatch.setattr(scoring, "_new_results_accessor", Results)
     monkeypatch.setattr(scoring, "run_walk_forward", lambda *_args, **_kwargs: trace)
-    monkeypatch.setattr(scoring, "brier_scores", brier)
+    monkeypatch.setattr("f1si.backtest.scoring.brier_scores", brier)
     monkeypatch.setattr(
-        scoring.asof,
-        "catalog",
+        "f1si.backtest.scoring.asof.catalog",
         lambda _db: pd.DataFrame(
             {
                 "race_id": list(race_ids),
