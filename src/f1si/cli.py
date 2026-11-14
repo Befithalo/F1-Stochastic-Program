@@ -1259,9 +1259,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                         )
                     from f1si.backtest.scoring import extend_existing_report
 
+                    try:
+                        existing_report = json.loads(output.read_text(encoding="utf-8"))
+                    except json.JSONDecodeError as err:
+                        raise ValueError(
+                            f"Invalid JSON in existing report {output}: {err.msg} "
+                            f"(line {err.lineno}, column {err.colno})"
+                        ) from err
+                    if not isinstance(existing_report, dict):
+                        raise ValueError(f"Existing report at {output} must contain a JSON object.")
                     report = extend_existing_report(
                         paths.db_path(data_dir),
-                        json.loads(output.read_text(encoding="utf-8")),
+                        existing_report,
                         n_simulations=args.n,
                         risk=args.risk,
                         seed=args.seed,

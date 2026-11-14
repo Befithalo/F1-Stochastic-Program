@@ -108,6 +108,47 @@ def test_backtest_report_incomplete_cache_writes_no_completed_report(
     assert "missing complete registered races" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize(
+    ("contents", "message"),
+    [("{truncated", "Invalid JSON in existing report"), ("[]", "must contain a JSON object")],
+)
+def test_backtest_diagnostics_reports_invalid_json_without_traceback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    contents: str,
+    message: str,
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-06.json"
+    output.write_text(contents, encoding="utf-8")
+    monkeypatch.setattr(
+        scoring,
+        "extend_existing_report",
+        lambda *_args, **_kwargs: pytest.fail("invalid report reached extension"),
+    )
+
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backtest",
+                "--report",
+                "--diagnostics-only",
+                "--output",
+                str(output),
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert message in captured.err
+    assert "Traceback" not in captured.err
+    assert output.read_text(encoding="utf-8") == contents
+
+
 def test_races_lists_era(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["--data-dir", str(tmp_path), "load", "--source", "synthetic"]) == 0
     capsys.readouterr()
