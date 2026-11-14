@@ -1113,3 +1113,36 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Reusing an end-of-race or later-cutoff fit (look-ahead); returning unavailable for an in-race cutoff (does not meet RPL-01); claiming the prior is calibrated (no walk-forward evidence supports that claim).
 **Consequences:** Fallback recommendations are deterministic and ranked but prior-driven; their spread is model uncertainty under stated generic assumptions, not a calibrated confidence interval. The 1.0 s offset scale remains an assumption for Phase 6 evaluation and may be revised using walk-forward evidence. DEC-091's field-fit/current-stint measurement question is unchanged.
 **Refs:** D-01, D-02, D-04, D-05, D-06, D-07, D-08, D-21, RPL-01
+
+## DEC-102 — Pre-registered Phase 6 sample and cache gate
+
+**Date:** 2026-11-14
+**Status:** Accepted
+**Context:** Phase 6 is a go/no-go evaluation. Replacing a race after seeing an outcome or a model score would make the sample outcome-selected, while an incomplete cache could silently change the fixed sample.
+**Decision:** Freeze the first calendar rounds in a 4/3/3 split: `2023-01` through `2023-04`, `2024-01` through `2024-03`, and `2025-01` through `2025-03`; Bahrain 2023 remains the reference race. Confirm all ten races are complete in the local cache before scoring. Use 1,000 simulations per prediction, base seed 0, and risk aversion 0.5 for the published report. Do not replace a race based on results, model metrics, or convenience; 2026 is excluded.
+**Why:** Calendar selection and a complete-cache gate protect the pre-registration from post-outcome selection and ensure the published report is reproducible.
+**Alternatives rejected:** Choosing races after looking at model performance; silently scoring a partial cache; substituting another race if a selected race is inconvenient.
+**Consequences:** The sample stays fixed even when a selected race exposes an unavailable diagnostic. A missing race input requires resolving the cache or reporting the evaluation blocked; it does not authorize selecting a better-looking replacement.
+**Refs:** D-01, D-02, BKT-01, `.planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md`, `reports/backtest/phase-06.json`
+
+## DEC-103 — Past-only scoring and race-cluster uncertainty
+
+**Date:** 2026-11-14
+**Status:** Accepted
+**Context:** Probability scores need a baseline that does not learn from the race being scored, and uncertainty must respect that observations from the same race are related. Finishing-position coverage also has a different valid denominator from binary outcome scoring.
+**Decision:** Learn the grid-position baseline only from earlier completed races, shrink sparse grid rates toward five neutral pseudo-starts, and use field-size neutral event rates for the first race. Compare model and baseline Brier scores on the same finite rows; unclassified starters count as non-events for podium and top-10. Average observations within each race before equal-weighting races. Form paired 95% percentile-bootstrap intervals by resampling whole races (2,000 resamples). Form each simulated 90% finishing interval with inclusive empirical inverted-CDF P05/P95 endpoints and measure its observed coverage only on classified finishers. Record all values and denominators in the fixed report.
+**Why:** Past-only updates avoid leakage, the shared row mask makes the Brier comparison paired, and race-cluster resampling avoids treating laps and drivers as independent race experiments. Separating classified-finisher coverage from binary outcomes makes the denominator explicit when retirements are not simulated.
+**Alternatives rejected:** Training the baseline on the full sample; comparing model and baseline on different rows; counting all drivers as interval-covered when no classified finishing position exists; treating each driver-cutoff as an independent bootstrap unit; tuning interval endpoints on the evaluation races.
+**Consequences:** The report's uncertainty intervals describe variation across the ten sampled races, not future calibration. The 90% interval is a discrete interval with inclusive empirical endpoints and may have coverage above or below 90% in this small sample.
+**Refs:** D-02, D-03, D-04, BKT-02, `src/f1si/backtest/metrics.py`, `reports/backtest/phase-06.json`
+
+## DEC-104 — One-event team matching and wear proxy interpretation
+
+**Date:** 2026-11-14
+**Status:** Accepted
+**Context:** A race can produce many prior recommendations for one eventual stop, and the observed stop must not influence the recommendation matched to it. The Phase 4 wear band also needs an honest real-data follow-up even though latent tire wear is not observed.
+**Decision:** Match each observed pit event once to the latest recommendation cutoff strictly before its in-lap. Summarize top-action agreement and signed timing error (planned stop lap minus observed in-lap), plus absolute timing error, with 95% race-cluster bootstrap intervals. Compare cutoff wear estimates with a race-end pace fit after excluding the evaluated driver's current stint, label it a retrospective proxy and not latent ground truth, report early-fit bias only for estimates with at most eight clean laps, and report the same-cutoff/current-stint clean-lap share. Do not tune filter parameters on these evaluation races or claim the strategy beats teams.
+**Why:** One event/one prior recommendation prevents a stop from being repeated across many cutoffs or matched using information visible only after it happened. Removing the current stint makes the wear reference less circular; the proxy label prevents it from being confused with a measurement of the hidden tire state.
+**Alternatives rejected:** Matching a stop to the closest or latest recommendation even if it is after the stop; counting every preceding cutoff as a separate event; treating the leave-stint-out fit as true wear; adjusting the filter to maximize proxy coverage; claiming superiority from a retrospective comparison.
+**Consequences:** Agreement and timing results are descriptive comparisons with observed team behavior. Proxy coverage and bias are diagnostic evidence with their reported denominators; two races without an estimable leave-stint-out reference remain explicitly unavailable.
+**Refs:** D-05, D-06, BKT-04, `src/f1si/backtest/strategy.py`, `src/f1si/backtest/wear_diagnostic.py`, `reports/backtest/phase-06.json`

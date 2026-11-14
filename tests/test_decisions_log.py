@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 95
+MIN_ENTRIES = 104
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -162,3 +162,42 @@ def test_free_track_decisions_exist_by_title() -> None:
     cutoff = [b for _, t, b in _entries() if t == "Plan cutoff policy and analytic ground truth"]
     assert len(cutoff) == 1
     assert "hindsight" in cutoff[0]
+
+
+def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    phase6_ids = [f"DEC-{number:03d}" for number in range(102, 105)]
+    assert [entry_id for entry_id, _, _ in _entries()][-3:] == phase6_ids
+
+    expected_titles = {
+        "DEC-102": "Pre-registered Phase 6 sample and cache gate",
+        "DEC-103": "Past-only scoring and race-cluster uncertainty",
+        "DEC-104": "One-event team matching and wear proxy interpretation",
+    }
+    for entry_id, title in expected_titles.items():
+        assert entries[entry_id][0] == title
+        assert "reports/backtest/phase-06.json" in entries[entry_id][1]
+
+    semantics = {
+        "DEC-102": ("4/3/3", "calendar", "complete", "2026"),
+        "DEC-103": (
+            "past-only",
+            "five neutral pseudo-starts",
+            "non-events",
+            "inverted-CDF",
+            "race-cluster",
+            "same finite rows",
+        ),
+        "DEC-104": (
+            "strictly before",
+            "one event",
+            "retrospective proxy",
+            "not latent ground truth",
+            "eight clean laps",
+            "current stint",
+        ),
+    }
+    for entry_id, phrases in semantics.items():
+        body = entries[entry_id][1].lower()
+        for phrase in phrases:
+            assert phrase.lower() in body, (entry_id, phrase)
