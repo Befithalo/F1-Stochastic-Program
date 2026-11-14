@@ -5,11 +5,11 @@ current_phase: 05
 current_phase_name: Longstaff-Schwartz Strategy & Live Replay
 current_plan: 3
 status: in_progress
-stopped_at: Completed 05-04-PLAN.md; exact-head Ubuntu CI passed, Windows job cancelled at timeout (pending)
-last_updated: "2026-11-14T00:20:22.961Z"
+stopped_at: Phase 6 context gathered
+last_updated: "2026-11-14T00:54:34.908Z"
 last_activity: 2026-11-13
 last_activity_desc: Plan 05-03 local validation complete; current-branch CI pending
-state_head: 3f979f84f2ae81292230779402635d5b7b077e24
+state_head: 5fadd838516ac51b57b197c2799d1052a34d0c76
 progress:
   total_phases: 8
   completed_phases: 4
@@ -133,6 +133,6 @@ Progress: [=======---] 67%
 
 ## Session Continuity
 
-Last session: 2026-11-14T00:20:22.416Z
-Stopped at: Completed 05-04-PLAN.md; exact-head Ubuntu CI passed, Windows job cancelled at timeout (pending)
-Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-SUMMARY.md
+Last session: 2026-11-14T00:54:34.353Z
+Stopped at: Phase 6 context gathered
+Resume file: .planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md
