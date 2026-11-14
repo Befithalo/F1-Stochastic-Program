@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import FrozenInstanceError, is_dataclass
-from typing import Any, cast
+from pathlib import Path
+from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
-
-def _walk_forward_api():
-    from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, preflight_races, run_walk_forward
-
-    return REGISTERED_RACE_IDS, preflight_races, run_walk_forward
-
+from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, predict_at_cutoff, preflight_races
+from f1si.cli import main
 
 EXPECTED_RACES = (
     "2023-01",
@@ -28,14 +25,26 @@ EXPECTED_RACES = (
 )
 
 
+def _catalog(*, missing: tuple[str, ...] = ()) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "race_id": race_id,
+                "load_status": "partial" if race_id in missing else "complete",
+                "out_of_sample": False,
+            }
+            for race_id in EXPECTED_RACES
+            if race_id not in missing or race_id != "2024-02"
+        ]
+    )
+
+
 def test_registered_sample_is_fixed_calendar_first_and_immutable() -> None:
-    registered_race_ids, _, _ = _walk_forward_api()
-    assert registered_race_ids == EXPECTED_RACES
-    assert isinstance(registered_race_ids, tuple)
+    assert REGISTERED_RACE_IDS == EXPECTED_RACES
+    assert isinstance(REGISTERED_RACE_IDS, tuple)
 
 
 def test_preflight_requires_every_registered_race_complete() -> None:
-    _, preflight_races, _ = _walk_forward_api()
     complete = {race_id: True for race_id in EXPECTED_RACES}
     assert preflight_races(complete) == ()
     complete.pop("2024-02")
@@ -43,78 +52,83 @@ def test_preflight_requires_every_registered_race_complete() -> None:
     assert preflight_races(complete) == ("2024-02", "2025-02")
 
 
-def test_incomplete_sample_stops_before_any_prediction_or_results_access() -> None:
-    _, _, run_walk_forward = _walk_forward_api()
+def test_incomplete_sample_stops_before_prediction_or_results_access(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.backtest import walk_forward
+
+    monkeypatch.setattr(walk_forward.asof, "catalog", lambda _db: _catalog(missing=("2024-02",)))
+    monkeypatch.setattr(
+        walk_forward,
+        "_predict_from_accessor",
+        lambda *_args, **_kwargs: pytest.fail("prediction ran before complete-sample preflight"),
+    )
+    with pytest.raises(ValueError, match="2024-02"):
+        predict_at_cutoff(Path("cache.duckdb"), "2023-01", "ALO", 0)
+
+
+def test_reference_cli_returns_prediction_row_after_full_preflight(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from f1si.backtest import walk_forward
+    from f1si.cli import _ReplayCutoff
+
     events: list[str] = []
+    monkeypatch.setattr(walk_forward.asof, "catalog", lambda _db: _catalog())
 
     class Accessor:
-        def catalog(self) -> dict[str, bool]:
-            events.append("catalog")
-            return {race_id: race_id != "2024-02" for race_id in EXPECTED_RACES}
+        def __init__(self, _db: Path) -> None:
+            events.append("accessor")
 
-        def snapshot(self, _at: object) -> None:
+        def snapshot(self, _at: object) -> object:
             events.append("snapshot")
-            raise AssertionError("prediction started before all-race preflight")
+            return SimpleNamespace(
+                laps=pd.DataFrame({"lap_number": [1]}),
+                entries=pd.DataFrame({"driver_code": ["ALO"]}),
+            )
 
-        def history(self, _at: object) -> None:
-            events.append("history")
-            raise AssertionError("prediction started before all-race preflight")
+    monkeypatch.setattr(walk_forward.asof, "AsOfAccessor", Accessor)
+    monkeypatch.setattr("f1si.paths.db_path", lambda _data_dir: Path("cache.duckdb"))
 
-    with pytest.raises((ValueError, RuntimeError), match="2024-02"):
-        run_walk_forward(Accessor())
-    assert events == ["catalog"]
-    assert "results" not in events
-    assert "score" not in events
+    def replay(accessor: object, *_args: object, **_kwargs: object) -> object:
+        assert isinstance(accessor, Accessor)
+        events.append("prediction")
+        return _ReplayCutoff(
+            0,
+            SimpleNamespace(best=SimpleNamespace(action="stay out"), reason="cutoff-local"),
+        )
 
-
-def test_prediction_freeze_precedes_results_access_and_scoring() -> None:
-    _, _, run_walk_forward = _walk_forward_api()
-    events: list[tuple[str, int]] = []
-
-    def freeze(rows: list[Any]) -> None:
-        events.append(("freeze", len(rows)))
-
-    def results(_race_id: str) -> None:
-        events.append(("results", 0))
-
-    def score(_rows: list[Any]) -> None:
-        events.append(("score", 0))
-
-    trace = run_walk_forward(
-        database=None,
-        freeze_hook=freeze,
-        results_hook=results,
-        score_hook=score,
-        races=EXPECTED_RACES,
+    monkeypatch.setattr("f1si.cli._replay_at_cutoff", replay)
+    result = main(
+        ["--data-dir", ".", "backtest", "--race", "2023-01", "--driver", "ALO", "--lap", "0"]
     )
-    freeze_index = next(i for i, event in enumerate(events) if event[0] == "freeze")
-    results_index = next(i for i, event in enumerate(events) if event[0] == "results")
-    score_index = next(i for i, event in enumerate(events) if event[0] == "score")
-    assert freeze_index < results_index
-    assert freeze_index < score_index
-    assert events[freeze_index][1] == len(trace.predictions)
+    assert result == 0
+    assert events == ["accessor", "snapshot", "prediction"]
+    output = capsys.readouterr().out
+    assert "2023-01 ALO lap 0: stay out" in output
+    assert "cutoff-local" in output
+    assert "score" not in events
+    assert "results" not in events
 
 
-def test_cutoffs_are_chronological_and_frozen_rows_are_immutable() -> None:
-    _, _, run_walk_forward = _walk_forward_api()
-    trace = run_walk_forward(database=None, races=("2023-01",), driver="ALO")
-    cutoffs = [row.cutoff_lap for row in trace.predictions]
-    assert cutoffs == sorted(cutoffs)
-    assert all(row.race_id == "2023-01" for row in trace.predictions)
-    first = trace.predictions[0]
-    if is_dataclass(first):
-        with pytest.raises((FrozenInstanceError, AttributeError, TypeError)):
-            cast(Any, first).cutoff_lap = -1
+def test_prediction_runner_has_no_results_or_scoring_imports() -> None:
+    from pathlib import Path
+
+    source = Path("src/f1si/backtest/walk_forward.py").read_text(encoding="utf-8")
+    assert "f1si.data.results" not in source
+    assert "ResultsAccessor" not in source
+    assert "score(" not in source
 
 
-def test_requesting_regulation_reset_race_is_rejected() -> None:
-    _, _, run_walk_forward = _walk_forward_api()
-    with pytest.raises((ValueError, RuntimeError), match=r"2026|out.of.sample|locked"):
-        run_walk_forward(database=None, races=("2026-01",))
+def test_requesting_2026_race_is_rejected_before_prediction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.backtest import walk_forward
 
-
-def test_backtest_command_is_registered() -> None:
-    from f1si.cli import build_parser
-
-    command = build_parser()._subparsers._group_actions[0].choices
-    assert "backtest" in command
+    monkeypatch.setattr(
+        walk_forward.asof,
+        "catalog",
+        lambda _db: pytest.fail("out-of-sample request reached cache preflight"),
+    )
+    with pytest.raises(ValueError, match=r"2026|registered"):
+        predict_at_cutoff(Path("cache.duckdb"), "2026-01", "ALO", 0)

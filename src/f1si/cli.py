@@ -67,7 +67,9 @@ from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 from f1si.strategy.longstaff import LongstaffSchwartzPolicy, StrategyAnalysis
 
-_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate", "wear-filter", "replay"})
+_FRIENDLY_VALUE_ERRORS = frozenset(
+    {"plot", "wear", "plan", "simulate", "wear-filter", "replay", "backtest"}
+)
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
 
 
@@ -245,6 +247,13 @@ def build_parser() -> argparse.ArgumentParser:
         help=("risk aversion in [0, 1]: 0 weights mean, 1 weights worst-decile CVaR (default 0.5)"),
     )
     replay.add_argument("--seed", type=int, default=0, metavar="S", help="random seed (default 0)")
+    backtest = sub.add_parser("backtest", help="generate one registered walk-forward prediction")
+    backtest.add_argument("--race", required=True, help="registered race ID, for example 2023-01")
+    backtest.add_argument("--driver", required=True, metavar="CODE", help="driver code, e.g. ALO")
+    backtest.add_argument("--lap", required=True, type=int, metavar="N", help="cutoff lap")
+    backtest.add_argument("--n", type=int, default=1000, help="seeded simulation count")
+    backtest.add_argument("--risk", type=float, default=0.5, help="risk aversion in [0, 1]")
+    backtest.add_argument("--seed", type=int, default=0, help="seed for repeatable predictions")
     return parser
 
 
@@ -1150,6 +1159,26 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_replay(
                 data_dir, args.slug, args.driver, args.lap, args.n, args.risk, args.seed
             )
+        if args.command == "backtest":
+            from f1si.backtest.walk_forward import predict_at_cutoff
+
+            row = predict_at_cutoff(
+                paths.db_path(data_dir),
+                args.race,
+                args.driver,
+                args.lap,
+                n_simulations=args.n,
+                risk=args.risk,
+                seed=args.seed,
+            )
+            if row.analysis is None:
+                print(f"Prediction unavailable: {row.unavailable_reason or 'no supported model'}")
+            else:
+                print(
+                    f"{row.race_id} {row.driver} lap {row.cutoff_lap}: {row.analysis.best.action}"
+                )
+                print(row.analysis.reason)
+            return 0
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)
