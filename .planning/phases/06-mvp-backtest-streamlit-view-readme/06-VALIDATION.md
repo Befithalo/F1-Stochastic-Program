@@ -52,7 +52,9 @@ created: "2026-11-13"
 | 06-06-02 | 06 | 6 | UI-01 | T-06-07 | Eight UI truths, proxy/fallback labels, and stale-output suppression hold across states/layouts | app/state | `uv run python -m pytest tests/app/test_app.py -q` | yes | green (23 passed) |
 | 06-07-01 | 07 | 7 | UI-02 | T-06-08 | README/explainer claims match the measured report and preserve assumptions, denominators, and provider licensing | docs regression | `uv run python -m pytest tests/test_docs.py -x -q` | existing | green (22 passed) |
 | 06-07-02 | 07 | 7 | UI-02 | T-06-09 | Phase 6 method decisions and publication claims are guarded by documentation tests | docs regression | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | existing | green (52 passed) |
-| 06-08-01 | 08 | 8 | UI-01 | — | The rendered replay error is the approved safe copy; the actual first action is marked; chart colors/summary and text meet contract | app/plot regression | `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py -q` | yes | pending |
+| 06-08-01 | 08 | 8 | UI-01 | — | Selected-cutoff finish draws drive a neutral distribution and labeled finish-mean summary; full caption and chart typography follow the contract | app/plot regression | `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py -q` | yes | pass (35 focused tests; included in full suite) |
+| 06-08-02 | 08 | 8 | UI-01 | T-06-15 | The real first-ranked row retains its Basis; replay errors use fixed recovery copy; risk endpoints/value and the safety-car marker meet the contract | app/state regression | `uv run python -m pytest tests/app/test_app.py -q` | yes | pass (30 app tests; included in full suite) |
+| 06-08-03 | 08 | 8 | UI-01 | — | Rendered desktop/narrow geometry and changed-selection states are inspected in a live browser | manual UI | Browser at 1440×900 and 390×844, per instructions below | yes | pending: no browser surface available in this executor session |
 
 ---
 
@@ -96,7 +98,7 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | The one-page dashboard shows the fixed-sample metrics and is readable as controls update the selected race, driver, cutoff, and risk | UI-01 | Automated app tests verify wiring and defaults but do not replace visual inspection of the rendered page | Run `uv run python -m streamlit run src/f1si/app.py`; confirm the measured ten-race summary, default Bahrain 2023 / ALO view, move the lap and risk controls, and confirm all required panels update without exposing final results. |
-| The UI review fixes render at desktop and narrow widths without clipping, and changed controls map to the shown cutoff | UI-01 | Streamlit's real widget dimensions and responsive browser layout cannot be established by AppTest or source assertions alone | Submit the default replay and changed race/driver/cutoff/risk selections; inspect error, empty/partial, populated, loading, table marker/scroll, chart summary, risk endpoints/value, spacing and wrapping. Record observations or screenshots. |
+| The UI review fixes render at desktop and narrow widths without clipping, and changed controls map to the shown cutoff | UI-01 | Streamlit's real widget dimensions and responsive browser layout cannot be established by AppTest or source assertions alone | Open the running Streamlit page in a browser at 1440×900 and 390×844. Submit the default selection, then change race, driver, cutoff, and risk. At both widths inspect populated, partial/unavailable, loading, both replay-failure paths, and empty-cache states. Check table scrolling keeps the TOP marker, metrics, and Basis visible; confirm risk endpoints/value, neutral chart bars, finish-summary label, chart caption, wrapping, and no clipping. Record viewport-specific observations or screenshots. |
 
 ---
 
@@ -110,7 +112,7 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 - [x] Feedback latency < 120s for focused tests.
 - [ ] Set `nyquist_compliant: true` after the Phase 6 UI follow-up tests and manual viewport check are resolved.
 
-**Validation:** prior Phase 6 task map validated 2026-11-14; UI-review follow-up added 2026-11-14 and remains pending.
+**Validation:** prior Phase 6 task map validated 2026-11-14; UI-review follow-up automated checks pass, while live viewport inspection remains pending.
 
 ## Validation Audit 2026-11-14
 
@@ -123,5 +125,7 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 ## UI Review Follow-up (2026-11-14)
 
 - Focused automated command: `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py -q`.
-- Manual-only acceptance: inspect the live dashboard at desktop and narrow widths as defined in the added manual verification row above. Source assertions and AppTest do not substitute for this check.
-- Follow-up task `06-08-01` remains pending until the implementation and its focused checks pass; re-run the Nyquist audit after execution to reconcile task IDs and status.
+- Focused command result: 36 passed. Full project suite: 1,095 passed, 25 deselected. `uv run ruff check .`, `uv run ruff format --check .`, and `uv run python -m mypy` passed on the follow-up changes.
+- Exact-head GitHub Actions for Ubuntu and Windows has not run; it must run on the final pushed follow-up head.
+- Manual-only acceptance remains pending because this executor had no connected browser surface. Source assertions and AppTest are not viewport evidence. No screenshot or geometry claim is recorded.
+- `nyquist_compliant` remains `false`; Phase 6 UI validation cannot be signed off until the live browser inspection and exact-head CI are complete.

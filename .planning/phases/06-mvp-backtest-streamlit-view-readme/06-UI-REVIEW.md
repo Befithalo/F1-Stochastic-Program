@@ -87,3 +87,19 @@
 ## Human Inspection Still Required
 
 Run the Streamlit app at desktop and narrow widths. Submit a changed race, driver, cutoff, and risk; inspect loading, populated, empty/partial, and failed replay states. Verify that the selected values are reflected in the chart and all panels, the actual top-ranked table row is distinguishable, risk endpoints are apparent, the table scrolls without clipping, and long text wraps. These behaviors were not visually captured in this audit.
+
+---
+
+## Follow-up Implementation Closure — 2026-11-14
+
+The D-10 implementation changes and automated contracts are in place:
+
+- Both replay failure branches and the race/cutoff preflight exception now call the shared renderer for the exact approved recovery copy. The failed result has no value, and the error outcome returns before selected-result components render. App tests inject private/stack-trace details and guard against displaying internal exception text.
+- The ranked table now carries a `Rank` column with a red `TOP` marker attached to its first action. Existing metrics and each row's `Basis` value remain in the same row.
+- The selected replay's own `finishes` feed the chart data and its mean marker. Bars use a neutral fill; the accent line is labeled `Mean finish at selected cutoff`; the axis remains `Finishing position`. The app renders the complete explanatory caption below the Figure, while standalone Figure rendering includes it by default.
+- Chart title, axes, ticks, and legend use the approved typography scale. The app declares the spacing tokens and 44px native-control targets; risk endpoints and the current formatted value render before submission.
+- The safety-car probability now uses a neutral track with one positioned accent marker and retains its numeric metric.
+
+Automated evidence: `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py -q` passed (36 tests); the full suite passed (1,095 passed, 25 deselected); Ruff check, Ruff format check, and strict mypy passed.
+
+**Live review status: pending.** This executor session had no connected browser surface, so no 1440×900 or 390×844 visual inspection, changed-selection interaction, forced-state review, screenshot, or rendered-geometry claim was made. Exact-head Ubuntu/Windows GitHub Actions is also pending on the final pushed head. Keep the Phase 06 UI review open until those checks are recorded in `06-VALIDATION.md`.
