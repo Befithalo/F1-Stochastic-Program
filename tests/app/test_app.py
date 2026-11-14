@@ -162,6 +162,10 @@ def test_replay_error_state_cannot_reuse_stale_selected_output() -> None:
     assert "Replay could not be built for this selection." in app.ERROR_COPY
 
 
+def test_catalog_cutoff_failure_does_not_render_internal_exception_details() -> None:
+    assert "Replay unavailable: {err}" not in app_source()
+
+
 def test_fallback_rows_are_labeled_adjacent_to_each_strategy_action() -> None:
     app = import_module("f1si.app")
     assert hasattr(app, "_annotate_strategy_options")

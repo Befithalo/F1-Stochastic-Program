@@ -454,9 +454,8 @@ def main() -> None:
             accessor = cli._make_asof_accessor(data_path)
             first = accessor.snapshot(asof.AsOf(race_id, 0))
             laps_total = walk_forward._race_laps_total(accessor, race_id, first)
-        except Exception as err:
-            st.subheader(EMPTY_TITLE)
-            st.info(f"Replay unavailable: {err}")
+        except Exception:
+            _render_replay_failure()
             return
         cutoff_options = list(range(max(0, laps_total - 1)))
         driver_options = sorted({str(code).upper() for code in first.entries["driver_code"]})
