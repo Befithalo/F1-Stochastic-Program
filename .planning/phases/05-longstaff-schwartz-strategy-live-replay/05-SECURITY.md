@@ -27,7 +27,10 @@ created: "2026-11-13"
 | Threat ID | Category | Component | Severity | Disposition | Mitigation | Status |
 |-----------|----------|-----------|----------|-------------|------------|--------|
 | T-05-01 | Tampering | Risk and replay bounds | medium | mitigate | Validate finite risk in [0,1], positive sample count, supported lap range, and race/driver catalog allowlists before state construction or simulation; covered by strategy and CLI tests. | closed |
+| T-05-02 | Information Disclosure | Replay cutoff pipeline | high | mitigate | Rebuild inputs from a fresh AsOf snapshot per cutoff, pass only RaceState to policy, and assert future-scramble equality over the in-sample grid; values stay bound and CLI text is never used in shell commands. | closed |
 | T-05-03 | Tampering | CLI race/driver text | high | mitigate | Resolve identifiers through the existing catalog and entrant data; no shell command is constructed from CLI text; refusal paths and replay access are tested. | closed |
+| T-05-04 | Repudiation | Phase explanation and measured claims | medium | mitigate | Cite measured claims from phase summaries or verified smoke output; disclose assumptions and fallback limitations; document the 200,000 simulation maximum in CLI help and README, with doc tests. | closed |
+| T-05-05 | Information Disclosure | Sparse cutoff replay | high | mitigate | Build fallback only from the supplied AsOf snapshot/history; include fallback status, ranked evidence, and reason in future-scramble assertions; keep out-of-sample race rejection before fallback construction. | closed |
 | T-05-SC | Tampering | Dependency installation | low | accept | No package installation is planned. Any added package requires the project legitimacy audit and human gate before installation. | closed |
 
 *Status: open · closed · open — below high threshold (non-blocking)*
@@ -60,3 +63,11 @@ created: "2026-11-13"
 - [x] `status: verified` set in frontmatter
 
 **Approval:** verified 2026-11-13
+
+## Security Audit 2026-11-14
+
+| Metric | Count |
+|---|---|
+| Threats found | 6 |
+| Closed | 6 |
+| Open | 0 |
