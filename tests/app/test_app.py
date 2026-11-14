@@ -220,3 +220,60 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
     assert mean_artist.get_xdata()[0] == pytest.approx(float(np.mean(finishes)))
     assert mean_artist.get_xdata()[0] != 8
     assert any("90% interval" in caption for caption in captions)
+
+
+def test_top_ranked_marker_stays_on_first_action_and_preserves_each_basis() -> None:
+    app = import_module("f1si.app")
+    assert hasattr(app, "_ranked_strategy_rows")
+    columns, rows = app._ranked_strategy_rows(
+        ("Action", "Mean finish", "Basis"),
+        (("pit now", 2.1, "UNCALIBRATED"), ("stay out", 2.4, "Cutoff inputs")),
+    )
+
+    assert columns == ("Rank", "Action", "Mean finish", "Basis")
+    assert rows == (
+        ("TOP", "pit now", 2.1, "UNCALIBRATED"),
+        ("", "stay out", 2.4, "Cutoff inputs"),
+    )
+
+
+@pytest.mark.parametrize("reason", ["private database path", "stack trace secret"])
+def test_replay_error_renderer_uses_only_approved_copy_and_returns_before_outputs(
+    monkeypatch: pytest.MonkeyPatch, reason: str
+) -> None:
+    app = import_module("f1si.app")
+    messages: list[str] = []
+    selected: list[dict[str, object]] = []
+    assert hasattr(app, "_render_replay_outcome")
+    monkeypatch.setattr(app.st, "info", messages.append)
+    monkeypatch.setattr(app, "_render_selected", selected.append)
+
+    app._render_replay_outcome({"status": "error", "value": None, "reason": reason})
+
+    assert messages == [app.ERROR_COPY]
+    assert reason not in messages[0]
+    assert selected == []
+
+
+def test_risk_control_has_visible_endpoints_value_spacing_and_44px_targets() -> None:
+    source = app_source()
+    assert "0.0 Mean-focused" in source
+    assert "1.0 Tail-risk-focused" in source
+    assert "Current risk aversion: 0.50" in source
+    for token in ("4px", "8px", "16px", "24px", "32px", "48px", "64px"):
+        assert token in source
+    assert "min-height: 44px" in source
+    assert source.index("Current risk aversion") < source.index(
+        'st.form_submit_button("Update replay"'
+    )
+
+
+def test_safety_car_probability_uses_neutral_track_and_one_positioned_accent_marker() -> None:
+    app = import_module("f1si.app")
+    assert hasattr(app, "_probability_track_markup")
+    track = app._probability_track_markup(0.25)
+
+    assert "#E9EEF3" in track
+    assert track.count("#D90429") == 1
+    assert "left: 25.0%" in track
+    assert 'role="img"' in track

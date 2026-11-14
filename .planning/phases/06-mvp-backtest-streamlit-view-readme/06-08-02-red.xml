@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="29" time="9.576" timestamp="2026-11-14T15:39:18.978054-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.app.test_app" name="test_page_has_catalog_controls_and_locked_defaults" time="0.003" /><testcase classname="tests.app.test_app" name="test_page_calls_shared_cutoff_safe_builder_and_has_no_results_door" time="0.006" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[Brier]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[coverage]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[denominator]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[strategy]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[Safety-car probability (current proxy)]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[UNCALIBRATED]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_exposes_measured_summary_and_required_outputs[risk]" time="0.001" /><testcase classname="tests.app.test_app" name="test_page_shows_fixed_sample_scores_and_denominators" time="8.339" /><testcase classname="tests.app.test_app" name="test_page_uses_full_immutable_replay_cache_identity" time="0.001" /><testcase classname="tests.app.test_app" name="test_replay_cache_identity_includes_walk_forward_dependency" time="0.012" /><testcase classname="tests.app.test_app" name="test_empty_loading_error_and_partial_states_are_explicit[No race data available]" time="0.001" /><testcase classname="tests.app.test_app" name="test_empty_loading_error_and_partial_states_are_explicit[Load the local race cache, then reload this page.]" time="0.001" /><testcase classname="tests.app.test_app" name="test_empty_loading_error_and_partial_states_are_explicit[Building cutoff-safe replay]" time="0.001" /><testcase classname="tests.app.test_app" name="test_empty_loading_error_and_partial_states_are_explicit[Replay could not be built for this selection.]" time="0.001" /><testcase classname="tests.app.test_app" name="test_empty_loading_error_and_partial_states_are_explicit[Unavailable at this cutoff]" time="0.001" /><testcase classname="tests.app.test_app" name="test_streamlit_harness_can_open_page_for_zero_one_many_and_layout_assertions" time="0.898" /><testcase classname="tests.app.test_app" name="test_empty_local_cache_shows_copy_without_empty_result_components" time="0.202" /><testcase classname="tests.app.test_app" name="test_zero_one_many_actions_use_singular_labels_and_count_visible_rows" time="0.001" /><testcase classname="tests.app.test_app" name="test_replay_error_state_cannot_reuse_stale_selected_output" time="0.001" /><testcase classname="tests.app.test_app" name="test_fallback_rows_are_labeled_adjacent_to_each_strategy_action" time="0.001" /><testcase classname="tests.app.test_app" name="test_responsive_layout_stacks_panels_scrolls_table_and_wraps_long_text" time="0.001" /><testcase classname="tests.app.test_app" name="test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation" time="0.026" /><testcase classname="tests.app.test_app" name="test_top_ranked_marker_stays_on_first_action_and_preserves_each_basis" time="0.001"><failure message="AssertionError: assert False&#10; +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_ranked_strategy_rows')">def test_top_ranked_marker_stays_on_first_action_and_preserves_each_basis() -&gt; None:
+        app = import_module("f1si.app")
+&gt;       assert hasattr(app, "_ranked_strategy_rows")
+E       AssertionError: assert False
+E        +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_ranked_strategy_rows')
+
+tests\app\test_app.py:227: AssertionError</failure></testcase><testcase classname="tests.app.test_app" name="test_replay_error_renderer_uses_only_approved_copy_and_returns_before_outputs[private database path]" time="0.001"><failure message="AssertionError: assert False&#10; +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_render_replay_outcome')">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019B3A1D2480&gt;
+reason = 'private database path'
+
+    @pytest.mark.parametrize("reason", ["private database path", "stack trace secret"])
+    def test_replay_error_renderer_uses_only_approved_copy_and_returns_before_outputs(
+        monkeypatch: pytest.MonkeyPatch, reason: str
+    ) -&gt; None:
+        app = import_module("f1si.app")
+        messages: list[str] = []
+        selected: list[dict[str, object]] = []
+&gt;       assert hasattr(app, "_render_replay_outcome")
+E       AssertionError: assert False
+E        +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_render_replay_outcome')
+
+tests\app\test_app.py:247: AssertionError</failure></testcase><testcase classname="tests.app.test_app" name="test_replay_error_renderer_uses_only_approved_copy_and_returns_before_outputs[stack trace secret]" time="0.001"><failure message="AssertionError: assert False&#10; +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_render_replay_outcome')">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019B3A5004A0&gt;
+reason = 'stack trace secret'
+
+    @pytest.mark.parametrize("reason", ["private database path", "stack trace secret"])
+    def test_replay_error_renderer_uses_only_approved_copy_and_returns_before_outputs(
+        monkeypatch: pytest.MonkeyPatch, reason: str
+    ) -&gt; None:
+        app = import_module("f1si.app")
+        messages: list[str] = []
+        selected: list[dict[str, object]] = []
+&gt;       assert hasattr(app, "_render_replay_outcome")
+E       AssertionError: assert False
+E        +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_render_replay_outcome')
+
+tests\app\test_app.py:247: AssertionError</failure></testcase><testcase classname="tests.app.test_app" name="test_risk_control_has_visible_endpoints_value_spacing_and_44px_targets" time="0.001"><failure message="assert '0.0 Mean-focused' in '&quot;&quot;&quot;Read-only, cutoff-safe single-page replay view.&quot;&quot;&quot;\n\nfrom __future__ import annotations\n\nimport hashlib\nimport... except Exception as err:\n        st.info(f&quot;Replay unavailable: {err}&quot;)\n\n\nif __name__ == &quot;__main__&quot;:\n    main()\n'">def test_risk_control_has_visible_endpoints_value_spacing_and_44px_targets() -&gt; None:
+        source = app_source()
+&gt;       assert "0.0 Mean-focused" in source
+E       assert '0.0 Mean-focused' in '"""Read-only, cutoff-safe single-page replay view."""\n\nfrom __future__ import annotations\n\nimport hashlib\nimport... except Exception as err:\n        st.info(f"Replay unavailable: {err}")\n\n\nif __name__ == "__main__":\n    main()\n'
+
+tests\app\test_app.py:260: AssertionError</failure></testcase><testcase classname="tests.app.test_app" name="test_safety_car_probability_uses_neutral_track_and_one_positioned_accent_marker" time="0.001"><failure message="AssertionError: assert False&#10; +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_probability_track_markup')">def test_safety_car_probability_uses_neutral_track_and_one_positioned_accent_marker() -&gt; None:
+        app = import_module("f1si.app")
+&gt;       assert hasattr(app, "_probability_track_markup")
+E       AssertionError: assert False
+E        +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_probability_track_markup')
+
+tests\app\test_app.py:271: AssertionError</failure></testcase></testsuite></testsuites>
