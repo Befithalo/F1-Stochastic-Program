@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -28,6 +29,7 @@ ERROR_COPY = (
     "Replay could not be built for this selection. Check the local cache and eligible cutoffs, "
     "then retry or choose another race."
 )
+LOADING_COPY = "Building cutoff-safe replay…"
 
 
 def _data_file() -> Path:
@@ -37,10 +39,21 @@ def _data_file() -> Path:
 
 
 def _model_identity(data_path: Path) -> str:
-    """Use immutable file metadata plus a package source digest in the cache identity."""
+    """Use immutable cache metadata plus model-source digests in the cache identity."""
     stat = data_path.stat()
-    digest = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    return f"{stat.st_size}:{stat.st_mtime_ns}:{digest}"
+    digest = hashlib.sha256()
+    for relative in (
+        "src/f1si/app.py",
+        "src/f1si/cli.py",
+        "src/f1si/strategy/longstaff.py",
+        "src/f1si/sim/numpy_backend.py",
+        "src/f1si/pace/linear.py",
+        "src/f1si/state.py",
+    ):
+        source = PROJECT_ROOT / relative
+        digest.update(relative.encode())
+        digest.update(source.read_bytes())
+    return f"{stat.st_size}:{stat.st_mtime_ns}:{digest.hexdigest()}"
 
 
 def _eligible_catalog(data_path: Path) -> Any:
@@ -54,6 +67,34 @@ def _eligible_catalog(data_path: Path) -> Any:
 
 def _race_label(row: Any) -> str:
     return f"{row.event_name} {int(row.season)}"
+
+
+def _count_label(count: int, singular: str, plural: str | None = None) -> str:
+    if count == 1:
+        return f"1 {singular}"
+    return f"{count} {plural or singular + 's'}"
+
+
+def _action_heading(count: int) -> str:
+    if count == 0:
+        return "No ranked strategy actions available"
+    return "Ranked strategy actions · " + _count_label(count, "action", "actions")
+
+
+def _annotate_strategy_options(
+    columns: tuple[str, ...], rows: tuple[tuple[Any, ...], ...], fallback: bool
+) -> tuple[tuple[str, ...], tuple[tuple[Any, ...], ...]]:
+    """Keep fallback status adjacent to each affected ranked action."""
+    label = "UNCALIBRATED" if fallback else "Cutoff inputs"
+    return (*columns, "Basis"), tuple((*row, label) for row in rows)
+
+
+def _safe_replay_result(builder: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+    """Return a fresh error state without carrying any previous selection's output."""
+    try:
+        return {"status": "ready", "value": builder()}
+    except Exception:
+        return {"status": "error", "value": None}
 
 
 @st.cache_data(show_spinner=False, max_entries=64)
@@ -95,7 +136,27 @@ def _build_selected_replay(
         prepared_context=context,
     )
     if cutoff.analysis is None:
-        return {"available": False, "reason": cutoff.unavailable_reason}
+        car = context.state.car(code)
+        return {
+            "available": True,
+            "strategy_available": False,
+            "reason": cutoff.unavailable_reason,
+            "race_name": snapshot.race.event_name,
+            "driver": code,
+            "cutoff_lap": cutoff_lap,
+            "risk": risk,
+            "options": (),
+            "option_columns": (),
+            "finishes": (),
+            "n_cars": len(context.state.cars),
+            "safety_car_probability": context.estimate.rate_per_lap,
+            "safety_car_share": None,
+            "safety_car_source": cli._sc_source(context.estimate),
+            "tire_rate": car.wear_rate_s_per_lap,
+            "tire_sd": car.wear_sd,
+            "tire_source": car.wear_source,
+            "fallback": context.is_fallback,
+        }
 
     analysis = cutoff.analysis
     selected = analysis.best
@@ -123,6 +184,7 @@ def _build_selected_replay(
     wear_sd = car.wear_sd
     return {
         "available": True,
+        "strategy_available": True,
         "race_name": snapshot.race.event_name,
         "driver": code,
         "cutoff_lap": cutoff_lap,
@@ -227,12 +289,22 @@ def _apply_styles() -> None:
         """
         <style>
         .stApp { background: #F5F7FA; color: #17212B; }
+        .stApp p, .stApp li { font-size: 16px; line-height: 1.5; }
+        .stApp h1 { font-size: 28px; font-weight: 600; line-height: 1.2; }
+        .stApp h2, .stApp h3 { font-size: 20px; font-weight: 600; line-height: 1.2; }
+        [data-testid="stWidgetLabel"] p { font-size: 14px; font-weight: 600; line-height: 1.4; }
         [data-testid="stVerticalBlockBorderWrapper"] { background: #E9EEF3; }
         [data-testid="stCaptionContainer"], [data-testid="stMarkdownContainer"] {
             overflow-wrap: anywhere; white-space: normal;
         }
+        [data-testid="stWidgetLabel"], [data-testid="stSelectbox"] *,
+        [data-testid="stSlider"] *, [data-testid="stButton"] p {
+            overflow-wrap: anywhere; white-space: normal;
+        }
         [data-testid="stDataFrame"] [role="grid"] { overflow-x: auto !important; }
         [data-testid="stMetricValue"] { color: #17212B; }
+        [data-testid="stProgress"] [role="progressbar"] > div { background: #D90429; }
+        .top-ranked { color: #D90429; font-weight: 600; }
         @media (max-width: 760px) {
             [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: 16px; }
             [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
@@ -252,20 +324,25 @@ def _render_selected(result: dict[str, Any]) -> None:
     is_fallback = bool(result["fallback"])
     left, right = st.columns((2, 1), gap="large")
     with left:
-        finishes = np.asarray(result["finishes"], dtype=np.int64)
-        chart = prepare_sim_plot_data(
-            finishes,
-            slug="selected-replay",
-            driver=result["driver"],
-            lap=result["cutoff_lap"],
-            n_races=len(finishes),
-            sc_share=float(result["safety_car_share"]),
-            sc_source=str(result["safety_car_source"]),
-            hindsight=False,
-            n_cars=int(result["n_cars"]),
-        )
-        st.pyplot(build_sim_figure(chart), clear_figure=True)
-        st.caption("Finishing fan chart · simulated outcomes for the selected ranked action.")
+        if result["strategy_available"]:
+            finishes = np.asarray(result["finishes"], dtype=np.int64)
+            chart = prepare_sim_plot_data(
+                finishes,
+                slug="selected-replay",
+                driver=result["driver"],
+                lap=result["cutoff_lap"],
+                n_races=len(finishes),
+                sc_share=float(result["safety_car_share"]),
+                sc_source=str(result["safety_car_source"]),
+                hindsight=False,
+                n_cars=int(result["n_cars"]),
+            )
+            st.pyplot(build_sim_figure(chart), clear_figure=True)
+            st.caption("Finishing fan chart · simulated outcomes for the selected ranked action.")
+        else:
+            st.info(
+                "Unavailable at this cutoff: " + str(result.get("reason") or "No strategy data.")
+            )
     with right:
         st.subheader("Safety-car probability (current proxy)")
         st.caption("Existing per-lap probability; this is not a Markov regime classification.")
@@ -282,11 +359,19 @@ def _render_selected(result: dict[str, Any]) -> None:
             st.metric("Wear rate", f"{rate:.3f} s/lap", delta=f"± {sd:.3f} s/lap")
             if is_fallback or result["tire_source"] != "filter":
                 st.caption("UNCALIBRATED · prior or sparse fallback")
-    st.subheader(f"Ranked strategy actions · {len(result['options'])} actions")
-    strategy_table = pd.DataFrame(result["options"], columns=result["option_columns"])
-    st.dataframe(strategy_table, hide_index=True, width="stretch")
-    if is_fallback:
-        st.caption("UNCALIBRATED · sparse prior-driven replay inputs")
+    options = tuple(result["options"])
+    if not result["strategy_available"] or not options:
+        st.info("Unavailable at this cutoff: no ranked strategy actions were produced.")
+        st.markdown(f"**Reason:** {result.get('reason') or 'No strategy output is available.'}")
+        st.caption(f"Selected risk aversion: {result['risk']:.2f}")
+        return
+    columns, rows = _annotate_strategy_options(
+        tuple(result["option_columns"]), options, is_fallback
+    )
+    st.subheader(_action_heading(len(rows)))
+    st.markdown('<p class="top-ranked">TOP RANKED ACTION</p>', unsafe_allow_html=True)
+    strategy_table = pd.DataFrame(rows, columns=columns)
+    st.dataframe(strategy_table, hide_index=True, width="stretch", height="content")
     st.markdown(f"**Reason:** {result['reason']}")
     st.caption(f"Selected risk aversion: {result['risk']:.2f}")
 
@@ -319,11 +404,20 @@ def main() -> None:
     with st.form("replay-selection"):
         col_race, col_driver, col_cutoff, col_risk = st.columns(4, gap="medium")
         with col_race:
-            race_label = st.selectbox("Race", list(labels), index=default_race)
+            race_label = st.selectbox(
+                f"Race · {_count_label(len(labels), 'eligible race', 'eligible races')}",
+                list(labels),
+                index=default_race,
+            )
         race_id = labels[race_label]
-        accessor = cli._make_asof_accessor(data_path)
-        first = accessor.snapshot(asof.AsOf(race_id, 0))
-        laps_total = walk_forward._race_laps_total(accessor, race_id, first)
+        try:
+            accessor = cli._make_asof_accessor(data_path)
+            first = accessor.snapshot(asof.AsOf(race_id, 0))
+            laps_total = walk_forward._race_laps_total(accessor, race_id, first)
+        except Exception:
+            st.subheader(EMPTY_TITLE)
+            st.write(EMPTY_BODY)
+            return
         cutoff_options = list(range(max(0, laps_total - 1)))
         driver_options = sorted({str(code).upper() for code in first.entries["driver_code"]})
         if not driver_options or not cutoff_options:
@@ -336,11 +430,13 @@ def main() -> None:
         selected_cutoff = cutoff_options[len(cutoff_options) // 2]
         with col_driver:
             driver = st.selectbox(
-                "Driver", driver_options, index=driver_options.index(selected_driver)
+                f"Driver · {_count_label(len(driver_options), 'option')}",
+                driver_options,
+                index=driver_options.index(selected_driver),
             )
         with col_cutoff:
             cutoff_lap = st.selectbox(
-                "Cutoff lap",
+                f"Eligible cutoff · {_count_label(len(cutoff_options), 'lap')}",
                 cutoff_options,
                 index=cutoff_options.index(selected_cutoff),
                 format_func=lambda lap: f"After lap {lap}",
@@ -361,18 +457,23 @@ def main() -> None:
         return
     try:
         identity = _model_identity(data_path)
-        with st.spinner("Building cutoff-safe replay…"):
-            result = _build_selected_replay(
-                race_id,
-                driver,
-                int(cutoff_lap),
-                float(risk),
-                SIMULATIONS,
-                SEED,
-                str(data_path),
-                identity,
+        with st.spinner(LOADING_COPY):
+            outcome = _safe_replay_result(
+                lambda: _build_selected_replay(
+                    race_id,
+                    driver,
+                    int(cutoff_lap),
+                    float(risk),
+                    SIMULATIONS,
+                    SEED,
+                    str(data_path),
+                    identity,
+                )
             )
-        _render_selected(result)
+        if outcome["status"] == "error":
+            st.error(ERROR_COPY)
+            return
+        _render_selected(cast(dict[str, Any], outcome["value"]))
     except Exception:
         st.error(ERROR_COPY)
 
