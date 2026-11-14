@@ -186,8 +186,8 @@ def test_diagnostics_extension_rejects_malformed_probability_values_without_muta
             "race_count": len(REGISTERED_RACE_IDS),
         }
 
-    def paired() -> dict[str, Any]:
-        return {"mean": 0.0, "low": -0.1, "high": 0.1, "cluster_count": len(REGISTERED_RACE_IDS)}
+    def paired(mean: float) -> dict[str, Any]:
+        return {"mean": mean, "low": -0.2, "high": 0.0, "cluster_count": len(REGISTERED_RACE_IDS)}
 
     report: dict[str, Any] = {
         "schema_version": 1,
@@ -197,12 +197,12 @@ def test_diagnostics_extension_rejects_malformed_probability_values_without_muta
             "podium_brier": {
                 "model": summary(0.2),
                 "baseline": summary(0.3),
-                "model_minus_baseline_95": paired(),
+                "model_minus_baseline_95": paired(-0.1),
             },
             "top10_brier": {
                 "model": summary(0.4),
                 "baseline": summary(0.5),
-                "model_minus_baseline_95": paired(),
+                "model_minus_baseline_95": paired(-0.1),
             },
             "brier_observation_count": 100,
             "finish_interval_90": {
@@ -227,6 +227,116 @@ def test_diagnostics_extension_rejects_malformed_probability_values_without_muta
     monkeypatch.setattr(scoring, "wear_proxy_diagnostic", lambda *_args, **_kwargs: {})
 
     with pytest.raises(ValueError, match="does not match diagnostic inputs"):
+        scoring.extend_existing_report(
+            Path("cache.duckdb"), report, n_simulations=64, risk=0.5, seed=3
+        )
+
+    assert report == before
+
+
+@pytest.mark.parametrize(
+    ("path", "invalid_value", "message"),
+    [
+        (
+            ("metrics", "podium_brier", "model", "mean"),
+            0.21,
+            "podium_brier.model.mean is inconsistent",
+        ),
+        (
+            ("metrics", "podium_brier", "model_minus_baseline_95", "mean"),
+            -0.2,
+            "podium_brier paired mean is inconsistent",
+        ),
+        (
+            ("metrics", "top10_brier", "model_minus_baseline_95", "low"),
+            -0.05,
+            "top10_brier paired mean is outside",
+        ),
+        (
+            ("metrics", "finish_interval_90", "coverage", "mean"),
+            0.41,
+            "coverage mean is inconsistent",
+        ),
+        (
+            ("metrics", "finish_interval_90", "race_cluster_95", "high"),
+            0.39,
+            "uncertainty mean is inconsistent",
+        ),
+    ],
+)
+def test_diagnostics_extension_rejects_inconsistent_probability_summaries_without_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+    path: tuple[str, ...],
+    invalid_value: object,
+    message: str,
+) -> None:
+    import json
+
+    from f1si.backtest import scoring
+    from f1si.backtest.walk_forward import REGISTERED_RACE_IDS
+
+    def summary(value: float) -> dict[str, Any]:
+        return {
+            "mean": value,
+            "per_race": {race_id: value for race_id in REGISTERED_RACE_IDS},
+            "race_count": len(REGISTERED_RACE_IDS),
+        }
+
+    report: dict[str, Any] = {
+        "schema_version": 1,
+        "race_ids": list(REGISTERED_RACE_IDS),
+        "metadata": {
+            "base_seed": 3,
+            "n_simulations_per_prediction": 64,
+            "risk_aversion": 0.5,
+        },
+        "metrics": {
+            "podium_brier": {
+                "model": summary(0.2),
+                "baseline": summary(0.3),
+                "model_minus_baseline_95": {
+                    "mean": -0.1,
+                    "low": -0.2,
+                    "high": 0.0,
+                    "cluster_count": len(REGISTERED_RACE_IDS),
+                },
+            },
+            "top10_brier": {
+                "model": summary(0.4),
+                "baseline": summary(0.5),
+                "model_minus_baseline_95": {
+                    "mean": -0.1,
+                    "low": -0.2,
+                    "high": 0.0,
+                    "cluster_count": len(REGISTERED_RACE_IDS),
+                },
+            },
+            "brier_observation_count": 100,
+            "finish_interval_90": {
+                "covered": 40,
+                "classified_finishers": 100,
+                "coverage": summary(0.4),
+                "race_cluster_95": {
+                    "mean": 0.4,
+                    "low": 0.3,
+                    "high": 0.5,
+                    "cluster_count": len(REGISTERED_RACE_IDS),
+                },
+            },
+        },
+    }
+    target: Any = report
+    for key in path[:-1]:
+        target = target[key]
+    target[path[-1]] = invalid_value
+    before = json.loads(json.dumps(report))
+    monkeypatch.setattr(
+        scoring,
+        "score_team_strategy_sample",
+        lambda *_args, **_kwargs: pytest.fail("diagnostics ran on an inconsistent report"),
+    )
+
+    with pytest.raises(ValueError, match=message):
         scoring.extend_existing_report(
             Path("cache.duckdb"), report, n_simulations=64, risk=0.5, seed=3
         )

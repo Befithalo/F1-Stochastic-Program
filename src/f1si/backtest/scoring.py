@@ -412,6 +412,17 @@ def extend_existing_report(
 ) -> dict[str, Any]:
     """Add the task 06-05 diagnostics to a matching measured Phase 6 probability report."""
 
+    metric_tolerance = 1e-9
+
+    def is_close(left: object, right: object) -> bool:
+        return (
+            isinstance(left, (int, float))
+            and not isinstance(left, bool)
+            and isinstance(right, (int, float))
+            and not isinstance(right, bool)
+            and math.isclose(left, right, rel_tol=metric_tolerance, abs_tol=metric_tolerance)
+        )
+
     def finite_in_range(value: object, low: float, high: float) -> bool:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return False
@@ -485,6 +496,15 @@ def extend_existing_report(
                         mismatches.append(
                             f"{name}.{part}.per_race values must be finite and within [0, 1]"
                         )
+                    elif (
+                        isinstance(per_race, dict)
+                        and per_race
+                        and finite_in_range(component.get("mean"), 0.0, 1.0)
+                        and not is_close(component["mean"], sum(per_race.values()) / len(per_race))
+                    ):
+                        mismatches.append(
+                            f"{name}.{part}.mean is inconsistent with its per_race values"
+                        )
                     if component.get("race_count") != len(REGISTERED_RACE_IDS):
                         mismatches.append(f"{name}.{part}.race_count is inconsistent")
             paired = score.get("model_minus_baseline_95")
@@ -501,6 +521,25 @@ def extend_existing_report(
                 or paired.get("cluster_count") != len(REGISTERED_RACE_IDS)
             ):
                 mismatches.append(f"{name} paired uncertainty values or denominator are invalid")
+            elif not (
+                paired["low"] - metric_tolerance
+                <= paired["mean"]
+                <= paired["high"] + metric_tolerance
+            ):
+                mismatches.append(f"{name} paired mean is outside its confidence interval")
+            else:
+                model = score.get("model")
+                baseline = score.get("baseline")
+                if (
+                    isinstance(model, dict)
+                    and isinstance(baseline, dict)
+                    and finite_in_range(model.get("mean"), 0.0, 1.0)
+                    and finite_in_range(baseline.get("mean"), 0.0, 1.0)
+                    and not is_close(paired["mean"], model["mean"] - baseline["mean"])
+                ):
+                    mismatches.append(
+                        f"{name} paired mean is inconsistent with model minus baseline mean"
+                    )
         count = metrics.get("brier_observation_count")
         if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
             mismatches.append("brier_observation_count is missing or invalid")
@@ -517,6 +556,15 @@ def extend_existing_report(
             if not finite_in_range(coverage.get("mean"), 0.0, 1.0):
                 mismatches.append(
                     "finish_interval_90 coverage mean must be finite and within [0, 1]"
+                )
+            elif (
+                isinstance(per_race, dict)
+                and per_race
+                and all(finite_in_range(value, 0.0, 1.0) for value in per_race.values())
+                and not is_close(coverage["mean"], sum(per_race.values()) / len(per_race))
+            ):
+                mismatches.append(
+                    "finish_interval_90 coverage mean is inconsistent with its per_race values"
                 )
             if (
                 not isinstance(per_race, dict)
@@ -544,6 +592,15 @@ def extend_existing_report(
             ):
                 mismatches.append(
                     "finish_interval_90 uncertainty values or denominator are invalid"
+                )
+            elif not is_close(cluster["mean"], coverage.get("mean")) or not (
+                cluster["low"] - metric_tolerance
+                <= cluster["mean"]
+                <= cluster["high"] + metric_tolerance
+            ):
+                mismatches.append(
+                    "finish_interval_90 uncertainty mean is inconsistent with coverage "
+                    "or outside its confidence interval"
                 )
         if isinstance(interval, dict) and any(
             field not in interval for field in ("covered", "classified_finishers")
