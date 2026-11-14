@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
@@ -58,6 +59,36 @@ def test_figure_has_one_bar_per_position() -> None:
     assert len(ax.patches) == 20
     assert ax.get_ylabel() == "Share of simulated races"
     assert any(ln.get_linestyle() == "--" for ln in ax.get_lines())
+
+
+def test_selected_finish_summary_uses_neutral_bars_accent_marker_and_readable_roles() -> None:
+    data = prepare_sim_plot_data(
+        np.array([2, 4, 4, 6], dtype=np.int64),
+        slug="selected-replay",
+        driver="ALO",
+        lap=8,
+        n_races=4,
+        sc_share=0.1,
+        sc_source="prior only",
+        hindsight=False,
+        n_cars=6,
+    )
+
+    fig = build_sim_figure(data)
+    ax = fig.axes[0]
+
+    assert ax.get_xlabel() == "Finishing position"
+    assert [line.get_label() for line in ax.get_lines()] == ["Mean finish at selected cutoff"]
+    assert ax.get_lines()[0].get_xdata()[0] == pytest.approx(float(np.mean([2, 4, 4, 6])))
+    assert ax.get_lines()[0].get_color().lower() == "#d90429"
+    assert all(patch.get_facecolor() != to_rgba("#D90429") for patch in ax.patches)
+    assert ax.xaxis.label.get_fontsize() == 12
+    assert ax.yaxis.label.get_fontsize() == 12
+    assert ax.get_xticklabels()[0].get_fontsize() == 10.5
+    assert ax.get_legend().get_texts()[0].get_fontsize() == 10.5
+    assert data.caption in fig._suptitle.get_text() or any(
+        data.caption in text.get_text() for text in fig.texts
+    )
 
 
 def test_render_writes_a_png(tmp_path: Path) -> None:

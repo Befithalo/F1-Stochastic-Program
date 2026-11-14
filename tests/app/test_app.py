@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ast
+from contextlib import nullcontext
 from importlib import import_module
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 APP_PATH = Path(__file__).resolve().parents[2] / "src" / "f1si" / "app.py"
@@ -176,3 +178,45 @@ def test_responsive_layout_stacks_panels_scrolls_table_and_wraps_long_text() -> 
     assert "overflow-x: auto" in source
     assert "overflow-wrap: anywhere" in source
     assert "white-space: normal" in source
+
+
+def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = import_module("f1si.app")
+    figures = []
+    captions: list[str] = []
+    monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: (nullcontext(), nullcontext()))
+    monkeypatch.setattr(app.st, "pyplot", lambda figure, **_kwargs: figures.append(figure))
+    monkeypatch.setattr(app.st, "caption", captions.append)
+    for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown"):
+        monkeypatch.setattr(app.st, name, lambda *_args, **_kwargs: None)
+
+    finishes = (2, 4, 4, 6)
+    app._render_selected(
+        {
+            "available": True,
+            "strategy_available": True,
+            "finishes": finishes,
+            "driver": "ALO",
+            "cutoff_lap": 8,
+            "safety_car_share": 0.1,
+            "safety_car_source": "prior only",
+            "n_cars": 6,
+            "safety_car_probability": 0.01,
+            "fallback": False,
+            "tire_rate": 0.1,
+            "tire_sd": 0.01,
+            "tire_source": "filter",
+            "options": (("pit now", 1.2),),
+            "option_columns": ("Action", "Mean finish"),
+            "reason": "Controlled fixture",
+            "risk": 0.5,
+        }
+    )
+
+    assert len(figures) == 1
+    mean_artist = figures[0].axes[0].get_lines()[0]
+    assert mean_artist.get_xdata()[0] == pytest.approx(float(np.mean(finishes)))
+    assert mean_artist.get_xdata()[0] != 8
+    assert any("90% interval" in caption for caption in captions)
