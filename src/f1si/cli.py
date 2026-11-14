@@ -1172,13 +1172,21 @@ def _cmd_replay(
     db = paths.db_path(data_dir)
     race_id = asof.resolve_slug(db, slug)
     accessor = asof.AsOfAccessor(db)
+    from f1si.backtest.walk_forward import _race_laps_total
+
+    try:
+        first = accessor.snapshot(asof.AsOf(race_id, 0))
+        laps_total = _race_laps_total(accessor, race_id, first)
+    except OutOfSampleLockedError as err:
+        return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+    except ValueError as err:
+        return _refuse(str(err))
     try:
         end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
     except OutOfSampleLockedError as err:
         return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
     if end.laps.empty:
         return _refuse(f"No lap data available for {slug}; cannot replay this race.")
-    laps_total = int(end.laps["lap_number"].max())
     if lap is not None and lap >= laps_total:
         return _refuse(f"--lap must be in 0..{laps_total - 1}, got {lap}. {try_line}")
     known = set(str(v) for v in end.entries["driver_code"])

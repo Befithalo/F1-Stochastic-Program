@@ -5,10 +5,12 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
-from f1si import paths
+from f1si import cli, paths
 from f1si.cli import build_parser, main
 from f1si.data import _db, asof, schema
 from f1si.data.loader import load_races
@@ -126,6 +128,65 @@ def test_races_without_cache_says_what_to_do(
 ) -> None:
     assert main(["--data-dir", str(tmp_path / "nothing"), "races"]) == 1
     assert "uv run f1si load" in capsys.readouterr().err
+
+
+def test_replay_horizon_comes_from_ex_ante_schedule_not_race_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests: list[asof.AsOf] = []
+    replay_horizons: list[int] = []
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, at: asof.AsOf) -> SimpleNamespace:
+            requests.append(at)
+            if at.lap == asof.RACE_END:
+                return SimpleNamespace(
+                    laps=pd.DataFrame({"lap_number": [44]}),
+                    entries=pd.DataFrame({"driver_code": ["VER"]}),
+                )
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=57),
+                entries=pd.DataFrame({"driver_code": ["VER"]}),
+            )
+
+    monkeypatch.setattr(paths, "db_path", lambda _data: tmp_path / "cache.duckdb")
+    monkeypatch.setattr(asof, "resolve_slug", lambda _db, _slug: "2023-01")
+    monkeypatch.setattr(asof, "AsOfAccessor", Accessor)
+    monkeypatch.setattr(
+        cli,
+        "_replay_at_cutoff",
+        lambda *_args, **_kwargs: replay_horizons.append(_args[2]) or SimpleNamespace(),
+    )
+    monkeypatch.setattr(cli, "_print_replay_cutoff", lambda *_args: None)
+
+    assert cli._cmd_replay(tmp_path, "test-race", "VER", 10, 1, 0.5, 0) == 0
+    assert replay_horizons == [57]
+    assert [request.lap for request in requests] == [0, asof.RACE_END]
+
+
+def test_replay_refuses_when_ex_ante_schedule_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    requests: list[asof.AsOf] = []
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, at: asof.AsOf) -> SimpleNamespace:
+            requests.append(at)
+            return SimpleNamespace(race=SimpleNamespace(scheduled_laps=None))
+
+    monkeypatch.setattr(paths, "db_path", lambda _data: tmp_path / "cache.duckdb")
+    monkeypatch.setattr(asof, "resolve_slug", lambda _db, _slug: "2023-01")
+    monkeypatch.setattr(asof, "AsOfAccessor", Accessor)
+
+    assert cli._cmd_replay(tmp_path, "test-race", "VER", 10, 1, 0.5, 0) == 1
+    assert requests == [asof.AsOf("2023-01", 0)]
+    assert "Scheduled race distance is unavailable for 2023-01" in capsys.readouterr().err
 
 
 def test_races_with_an_empty_cache_says_what_to_do(
