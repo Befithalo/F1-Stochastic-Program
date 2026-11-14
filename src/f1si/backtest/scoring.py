@@ -250,6 +250,7 @@ def score_registered_sample(
     risk: float = 0.5,
     seed: int = 0,
     n_resamples: int = BOOTSTRAP_RESAMPLES,
+    workers: int = 1,
 ) -> dict[str, Any]:
     """Preflight, freeze all predictions, then open outcomes and calculate the report."""
     _preflight_database(db_path)
@@ -258,6 +259,7 @@ def score_registered_sample(
         n_simulations=n_simulations,
         risk=risk,
         seed=seed,
+        workers=workers,
     )
     expected = _expected_prediction_keys(db_path)
     frozen = _validate_frozen_trace(trace, expected)

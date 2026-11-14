@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import zlib
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -51,6 +52,10 @@ class WalkForwardTrace:
     predictions: tuple[PredictionRow, ...]
 
 
+_MAX_WORKERS: Final = 4
+_WORKER_ACCESSOR: asof.AsOfAccessor | None = None
+
+
 def preflight_races(completion: dict[str, bool]) -> tuple[str, ...]:
     """Return every missing or incomplete registered race in locked calendar order."""
     return tuple(race_id for race_id in REGISTERED_RACE_IDS if not completion.get(race_id, False))
@@ -71,6 +76,68 @@ def _preflight_database(db_path: Path) -> None:
 
 def _seed(race_id: str, driver: str, lap: int, seed: int) -> int:
     return (seed + zlib.crc32(f"{race_id}:{driver}:{lap}".encode())) & 0x7FFFFFFF
+
+
+def _predict_cutoff_rows(
+    accessor: asof.AsOfAccessor,
+    race_id: str,
+    laps_total: int,
+    lap: int,
+    *,
+    n_simulations: int,
+    risk: float,
+    seed: int,
+    snapshot: asof.RaceSnapshot | None = None,
+) -> tuple[PredictionRow, ...]:
+    """Predict a cutoff's drivers using one shared preparation context."""
+    if snapshot is None:
+        snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+    drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
+    if not drivers:
+        return ()
+    from f1si.cli import _prepare_replay_context
+
+    prepared_context = _prepare_replay_context(
+        accessor, race_id, laps_total, lap, snapshot=snapshot
+    )
+    return tuple(
+        _predict_from_accessor(
+            accessor,
+            race_id,
+            driver,
+            lap,
+            n_simulations=n_simulations,
+            risk=risk,
+            seed=seed,
+            laps_total=laps_total,
+            prepared_context=prepared_context,
+        )
+        for driver in drivers
+    )
+
+
+def _initialize_prediction_worker(db_path: str) -> None:
+    """Give each process a separate path-backed, read-only accessor instance."""
+    global _WORKER_ACCESSOR
+    _WORKER_ACCESSOR = _new_accessor(Path(db_path))
+
+
+def _predict_cutoff_worker(
+    job: tuple[str, int, int, int, float, int],
+) -> tuple[PredictionRow, ...]:
+    """Process one race/cutoff with the worker's isolated accessor."""
+    if _WORKER_ACCESSOR is None:
+        raise RuntimeError("prediction worker was not initialized with a cache accessor")
+    race_id, laps_total, lap, n_simulations, risk, seed = job
+    return _predict_cutoff_rows(
+        _WORKER_ACCESSOR,
+        race_id,
+        laps_total,
+        lap,
+        n_simulations=n_simulations,
+        risk=risk,
+        seed=seed,
+    )
 
 
 def _race_laps_total(accessor: asof.AsOfAccessor, race_id: str, first_snapshot: object) -> int:
@@ -204,34 +271,47 @@ def run_walk_forward(
     n_simulations: int = 1_000,
     risk: float = 0.5,
     seed: int = 0,
+    workers: int = 1,
 ) -> WalkForwardTrace:
     """Freeze all drivers' predictions at every eligible cutoff of the ten registered races."""
+    if not 1 <= workers <= _MAX_WORKERS:
+        raise ValueError(f"workers must be between 1 and {_MAX_WORKERS}, got {workers}.")
     _preflight_database(db_path)
     accessor = _new_accessor(db_path)
     rows: list[PredictionRow] = []
+    race_horizons: list[tuple[str, int, asof.RaceSnapshot]] = []
     for race_id in REGISTERED_RACE_IDS:
         first = accessor.snapshot(asof.AsOf(race_id, 0))
         laps_total = _race_laps_total(accessor, race_id, first)
-        for lap in range(laps_total):
-            snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
-            drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
-            from f1si.cli import _prepare_replay_context
+        race_horizons.append((race_id, laps_total, first))
 
-            prepared_context = _prepare_replay_context(
-                accessor, race_id, laps_total, lap, snapshot=snapshot
-            )
-            for driver in drivers:
-                rows.append(
-                    _predict_from_accessor(
+    if workers == 1:
+        for race_id, laps_total, first in race_horizons:
+            for lap in range(laps_total):
+                snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
+                rows.extend(
+                    _predict_cutoff_rows(
                         accessor,
                         race_id,
-                        driver,
+                        laps_total,
                         lap,
                         n_simulations=n_simulations,
                         risk=risk,
                         seed=seed,
-                        laps_total=laps_total,
-                        prepared_context=prepared_context,
+                        snapshot=snapshot,
                     )
                 )
+    else:
+        jobs = tuple(
+            (race_id, laps_total, lap, n_simulations, risk, seed)
+            for race_id, laps_total, _first in race_horizons
+            for lap in range(laps_total)
+        )
+        with ProcessPoolExecutor(
+            max_workers=workers,
+            initializer=_initialize_prediction_worker,
+            initargs=(str(db_path),),
+        ) as executor:
+            for cutoff_rows in executor.map(_predict_cutoff_worker, jobs, chunksize=4):
+                rows.extend(cutoff_rows)
     return WalkForwardTrace(tuple(rows))

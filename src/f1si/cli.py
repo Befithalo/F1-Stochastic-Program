@@ -264,6 +264,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("reports/backtest/phase-06.json"),
         help="completed report path (default: reports/backtest/phase-06.json)",
     )
+    backtest.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="bounded report prediction workers, 1 through 4 (default: 4)",
+    )
     return parser
 
 
@@ -1236,6 +1242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     n_simulations=args.n,
                     risk=args.risk,
                     seed=args.seed,
+                    workers=args.workers,
                 )
                 output: Path = args.output
                 output.parent.mkdir(parents=True, exist_ok=True)

@@ -26,6 +26,7 @@ def test_backtest_report_parser_accepts_report_mode_and_default_output() -> None
     assert parsed is not None, "backtest --report must not require single-cutoff arguments"
     assert parsed.report is True
     assert parsed.output == Path("reports/backtest/phase-06.json")
+    assert parsed.workers == 4
 
 
 def test_backtest_report_writes_completed_json_to_output_override(
@@ -34,10 +35,10 @@ def test_backtest_report_writes_completed_json_to_output_override(
     from f1si.backtest import scoring
 
     report = {"race_ids": ["2023-01"], "metrics": {"podium_brier": {"model": {"mean": 0.2}}}}
-    calls: list[tuple[Path, dict[str, object]]] = []
+    calls: list[tuple[Path, dict[str, object], dict[str, object]]] = []
 
-    def score(db_path: Path, **_options: object) -> dict[str, object]:
-        calls.append((db_path, report))
+    def score(db_path: Path, **options: object) -> dict[str, object]:
+        calls.append((db_path, report, options))
         return report
 
     monkeypatch.setattr(scoring, "score_registered_sample", score)
@@ -51,11 +52,19 @@ def test_backtest_report_writes_completed_json_to_output_override(
                 "--report",
                 "--output",
                 str(output),
+                "--workers",
+                "2",
             ]
         )
         == 0
     )
-    assert calls == [(paths.db_path(tmp_path), report)]
+    assert calls == [
+        (
+            paths.db_path(tmp_path),
+            report,
+            {"n_simulations": 1000, "risk": 0.5, "seed": 0, "workers": 2},
+        )
+    ]
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
 
