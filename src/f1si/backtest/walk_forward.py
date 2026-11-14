@@ -146,27 +146,11 @@ def _predict_cutoff_worker(
 def _race_laps_total(
     accessor: asof.AsOfAccessor, race_id: str, first_snapshot: asof.RaceSnapshot
 ) -> int:
-    """Return the race cutoff horizon, using completed lap rows when schedule metadata is absent.
-
-    Some OpenF1 cache entries do not include the scheduled distance. In that case the completed
-    lap table supplies only the finite evaluation horizon; every prediction still uses its own
-    cutoff snapshot and strictly earlier history.
-    """
+    """Return the ex-ante race cutoff horizon, failing when schedule metadata is unavailable."""
     scheduled_laps = getattr(first_snapshot.race, "scheduled_laps", None)
     if scheduled_laps is not None and int(scheduled_laps) > 0:
         return int(scheduled_laps)
-
-    end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
-    laps = getattr(end, "laps", None)
-    if laps is None or laps.empty or "lap_number" not in laps:
-        raise ValueError(f"No race distance or completed laps available for {race_id}.")
-    observed_laps = laps["lap_number"].dropna()
-    if observed_laps.empty:
-        raise ValueError(f"No race distance or completed laps available for {race_id}.")
-    laps_total = int(observed_laps.max())
-    if laps_total < 1:
-        raise ValueError(f"No race distance or completed laps available for {race_id}.")
-    return laps_total
+    raise ValueError(f"Scheduled race distance is unavailable for {race_id}; cannot backtest it.")
 
 
 def _predict_from_accessor(

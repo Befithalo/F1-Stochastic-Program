@@ -180,24 +180,18 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
     assert len(trace.predictions) == len(expected)
 
 
-def test_full_runner_uses_completed_lap_horizon_when_schedule_is_missing(
+def test_full_runner_fails_before_prediction_when_schedule_distance_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from f1si import cli
-
     monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
+    requested: list[asof.AsOf] = []
 
     class Accessor:
         def __init__(self, _db: Path) -> None:
             pass
 
         def snapshot(self, at: asof.AsOf) -> object:
-            if at.lap == asof.RACE_END:
-                return SimpleNamespace(
-                    race=SimpleNamespace(scheduled_laps=None),
-                    laps=pd.DataFrame({"lap_number": [1, 2, 3]}),
-                    entries=pd.DataFrame({"driver_code": ["AAA"]}),
-                )
+            requested.append(at)
             return SimpleNamespace(
                 race=SimpleNamespace(scheduled_laps=None),
                 laps=pd.DataFrame(columns=["lap_number"]),
@@ -206,29 +200,13 @@ def test_full_runner_uses_completed_lap_horizon_when_schedule_is_missing(
 
     monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
     monkeypatch.setattr(
-        cli,
-        "_prepare_replay_context",
-        lambda _accessor, _race_id, _laps_total, _lap, *, snapshot: SimpleNamespace(
-            snapshot=snapshot
-        ),
-        raising=False,
+        walk_forward,
+        "_predict_from_accessor",
+        lambda *_args, **_kwargs: pytest.fail("prediction ran without schedule metadata"),
     )
-    calls: list[tuple[str, int]] = []
-
-    def prediction(
-        _accessor: object,
-        race_id: str,
-        driver: str,
-        lap: int,
-        **_options: object,
-    ) -> PredictionRow:
-        calls.append((race_id, lap))
-        return PredictionRow(race_id, driver, lap, None, "test row")
-
-    monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
-    trace = run_walk_forward(Path("cache.duckdb"))
-    assert calls == [(race_id, lap) for race_id in EXPECTED_RACES for lap in range(3)]
-    assert len(trace.predictions) == len(EXPECTED_RACES) * 3
+    with pytest.raises(ValueError, match="Scheduled race distance is unavailable for 2023-01"):
+        run_walk_forward(Path("cache.duckdb"))
+    assert requested == [asof.AsOf("2023-01", 0)]
 
 
 def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
