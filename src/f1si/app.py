@@ -166,13 +166,11 @@ def _build_selected_replay(
         compounds=context.compounds,
         wear_sd_by_compound=context.wear_sd_by_compound,
     )
-    plans = {car.driver: selected.plan for car in context.state.cars if car.driver == code}
-    plans.update({car.driver: _stay_out_plan() for car in context.state.cars if car.driver != code})
     simulation = simulator.simulate(
         context.state,
         n_races=n_simulations,
         rng=make_rng(seed),
-        plans=plans,
+        plans={code: selected.plan},
     )
     column = next(index for index, car in enumerate(context.state.cars) if car.driver == code)
     finishes = np.asarray(simulation.finish_positions[:, column], dtype=np.int64)
@@ -223,12 +221,6 @@ def _build_selected_replay(
         "tire_source": car.wear_source,
         "fallback": cutoff.is_fallback,
     }
-
-
-def _stay_out_plan() -> Any:
-    from f1si.interfaces import Plan
-
-    return Plan((), (), 0.0)
 
 
 def _report_summary() -> dict[str, Any]:
