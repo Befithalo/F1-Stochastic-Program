@@ -32,9 +32,11 @@ key-files:
     - .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-task3-red-evidence.json
     - .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-task3-red.xml
   modified:
+    - .github/workflows/ci.yml
     - src/f1si/cli.py
     - src/f1si/strategy/longstaff.py
     - tests/test_cli_replay.py
+    - tests/test_docs.py
     - tests/strategy/test_longstaff.py
     - tests/guards/consumers.py
     - tests/guards/test_future_scramble.py
@@ -131,6 +133,12 @@ The measured plan commit count is 8 (`d41b296` through `3f979f8`).
 - Final `uv run --python <trusted CPython 3.12> python -m pytest` at the plan head — **989 passed, 25 deselected**.
 - Cached Bahrain ALO replay with `--n 12` — 57 ascending cutoffs; 43 identified-fit rows and 14 fallback rows (laps 0–13); every row has ranked metrics, a recommendation, and a sentence reason. Selected laps 0 and 5 exactly match their full-replay blocks. Laps 14–15 correctly return the sole legal “stay out” option.
 - GitHub Actions run [43530884555](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43530884555) is for exact final implementation head `3f979f84f2ae81292230779402635d5b7b077e24`. `checks (ubuntu-latest)` succeeded; `checks (windows-latest)` was cancelled at the workflow's 20-minute job limit while running pytest. Per the plan, the cross-platform result remains **pending**, and no earlier commit's run is counted.
+
+## Verification Follow-up
+
+- Increased `.github/workflows/ci.yml`'s per-platform timeout from 20 to 30 minutes after the exact-head Windows run reached the old limit during pytest (`d08e099`).
+- Updated replay CLI help, README, and the Phase 5 explainer to state the enforced maximum of 200,000 simulations. Added documentation and CLI-help assertions; the focused replay/docs/decision suite passed **70 tests**, with Ruff, format, and mypy also passing.
+- A new exact-head cross-platform run is required after these follow-up changes; its result will be recorded in the verification report.
 
 ## Deviations from Plan
 

@@ -357,3 +357,13 @@ def test_replay_rejects_simulation_count_above_limit_before_loading_race(
     err = capsys.readouterr().err
     assert f"--n must be at most {MAX_RACES}" in err
     assert "Traceback" not in err
+
+
+def test_replay_help_documents_simulation_count_limit(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as result:
+        build_parser().parse_args(["replay", "--help"])
+
+    assert result.value.code == 0
+    assert f"up to {MAX_RACES}" in capsys.readouterr().out

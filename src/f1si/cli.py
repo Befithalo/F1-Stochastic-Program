@@ -233,7 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=50000,
         metavar="N",
-        help="positive simulation count (default 50000)",
+        help=f"positive simulation count up to {MAX_RACES} (default 50000)",
     )
     replay.add_argument(
         "--risk",

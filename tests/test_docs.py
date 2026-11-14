@@ -100,7 +100,7 @@ def test_readme_commands_and_links() -> None:
         "uv run f1si replay bahrain-2023 --driver ALO",
         "uv run f1si replay bahrain-2023 --driver ALO --lap 20",
         "--risk-aversion",
-        "positive simulation count",
+        "positive simulation count up to 200,000",
         "0 to one less than the race lap count",
         "default 50,000",
         "[0, 1]",
