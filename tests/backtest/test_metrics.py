@@ -53,6 +53,12 @@ def test_grid_prior_is_neutral_then_shrinks_with_five_pseudo_observations() -> N
     assert estimate["top10"] == (2 + 5 * (10 / 20)) / 8
 
 
+def test_grid_prior_bounds_podium_probability_for_tiny_fields() -> None:
+    neutral = grid_position_probability(pd.DataFrame(), grid_position=None, field_size=1)
+
+    assert neutral == {"podium": 1.0, "top10": 1.0}
+
+
 def test_finish_interval_uses_inclusive_discrete_inverted_cdf_endpoints() -> None:
     assert finish_interval(np.arange(1, 21), coverage=0.9) == tuple(
         np.quantile(np.arange(1, 21), [0.05, 0.95], method="inverted_cdf").astype(int)
@@ -91,6 +97,33 @@ def test_observation_masks_are_shared_between_model_and_baseline() -> None:
     result = brier_scores(rows, paired=True)
     assert result["observation_count"] == 2
     assert result["model_mask"].equals(result["baseline_mask"])
+
+
+@pytest.mark.parametrize(
+    ("column", "invalid_probability"),
+    [
+        ("predicted_podium", np.inf),
+        ("predicted_top10", -np.inf),
+        ("predicted_podium", 1.01),
+        ("predicted_top10", -0.01),
+        ("baseline_podium", np.inf),
+        ("baseline_top10", 1.01),
+    ],
+)
+def test_brier_scores_reject_invalid_probabilities(column: str, invalid_probability: float) -> None:
+    rows = pd.DataFrame(
+        {
+            "predicted_podium": [0.2],
+            "predicted_top10": [0.7],
+            "baseline_podium": [0.3],
+            "baseline_top10": [0.8],
+            "finish_position": [4],
+        }
+    )
+    rows.loc[0, column] = invalid_probability
+
+    with pytest.raises(ValueError, match="Brier probability column"):
+        brier_scores(rows, paired=True)
 
 
 def test_race_aggregation_weights_races_equally_not_rows() -> None:

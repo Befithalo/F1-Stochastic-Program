@@ -33,12 +33,20 @@ def brier_scores(rows: pd.DataFrame, *, paired: bool = False) -> dict[str, Any]:
     model_columns = ("predicted_podium", "predicted_top10")
     paired_columns = ("baseline_podium", "baseline_top10")
     use_paired = paired and set(paired_columns).issubset(rows.columns)
+    probability_columns = (*model_columns, *(paired_columns if use_paired else ()))
+    probabilities = {
+        column: pd.to_numeric(rows[column], errors="coerce") for column in probability_columns
+    }
     mask = pd.Series(True, index=rows.index)
-    for column in model_columns:
-        mask &= pd.to_numeric(rows[column], errors="coerce").notna()
-    if use_paired:
-        for column in paired_columns:
-            mask &= pd.to_numeric(rows[column], errors="coerce").notna()
+    for column, probability in probabilities.items():
+        values = probability.to_numpy(dtype=np.float64, na_value=np.nan)
+        finite = np.isfinite(values)
+        invalid = finite & ((values < 0.0) | (values > 1.0))
+        if np.any(invalid):
+            raise ValueError(f"Brier probability column {column!r} must be within [0, 1]")
+        if np.any(np.isinf(values)):
+            raise ValueError(f"Brier probability column {column!r} must be finite")
+        mask &= probability.notna()
     if not mask.any():
         raise ValueError("Brier scores require at least one shared observed prediction row")
 
@@ -46,13 +54,11 @@ def brier_scores(rows: pd.DataFrame, *, paired: bool = False) -> dict[str, Any]:
     for name, outcome, model_column in zip(
         ("podium", "top10"), outcomes, model_columns, strict=True
     ):
-        model_loss = (pd.to_numeric(rows[model_column]).loc[mask] - outcome.loc[mask]) ** 2
+        model_loss = (probabilities[model_column].loc[mask] - outcome.loc[mask]) ** 2
         result[name] = float(model_loss.mean())
         if use_paired:
             baseline_column = paired_columns[0 if name == "podium" else 1]
-            baseline_loss = (
-                pd.to_numeric(rows[baseline_column]).loc[mask] - outcome.loc[mask]
-            ) ** 2
+            baseline_loss = (probabilities[baseline_column].loc[mask] - outcome.loc[mask]) ** 2
             result[f"baseline_{name}"] = float(baseline_loss.mean())
             result[f"model_minus_baseline_{name}"] = float((model_loss - baseline_loss).mean())
             result[f"model_{name}_losses"] = model_loss.to_numpy(dtype=np.float64)
@@ -69,7 +75,10 @@ def grid_position_probability(
     """Estimate podium/top-10 chance from earlier race results with five prior starts."""
     if field_size < 1:
         raise ValueError("field_size must be positive")
-    neutral = {"podium": 3.0 / field_size, "top10": min(10, field_size) / field_size}
+    neutral = {
+        "podium": min(3, field_size) / field_size,
+        "top10": min(10, field_size) / field_size,
+    }
     if grid_position is None or pd.isna(grid_position) or history.empty:
         return neutral
     required = {"grid_position", "finish_position"}
