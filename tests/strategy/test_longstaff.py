@@ -2,6 +2,8 @@
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import fields
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -259,3 +261,125 @@ def test_tied_options_have_stable_action_order(monkeypatch: pytest.MonkeyPatch) 
         "pit in 5 lap(s)",
         "stay out",
     ]
+
+
+def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.MonkeyPatch) -> None:
+    samples = {
+        "pit now": np.array([1, 2, 3, 4, 10, 10, 20, 20, 20, 20]),
+        "pit in 1 lap(s)": np.full(10, 4),
+        "pit in 2 lap(s)": np.array([1, 1, 1, 8, 8, 8, 8, 8, 8, 8]),
+        "pit in 3 lap(s)": np.full(10, 12),
+        "pit in 4 lap(s)": np.full(10, 17),
+        "pit in 5 lap(s)": np.full(10, 20),
+        "stay out": np.array([2, 2, 2, 6, 6, 6, 6, 6, 6, 6]),
+    }
+
+    class ControlledSimulator:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def _branch_paths(
+            self,
+            checkpoint: _PathCheckpoint,
+            *,
+            actions: Mapping[str, Mapping[str, Plan]],
+            n_races: int,
+            rng: np.random.Generator,
+            checkpoint_laps: Sequence[int],
+            capture_actions: Sequence[str],
+        ) -> dict[str, Any]:
+            outcomes: dict[str, Any] = {}
+            for name in actions:
+                sample = samples[name]
+                checkpoints = (
+                    {
+                        cutoff: SimpleNamespace(
+                            order=np.tile(np.array([[0, 1]], dtype=np.int64), (n_races, 1)),
+                            clock=np.tile(np.array([[0.0, 10.0]]), (n_races, 1)),
+                            tire_age=np.ones((n_races, 2), dtype=np.int64),
+                            stops_done=np.zeros((n_races, 2), dtype=np.int64),
+                            safety_car_remaining=np.zeros(n_races, dtype=np.int64),
+                        )
+                        for cutoff in checkpoint_laps
+                    }
+                    if name in capture_actions
+                    else {}
+                )
+                outcomes[name] = SimpleNamespace(
+                    result=SimpleNamespace(
+                        finish_positions=np.column_stack((sample, 21 - sample)),
+                    ),
+                    checkpoints=checkpoints,
+                )
+            return outcomes
+
+    monkeypatch.setattr(longstaff, "NumpySimulator", ControlledSimulator)
+    monkeypatch.setattr(
+        longstaff,
+        "_backward_stop_options",
+        lambda features, stop_values, terminal_values: (terminal_values, {}, stop_values),
+    )
+    analysis = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=10
+    ).analyze(state(lap=10, laps_total=40), driver="AAA")
+
+    for option in analysis.options:
+        sample = samples[option.action]
+        assert option.podium_probability == pytest.approx(np.mean(sample <= 3))
+        assert option.top10_probability == pytest.approx(np.mean(sample <= 10))
+        expected = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
+        assert (option.finish_p05, option.finish_p95) == tuple(expected.astype(int))
+    assert (
+        analysis.options[0].podium_probability,
+        analysis.options[0].top10_probability,
+        analysis.options[0].finish_p05,
+        analysis.options[0].finish_p95,
+    ) == (0.3, 0.6, 1, 20)
+    assert (
+        analysis.options[1].podium_probability,
+        analysis.options[1].top10_probability,
+        analysis.options[1].finish_p05,
+        analysis.options[1].finish_p95,
+    ) == (0.0, 1.0, 4, 4)
+
+
+def test_frozen_prediction_trace_carries_summaries_without_draw_arrays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    samples = {"stay out": np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])}
+
+    class StayOutSimulator:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def _branch_paths(
+            self,
+            checkpoint: _PathCheckpoint,
+            *,
+            actions: Mapping[str, Mapping[str, Plan]],
+            **kwargs: object,
+        ) -> dict[str, Any]:
+            return {
+                "stay out": SimpleNamespace(
+                    result=SimpleNamespace(
+                        finish_positions=np.column_stack(
+                            (samples["stay out"], np.arange(10, 0, -1))
+                        )
+                    ),
+                    checkpoints={},
+                )
+            }
+
+    monkeypatch.setattr(longstaff, "NumpySimulator", StayOutSimulator)
+    report = LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD",), n_simulations=10).analyze(
+        state(lap=10, laps_total=16), driver="AAA"
+    )
+    from f1si.backtest.walk_forward import PredictionRow
+
+    row = PredictionRow("2023-01", "AAA", 10, report)
+    assert row.analysis is report
+    assert report.options[0].podium_probability == pytest.approx(0.3)
+    assert report.options[0].top10_probability == pytest.approx(1.0)
+    assert (report.options[0].finish_p05, report.options[0].finish_p95) == (1, 10)
+    assert all(field.name not in {"sample", "draws"} for field in fields(type(report.options[0])))
+    assert all(field.name not in {"sample", "draws"} for field in fields(PredictionRow))
