@@ -83,12 +83,51 @@ def _annotate_strategy_options(
     return (*columns, "Basis"), tuple((*row, label) for row in rows)
 
 
+def _ranked_strategy_rows(
+    columns: tuple[str, ...], rows: tuple[tuple[Any, ...], ...]
+) -> tuple[tuple[str, ...], tuple[tuple[Any, ...], ...]]:
+    """Attach the top marker to the first ranked action without changing its metrics."""
+    return ("Rank", *columns), tuple(
+        ("TOP" if index == 0 else "", *row) for index, row in enumerate(rows)
+    )
+
+
 def _safe_replay_result(builder: Callable[[], dict[str, Any]]) -> dict[str, Any]:
     """Return a fresh error state without carrying any previous selection's output."""
     try:
         return {"status": "ready", "value": builder()}
     except Exception as err:
         return {"status": "error", "value": None, "reason": str(err)}
+
+
+def _render_replay_failure() -> None:
+    """Show fixed recovery copy without exposing a caught exception or old output."""
+    st.info(ERROR_COPY)
+
+
+def _render_replay_outcome(outcome: dict[str, Any]) -> None:
+    """Render a fresh replay result or the same safe failure state for every error."""
+    if outcome.get("status") != "ready" or outcome.get("value") is None:
+        _render_replay_failure()
+        return
+    _render_selected(cast(dict[str, Any], outcome["value"]))
+
+
+def _probability_track_markup(probability: float) -> str:
+    """Return a neutral probability track with one accessible active-value marker."""
+    value = min(max(float(probability), 0.0), 1.0)
+    return (
+        '<div role="img" aria-label="Safety-car probability: '
+        f'{value:.1%}" style="height: 12px; position: relative; margin: 8px 0 16px; '
+        'background: #E9EEF3; border-radius: 6px;">'
+        f'<span style="position: absolute; left: {value * 100:.1f}%; top: -4px; '
+        "width: 4px; height: 20px; background: #D90429; border-radius: 2px; "
+        'transform: translateX(-50%);"></span></div>'
+    )
+
+
+def _risk_value_label(risk: float) -> str:
+    return f"Current risk aversion: {risk:.2f}"
 
 
 @st.cache_data(show_spinner=False, max_entries=64)
@@ -275,10 +314,16 @@ def _apply_styles() -> None:
     st.markdown(
         """
         <style>
+        :root {
+            --space-xs: 4px; --space-sm: 8px; --space-md: 16px;
+            --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px; --space-3xl: 64px;
+        }
         .stApp { background: #F5F7FA; color: #17212B; }
         .stApp p, .stApp li { font-size: 16px; line-height: 1.5; }
         .stApp h1 { font-size: 28px; font-weight: 600; line-height: 1.2; }
         .stApp h2, .stApp h3 { font-size: 20px; font-weight: 600; line-height: 1.2; }
+        .stApp [data-testid="stVerticalBlock"] { gap: var(--space-md); }
+        .stApp [data-testid="stForm"] { padding: var(--space-lg); }
         [data-testid="stWidgetLabel"] p { font-size: 14px; font-weight: 600; line-height: 1.4; }
         [data-testid="stVerticalBlockBorderWrapper"] { background: #E9EEF3; }
         [data-testid="stCaptionContainer"], [data-testid="stMarkdownContainer"] {
@@ -290,8 +335,9 @@ def _apply_styles() -> None:
         }
         [data-testid="stDataFrame"] [role="grid"] { overflow-x: auto !important; }
         [data-testid="stMetricValue"] { color: #17212B; }
-        [data-testid="stProgress"] [role="progressbar"] > div { background: #D90429; }
-        .top-ranked { color: #D90429; font-weight: 600; }
+        [data-testid="stSelectbox"] [data-baseweb="select"] { min-height: 44px; }
+        [data-testid="stButton"] button { min-height: 44px; }
+        [data-testid="stSlider"] [data-baseweb="slider"] { min-height: 44px; }
         @media (max-width: 760px) {
             [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: 16px; }
             [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
@@ -333,7 +379,10 @@ def _render_selected(result: dict[str, Any]) -> None:
     with right:
         st.subheader("Safety-car probability (current proxy)")
         st.caption("Existing per-lap probability; this is not a Markov regime classification.")
-        st.progress(float(result["safety_car_probability"]), text="Per-lap probability")
+        st.markdown(
+            _probability_track_markup(float(result["safety_car_probability"])),
+            unsafe_allow_html=True,
+        )
         st.metric("Probability", f"{result['safety_car_probability']:.2%}")
         if is_fallback:
             st.caption("UNCALIBRATED · sparse cutoff fallback")
@@ -356,9 +405,13 @@ def _render_selected(result: dict[str, Any]) -> None:
         tuple(result["option_columns"]), options, is_fallback
     )
     st.subheader(_action_heading(len(rows)))
-    st.markdown('<p class="top-ranked">TOP RANKED ACTION</p>', unsafe_allow_html=True)
-    strategy_table = pd.DataFrame(rows, columns=columns)
-    st.dataframe(strategy_table, hide_index=True, width="stretch", height="content")
+    marked_columns, marked_rows = _ranked_strategy_rows(columns, rows)
+    strategy_table = pd.DataFrame(marked_rows, columns=marked_columns)
+    styled_table = strategy_table.style.map(
+        lambda value: "color: #D90429; font-weight: 600;" if value == "TOP" else "",
+        subset=["Rank"],
+    )
+    st.dataframe(styled_table, hide_index=True, width="stretch", height="content")
     st.markdown(f"**Reason:** {result['reason']}")
     st.caption(f"Selected risk aversion: {result['risk']:.2f}")
 
@@ -437,6 +490,12 @@ def main() -> None:
                 0.05,
                 help="0.0 = Mean-focused · 1.0 = Tail-risk-focused",
             )
+            st.markdown(
+                '<div style="display:flex;justify-content:space-between;gap:8px;">'
+                "<span>0.0 Mean-focused</span><span>1.0 Tail-risk-focused</span></div>",
+                unsafe_allow_html=True,
+            )
+            st.caption(_risk_value_label(risk))
         submitted = st.form_submit_button("Update replay", type="primary", use_container_width=True)
 
     if not submitted:
@@ -457,13 +516,9 @@ def main() -> None:
                     identity,
                 )
             )
-        if outcome["status"] == "error":
-            reason = str(outcome.get("reason", ERROR_COPY))
-            st.info(f"Replay unavailable: {reason}")
-            return
-        _render_selected(cast(dict[str, Any], outcome["value"]))
-    except Exception as err:
-        st.info(f"Replay unavailable: {err}")
+        _render_replay_outcome(outcome)
+    except Exception:
+        _render_replay_failure()
 
 
 if __name__ == "__main__":
