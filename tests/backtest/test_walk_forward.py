@@ -6,7 +6,13 @@ from dataclasses import FrozenInstanceError, is_dataclass
 from typing import Any, cast
 
 import pytest
-from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, preflight_races, run_walk_forward
+
+
+def _walk_forward_api():
+    from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, preflight_races, run_walk_forward
+
+    return REGISTERED_RACE_IDS, preflight_races, run_walk_forward
+
 
 EXPECTED_RACES = (
     "2023-01",
@@ -23,11 +29,13 @@ EXPECTED_RACES = (
 
 
 def test_registered_sample_is_fixed_calendar_first_and_immutable() -> None:
-    assert REGISTERED_RACE_IDS == EXPECTED_RACES
-    assert isinstance(REGISTERED_RACE_IDS, tuple)
+    registered_race_ids, _, _ = _walk_forward_api()
+    assert registered_race_ids == EXPECTED_RACES
+    assert isinstance(registered_race_ids, tuple)
 
 
 def test_preflight_requires_every_registered_race_complete() -> None:
+    _, preflight_races, _ = _walk_forward_api()
     complete = {race_id: True for race_id in EXPECTED_RACES}
     assert preflight_races(complete) == ()
     complete.pop("2024-02")
@@ -36,6 +44,7 @@ def test_preflight_requires_every_registered_race_complete() -> None:
 
 
 def test_incomplete_sample_stops_before_any_prediction_or_results_access() -> None:
+    _, _, run_walk_forward = _walk_forward_api()
     events: list[str] = []
 
     class Accessor:
@@ -59,6 +68,7 @@ def test_incomplete_sample_stops_before_any_prediction_or_results_access() -> No
 
 
 def test_prediction_freeze_precedes_results_access_and_scoring() -> None:
+    _, _, run_walk_forward = _walk_forward_api()
     events: list[tuple[str, int]] = []
 
     def freeze(rows: list[Any]) -> None:
@@ -86,6 +96,7 @@ def test_prediction_freeze_precedes_results_access_and_scoring() -> None:
 
 
 def test_cutoffs_are_chronological_and_frozen_rows_are_immutable() -> None:
+    _, _, run_walk_forward = _walk_forward_api()
     trace = run_walk_forward(database=None, races=("2023-01",), driver="ALO")
     cutoffs = [row.cutoff_lap for row in trace.predictions]
     assert cutoffs == sorted(cutoffs)
@@ -97,5 +108,13 @@ def test_cutoffs_are_chronological_and_frozen_rows_are_immutable() -> None:
 
 
 def test_requesting_regulation_reset_race_is_rejected() -> None:
+    _, _, run_walk_forward = _walk_forward_api()
     with pytest.raises((ValueError, RuntimeError), match=r"2026|out.of.sample|locked"):
         run_walk_forward(database=None, races=("2026-01",))
+
+
+def test_backtest_command_is_registered() -> None:
+    from f1si.cli import build_parser
+
+    command = build_parser()._subparsers._group_actions[0].choices
+    assert "backtest" in command
