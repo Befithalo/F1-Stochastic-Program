@@ -1,5 +1,7 @@
 """Command line, loader and catalog behavior (in-process, scratch data folders)."""
 
+import contextlib
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -15,6 +17,81 @@ from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.rng import make_rng
 
 NOW = datetime(2026, 10, 22, tzinfo=UTC)
+
+
+def test_backtest_report_parser_accepts_report_mode_and_default_output() -> None:
+    parsed = None
+    with contextlib.suppress(SystemExit):
+        parsed = build_parser().parse_args(["backtest", "--report"])
+    assert parsed is not None, "backtest --report must not require single-cutoff arguments"
+    assert parsed.report is True
+    assert parsed.output == Path("reports/backtest/phase-06.json")
+
+
+def test_backtest_report_writes_completed_json_to_output_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from f1si.backtest import scoring
+
+    report = {"race_ids": ["2023-01"], "metrics": {"podium_brier": {"model": {"mean": 0.2}}}}
+    calls: list[tuple[Path, dict[str, object]]] = []
+
+    def score(db_path: Path, **_options: object) -> dict[str, object]:
+        calls.append((db_path, report))
+        return report
+
+    monkeypatch.setattr(scoring, "score_registered_sample", score)
+    output = tmp_path / "phase-06.json"
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backtest",
+                "--report",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    assert calls == [(paths.db_path(tmp_path), report)]
+    assert json.loads(output.read_text(encoding="utf-8")) == report
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_backtest_report_incomplete_cache_writes_no_completed_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    existing: bool,
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-06.json"
+    before = '{"complete":true}\n'
+    if existing:
+        output.write_text(before, encoding="utf-8")
+
+    def incomplete(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise ValueError("Backtest cache is missing complete registered races: 2024-02")
+
+    monkeypatch.setattr(scoring, "score_registered_sample", incomplete)
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backtest",
+                "--report",
+                "--output",
+                str(output),
+            ]
+        )
+        == 1
+    )
+    assert (output.read_text(encoding="utf-8") == before) if existing else not output.exists()
+    assert "missing complete registered races" in capsys.readouterr().err
 
 
 def test_races_lists_era(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
