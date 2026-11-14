@@ -127,5 +127,5 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 - Focused automated command: `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py -q`.
 - Focused command result: 36 passed. Full project suite: 1,095 passed, 25 deselected. `uv run ruff check .`, `uv run ruff format --check .`, and `uv run python -m mypy` passed on the follow-up changes.
 - Exact-head GitHub Actions for Ubuntu and Windows has not run; it must run on the final pushed follow-up head.
-- Manual-only acceptance remains pending because this executor had no connected browser surface. Source assertions and AppTest are not viewport evidence. No screenshot or geometry claim is recorded.
+- The local Streamlit server is running at `http://127.0.0.1:8501` and its health endpoint returned HTTP 200. The computer-use surface listed no browser or app, so manual-only acceptance remains pending. Source assertions and AppTest are not viewport evidence. No screenshot or geometry claim is recorded.
 - `nyquist_compliant` remains `false`; Phase 6 UI validation cannot be signed off until the live browser inspection and exact-head CI are complete.
