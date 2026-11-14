@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -174,7 +174,7 @@ def wear_proxy_diagnostic(
     summary["kalman_parameters_changed"] = False
     summary["tuned_on_evaluation_races"] = False
     summary["measurement_count"] = len(measurements)
-    summary["per_race_measurements"] = (
+    counts = (
         {
             str(race): int(count)
             for race, count in pd.DataFrame(measurements).groupby("race_id").size().items()
@@ -182,4 +182,18 @@ def wear_proxy_diagnostic(
         if measurements
         else {}
     )
+    unavailable = [race for race in REGISTERED_RACE_IDS if counts.get(race, 0) == 0]
+    coverage_by_race = cast(dict[str, Any], summary["coverage_by_race"])
+    bias_by_race = cast(dict[str, Any], summary["early_fit_bias_by_race"])
+    own_evidence = cast(dict[str, Any], summary["own_lap_evidence"])
+    for race in REGISTERED_RACE_IDS:
+        coverage_by_race.setdefault(race, {"covered": None, "denominator": 0, "coverage": None})
+        bias_by_race.setdefault(race, None)
+        cast(dict[str, Any], own_evidence["share_by_race"]).setdefault(race, None)
+        counts.setdefault(race, 0)
+    summary["per_race_measurements"] = counts
+    summary["unavailable_races"] = {
+        race: "no estimable leave-stint-out wear reference in the available clean laps"
+        for race in unavailable
+    }
     return summary
