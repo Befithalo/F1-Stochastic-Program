@@ -4,17 +4,17 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
 current_plan: 8
-status: executing
-stopped_at: Completed 06-06-PLAN.md
-last_updated: "2026-11-14T11:06:29.600Z"
+status: verifying
+stopped_at: Completed 06-07-PLAN.md
+last_updated: "2026-11-14T12:15:41.808Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: c000b74ec4b6b019c9584dc233ac3454f1b7ce97
+state_head: 9f163ba2426872897e59188b3dac3f31250e8756
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 40
-  completed_plans: 39
+  completed_plans: 40
 milestone_name: milestone
 ---
 
@@ -33,7 +33,7 @@ Phase: 06 (MVP Backtest, Streamlit View & README) — EXECUTING
 Current Plan: 8
 Total Plans in Phase: 8
 Plan: 8 of 8
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-11-14 — Completed quick task 261114-814: Route scoring RNG creation through f1si.rng.make_rng without changing seeded output
 
 Progress: [====------] 38%
@@ -73,6 +73,7 @@ Progress: [====------] 38%
 | Phase 06 P04 | 4h27m | 2 tasks | 16 files |
 | Phase 06 P05 | 1h15m | 2 tasks | 12 files |
 | Phase 06 P06 | 12min | 2 tasks | 8 files |
+| Phase 06 P07 | 7min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,8 @@ Progress: [====------] 38%
 - [Phase 06]: Match each stop to the newest recommendation strictly before its in-lap whose snapshot has not yet exposed the event.
 - [Phase 06]: Compare cutoff wear estimates to the existing pace fit after removing the evaluated driver stint; report unavailable proxies explicitly.
 - [Phase 06]: The Streamlit page uses the shared cutoff replay builder and a cache keyed by selected inputs, local cache metadata, and model-source identity.
+- [Phase 06]: Keep published Phase 6 metrics tied to the fixed report, preserving samples, denominators, and interval conventions.
+- [Phase 06]: Describe observed team calls comparatively and wear estimates as retrospective proxy evidence, not proof of superiority or latent ground truth.
 
 ### Pending Todos
 
@@ -156,6 +159,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-14T10:42:18.496Z
-Stopped at: Completed 06-06-PLAN.md
+Last session: 2026-11-14T12:15:41.243Z
+Stopped at: Completed 06-07-PLAN.md
 Resume file: None
