@@ -1,6 +1,6 @@
 ---
 phase: 06-mvp-backtest-streamlit-view-readme
-reviewed: 2026-11-14T09:05:58Z
+reviewed: 2026-11-14T09:09:53Z
 depth: standard
 files_reviewed: 8
 files_reviewed_list:
@@ -14,34 +14,29 @@ files_reviewed_list:
   - .gitignore
 findings:
   critical: 0
-  warning: 1
+  warning: 0
   info: 0
-  total: 1
-status: issues_found
+  total: 0
+status: clean
 ---
 
 # Phase 06: Code Review Report
 
-**Reviewed:** 2026-11-14T09:05:58Z  
+**Reviewed:** 2026-11-14T09:09:53Z  
 **Depth:** standard  
 **Files Reviewed:** 8  
-**Status:** issues_found
+**Status:** clean
 
 ## Summary
 
-Reviewed the Plan 06-04 walk-forward generation, freeze-gated results join, metric calculations, CLI output path, tests, and report ignore rules. The measured artifact is `reports/backtest/phase-06.json`; the summary records serial/parallel equality through `tests/backtest/test_walk_forward.py::test_serial_and_parallel_full_trace_match_exactly` and the representative Bahrain 2023 ALO cutoffs 12–15 parity check. Those measurements do not replace the implementation review. The prediction module does not import final results, and scoring validates the frozen key set before opening results. One metric API contract defect remains.
+Re-reviewed all eight files in the original Phase 06 scope. WR-01 is fixed: `finish_interval` now rejects DataFrame input unless `observed=True`, and the metrics test covers the default call. No remaining or new bugs, security issues, or quality defects were found in the scoped files.
 
-## Warnings
+## Narrative Findings (AI reviewer)
 
-### WR-01: `finish_interval` ignores `observed=False` for DataFrame inputs
-
-**Severity:** WARNING  
-**File:** `src/f1si/backtest/metrics.py:100-114`  
-**Issue:** The DataFrame branch always computes and returns `{"covered", "classified_finishers"}`, regardless of the `observed` argument. Consequently `finish_interval(rows)` silently performs observed-coverage summarization even though the function signature and docstring make that behavior optional. A caller relying on the default gets a different result type and operation than the declared API suggests.
-**Fix:** Honor `observed`: reject DataFrame inputs unless `observed=True`, or define and implement a documented non-observed DataFrame result. Add a test that calls the DataFrame form with the default argument and asserts the intended behavior.
+No findings.
 
 ---
 
-_Reviewed: 2026-11-14T09:05:58Z_  
+_Reviewed: 2026-11-14T09:09:53Z_  
 _Reviewer: the agent (gsd-code-reviewer)_  
 _Depth: standard_
