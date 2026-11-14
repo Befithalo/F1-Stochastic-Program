@@ -132,6 +132,8 @@ def test_prediction_runner_has_no_results_or_scoring_imports() -> None:
 def test_full_runner_freezes_every_driver_and_cutoff_in_order(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from f1si import cli
+
     calls: list[tuple[str, int, str]] = []
     monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
 
@@ -146,6 +148,14 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
             )
 
     monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+    monkeypatch.setattr(
+        cli,
+        "_prepare_replay_context",
+        lambda _accessor, _race_id, _laps_total, _lap, *, snapshot: SimpleNamespace(
+            snapshot=snapshot
+        ),
+        raising=False,
+    )
 
     def prediction(
         _accessor: object,
@@ -173,6 +183,8 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
 def test_full_runner_uses_completed_lap_horizon_when_schedule_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from f1si import cli
+
     monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
 
     class Accessor:
@@ -193,6 +205,14 @@ def test_full_runner_uses_completed_lap_horizon_when_schedule_is_missing(
             )
 
     monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+    monkeypatch.setattr(
+        cli,
+        "_prepare_replay_context",
+        lambda _accessor, _race_id, _laps_total, _lap, *, snapshot: SimpleNamespace(
+            snapshot=snapshot
+        ),
+        raising=False,
+    )
     calls: list[tuple[str, int]] = []
 
     def prediction(
@@ -232,7 +252,13 @@ def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
     prepared: list[tuple[str, int, object]] = []
     received: list[tuple[str, int, str, object]] = []
 
-    def prepare(_accessor: object, race_id: str, lap: int, **_options: object) -> object:
+    def prepare(
+        _accessor: object,
+        race_id: str,
+        _laps_total: int,
+        lap: int,
+        **_options: object,
+    ) -> object:
         context = object()
         prepared.append((race_id, lap, context))
         return context
@@ -257,6 +283,35 @@ def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
     assert len(received) == 2 * len(expected_cutoffs)
     contexts = {(race_id, lap): context for race_id, lap, context in prepared}
     assert all(context is contexts[(race_id, lap)] for race_id, lap, _, context in received)
+
+
+def test_prepared_replay_matches_standalone_prediction_exactly(long_synthetic_db: Path) -> None:
+    from f1si import cli
+
+    accessor = walk_forward._new_accessor(long_synthetic_db)
+    race_id = "2023-01"
+    lap = 12
+    laps_total = 57
+    snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+    code = str(snapshot.entries.iloc[0]["driver_code"])
+    context = cli._prepare_replay_context(accessor, race_id, laps_total, lap, snapshot=snapshot)
+
+    standalone = cli._replay_at_cutoff(
+        accessor, race_id, laps_total, code, lap, n_simulations=3, risk=0.5, seed=12345
+    )
+    shared = cli._replay_at_cutoff(
+        accessor,
+        race_id,
+        laps_total,
+        code,
+        lap,
+        n_simulations=3,
+        risk=0.5,
+        seed=12345,
+        prepared_context=context,
+    )
+
+    assert shared == standalone
 
 
 def test_requesting_2026_race_is_rejected_before_prediction(

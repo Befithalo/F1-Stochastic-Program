@@ -970,20 +970,33 @@ class _ReplayCutoff:
     is_fallback: bool = False
 
 
-def _replay_at_cutoff(
+@dataclass(frozen=True)
+class _PreparedReplayContext:
+    """Race/cutoff inputs shared by all driver-specific strategy analyses."""
+
+    snapshot: asof.RaceSnapshot
+    state: RaceState
+    model: PaceModel
+    compounds: tuple[str, ...]
+    estimate: ScRateEstimate
+    wear_sd_by_compound: dict[str, float | None] | None
+    fallback: SparsePaceFallback | None
+    is_fallback: bool
+
+
+def _prepare_replay_context(
     accessor: asof.AsOfAccessor,
     race_id: str,
     laps_total: int,
-    code: str,
     lap: int,
-    n_simulations: int,
-    risk: float,
-    seed: int,
-) -> _ReplayCutoff:
-    """Rebuild every input from one cutoff and fall back without leaving its as-of snapshot."""
+    *,
+    snapshot: asof.RaceSnapshot | None = None,
+) -> _PreparedReplayContext:
+    """Build all race/cutoff data once, retaining the cutoff-only replay boundary."""
 
     at = asof.AsOf(race_id, lap)
-    snapshot = accessor.snapshot(at)
+    if snapshot is None:
+        snapshot = accessor.snapshot(at)
     history = accessor.history(at)
     fit = fit_linear_pace(snapshot)
     pit = measure_pit_loss(snapshot, fit)
@@ -996,6 +1009,7 @@ def _replay_at_cutoff(
     model: PaceModel = fit
     compounds = fit.fitted_compounds
     wear_sd_by_compound: dict[str, float | None] | None = None
+    fallback: SparsePaceFallback | None = None
     if is_fallback:
         fallback = SparsePaceFallback(snapshot)
         model = fallback
@@ -1012,22 +1026,54 @@ def _replay_at_cutoff(
                 for car in state.cars
             ),
         )
-    policy = LongstaffSchwartzPolicy(
+    return _PreparedReplayContext(
+        snapshot,
+        state,
         model,
-        compounds=compounds,
+        compounds,
+        estimate,
+        wear_sd_by_compound,
+        fallback,
+        is_fallback,
+    )
+
+
+def _replay_at_cutoff(
+    accessor: asof.AsOfAccessor,
+    race_id: str,
+    laps_total: int,
+    code: str,
+    lap: int,
+    n_simulations: int,
+    risk: float,
+    seed: int,
+    prepared_context: _PreparedReplayContext | None = None,
+) -> _ReplayCutoff:
+    """Rebuild every input from one cutoff and fall back without leaving its as-of snapshot."""
+
+    if prepared_context is None:
+        prepared_context = _prepare_replay_context(accessor, race_id, laps_total, lap)
+    policy = LongstaffSchwartzPolicy(
+        prepared_context.model,
+        compounds=prepared_context.compounds,
         risk_aversion=risk,
         n_simulations=n_simulations,
         seed=seed,
-        sc=SafetyCarModel(estimate.rate_per_lap, estimate.duration_laps),
-        wear_sd_by_compound=wear_sd_by_compound,
+        sc=SafetyCarModel(
+            prepared_context.estimate.rate_per_lap,
+            prepared_context.estimate.duration_laps,
+        ),
+        wear_sd_by_compound=prepared_context.wear_sd_by_compound,
     )
     try:
-        analysis = policy.analyze(state, driver=code)
+        analysis = policy.analyze(prepared_context.state, driver=code)
     except ValueError as err:
         return _ReplayCutoff(lap, None, str(err))
-    if is_fallback:
+    if prepared_context.is_fallback:
+        fallback = prepared_context.fallback
+        assert fallback is not None
         basis = (
-            f"{fallback.clean_laps_for(state.car(code).driver_number)} driver and "
+            f"{fallback.clean_laps_for(prepared_context.state.car(code).driver_number)} driver and "
             f"{fallback.visible_clean_laps} field cutoff-visible clean laps, generic DEC-091 "
             f"fuel/wear/noise priors, [ASSUMED] {PACE_OFFSET_SD_S:.1f} s pace-offset SD, "
             "uncalibrated"
@@ -1036,7 +1082,7 @@ def _replay_at_cutoff(
             analysis,
             reason=f"{analysis.reason.rstrip('.')}; sparse fallback basis: {basis}.",
         )
-    return _ReplayCutoff(lap, analysis, is_fallback=is_fallback)
+    return _ReplayCutoff(lap, analysis, is_fallback=prepared_context.is_fallback)
 
 
 def _print_replay_cutoff(

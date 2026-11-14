@@ -107,11 +107,16 @@ def _predict_from_accessor(
     risk: float,
     seed: int,
     laps_total: int | None = None,
+    prepared_context: object | None = None,
 ) -> PredictionRow:
     """Build one row from the shared replay cutoff builder; never reads final outcomes."""
     if race_id not in REGISTERED_RACE_IDS:
         raise ValueError(f"Race {race_id} is outside the registered 2023-2025 backtest sample.")
-    snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+    snapshot = (
+        prepared_context.snapshot
+        if prepared_context is not None
+        else accessor.snapshot(asof.AsOf(race_id, lap))
+    )
     if laps_total is None:
         laps_total = _race_laps_total(accessor, race_id, snapshot)
     code = driver.upper()
@@ -131,6 +136,7 @@ def _predict_from_accessor(
         n_simulations=n_simulations,
         risk=risk,
         seed=_seed(race_id, code, lap, seed),
+        prepared_context=prepared_context,
     )
     return PredictionRow(
         race_id, code, lap, result.analysis, result.unavailable_reason, result.is_fallback
@@ -209,6 +215,11 @@ def run_walk_forward(
         for lap in range(laps_total):
             snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
             drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
+            from f1si.cli import _prepare_replay_context
+
+            prepared_context = _prepare_replay_context(
+                accessor, race_id, laps_total, lap, snapshot=snapshot
+            )
             for driver in drivers:
                 rows.append(
                     _predict_from_accessor(
@@ -220,6 +231,7 @@ def run_walk_forward(
                         risk=risk,
                         seed=seed,
                         laps_total=laps_total,
+                        prepared_context=prepared_context,
                     )
                 )
     return WalkForwardTrace(tuple(rows))
