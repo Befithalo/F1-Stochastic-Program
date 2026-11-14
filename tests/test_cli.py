@@ -155,10 +155,17 @@ def test_replay_horizon_comes_from_ex_ante_schedule_not_race_end(
     monkeypatch.setattr(paths, "db_path", lambda _data: tmp_path / "cache.duckdb")
     monkeypatch.setattr(asof, "resolve_slug", lambda _db, _slug: "2023-01")
     monkeypatch.setattr(asof, "AsOfAccessor", Accessor)
+
+    def capture_replay_horizon(*args: object, **_kwargs: object) -> SimpleNamespace:
+        horizon = args[2]
+        assert isinstance(horizon, int)
+        replay_horizons.append(horizon)
+        return SimpleNamespace()
+
     monkeypatch.setattr(
         cli,
         "_replay_at_cutoff",
-        lambda *_args, **_kwargs: replay_horizons.append(_args[2]) or SimpleNamespace(),
+        capture_replay_horizon,
     )
     monkeypatch.setattr(cli, "_print_replay_cutoff", lambda *_args: None)
 

@@ -613,7 +613,9 @@ def extend_existing_report(
                 not isinstance(covered, int)
                 or isinstance(covered, bool)
                 or covered < 0
-                or not positive_int(classified)
+                or not isinstance(classified, int)
+                or isinstance(classified, bool)
+                or classified <= 0
                 or covered > classified
             ):
                 mismatches.append(
