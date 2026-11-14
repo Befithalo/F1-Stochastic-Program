@@ -19,6 +19,7 @@ from f1si.backtest.walk_forward import (
     REGISTERED_RACE_IDS,
     PredictionRow,
     WalkForwardTrace,
+    _predict_from_accessor,
     _preflight_database,
     _race_laps_total,
     run_walk_forward,
@@ -330,6 +331,107 @@ def _strategy_comparison(
         }
     )
     return summary
+
+
+def score_team_strategy_sample(
+    db_path: Path,
+    *,
+    n_simulations: int = 1_000,
+    risk: float = 0.5,
+    seed: int = 0,
+) -> dict[str, Any]:
+    """Predict only event-adjacent cutoffs needed to extend an existing frozen report."""
+    _preflight_database(db_path)
+    accessor = asof.AsOfAccessor(db_path)
+    horizons: dict[str, tuple[int, asof.RaceSnapshot]] = {}
+    end_snapshots: dict[str, asof.RaceSnapshot] = {}
+    for race_id in REGISTERED_RACE_IDS:
+        first = accessor.snapshot(asof.AsOf(race_id, 0))
+        horizons[race_id] = (_race_laps_total(accessor, race_id, first), first)
+        end_snapshots[race_id] = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+
+    selected: dict[tuple[str, str, int], int] = {}
+    for race_id, end in end_snapshots.items():
+        driver_codes = end.entries.set_index("driver_number")["driver_code"]
+        for event in end.pit_events.itertuples(index=False):
+            driver = driver_codes.get(int(float(cast(Any, event.driver_number))))
+            if driver is None:
+                continue
+            in_lap = int(float(cast(Any, event.in_lap)))
+            laps_total = horizons[race_id][0]
+            for cutoff in range(min(in_lap - 1, laps_total - 1), -1, -1):
+                snapshot = accessor.snapshot(asof.AsOf(race_id, cutoff))
+                numbers = snapshot.entries.set_index("driver_number")["driver_code"]
+                visible_numbers = set(
+                    snapshot.pit_events.loc[
+                        pd.to_numeric(snapshot.pit_events["in_lap"], errors="coerce") == in_lap,
+                        "driver_number",
+                    ].astype(int)
+                )
+                visible_codes = {str(numbers.get(number, "")).upper() for number in visible_numbers}
+                if str(driver).upper() not in visible_codes:
+                    selected[(race_id, str(driver).upper(), cutoff)] = laps_total
+                    break
+
+    by_cutoff: dict[tuple[str, int], list[tuple[str, int]]] = {}
+    for (race_id, driver, cutoff), laps_total in selected.items():
+        by_cutoff.setdefault((race_id, cutoff), []).append((driver, laps_total))
+    from f1si.cli import _prepare_replay_context
+
+    predictions: list[PredictionRow] = []
+    for (race_id, cutoff), drivers in sorted(by_cutoff.items()):
+        snapshot = accessor.snapshot(asof.AsOf(race_id, cutoff))
+        laps_total = drivers[0][1]
+        prepared = _prepare_replay_context(accessor, race_id, laps_total, cutoff, snapshot=snapshot)
+        for driver, _ in sorted(set(drivers)):
+            predictions.append(
+                _predict_from_accessor(
+                    accessor,
+                    race_id,
+                    driver,
+                    cutoff,
+                    n_simulations=n_simulations,
+                    risk=risk,
+                    seed=seed,
+                    laps_total=laps_total,
+                    prepared_context=prepared,
+                )
+            )
+    return _strategy_comparison(db_path, tuple(predictions), seed=seed)
+
+
+def extend_existing_report(
+    db_path: Path,
+    report: dict[str, Any],
+    *,
+    n_simulations: int,
+    risk: float,
+    seed: int,
+) -> dict[str, Any]:
+    """Add the task 06-05 diagnostics to a matching measured Phase 6 probability report."""
+    metadata = report.get("metadata", {})
+    expected = {
+        "base_seed": seed,
+        "n_simulations_per_prediction": n_simulations,
+        "risk_aversion": risk,
+    }
+    mismatches = [
+        f"{name}={metadata.get(name)!r} (expected {value!r})"
+        for name, value in expected.items()
+        if metadata.get(name) != value
+    ]
+    if report.get("race_ids") != list(REGISTERED_RACE_IDS):
+        mismatches.append("race_ids do not match the registered ten-race sample")
+    if not isinstance(report.get("metrics"), dict):
+        mismatches.append("metrics section is missing")
+    if mismatches:
+        detail = "; ".join(mismatches)
+        raise ValueError("Existing report does not match diagnostic inputs: " + detail)
+    report["metrics"]["team_strategy_comparison"] = score_team_strategy_sample(
+        db_path, n_simulations=n_simulations, risk=risk, seed=seed
+    )
+    report["metrics"]["wear_band_retrospective_proxy"] = wear_proxy_diagnostic(db_path, None)
+    return report
 
 
 def score_registered_sample(

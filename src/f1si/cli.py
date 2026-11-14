@@ -259,6 +259,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--report", action="store_true", help="score and report the full registered race sample"
     )
     backtest.add_argument(
+        "--diagnostics-only",
+        action="store_true",
+        help="extend a matching existing report with team-call and wear-proxy diagnostics",
+    )
+    backtest.add_argument(
         "--output",
         type=Path,
         default=Path("reports/backtest/phase-06.json"),
@@ -1201,6 +1206,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         single_cutoff_values = (args.race, args.driver, args.lap)
         if args.report and any(value is not None for value in single_cutoff_values):
             parser.error("--report cannot be combined with --race, --driver, or --lap")
+        if args.diagnostics_only and not args.report:
+            parser.error("--diagnostics-only requires --report")
         if not args.report and any(value is None for value in single_cutoff_values):
             parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
@@ -1235,16 +1242,32 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "backtest":
             if args.report:
-                from f1si.backtest.scoring import score_registered_sample
-
-                report = score_registered_sample(
-                    paths.db_path(data_dir),
-                    n_simulations=args.n,
-                    risk=args.risk,
-                    seed=args.seed,
-                    workers=args.workers,
-                )
                 output: Path = args.output
+                if args.diagnostics_only:
+                    if not output.is_file():
+                        raise ValueError(
+                            f"No existing report found at {output}; run f1si backtest --report "
+                            "first."
+                        )
+                    from f1si.backtest.scoring import extend_existing_report
+
+                    report = extend_existing_report(
+                        paths.db_path(data_dir),
+                        json.loads(output.read_text(encoding="utf-8")),
+                        n_simulations=args.n,
+                        risk=args.risk,
+                        seed=args.seed,
+                    )
+                else:
+                    from f1si.backtest.scoring import score_registered_sample
+
+                    report = score_registered_sample(
+                        paths.db_path(data_dir),
+                        n_simulations=args.n,
+                        risk=args.risk,
+                        seed=args.seed,
+                        workers=args.workers,
+                    )
                 output.parent.mkdir(parents=True, exist_ok=True)
                 output.write_text(
                     json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",

@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, PredictionRow
+from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, PredictionRow, _race_laps_total
 from f1si.data import asof
 from f1si.pace.kalman import filter_stints
 from f1si.pace.linear import fit_linear_pace
@@ -87,10 +87,19 @@ def summarize_wear_proxy(rows: pd.DataFrame) -> dict[str, object]:
     }
 
 
-def wear_proxy_diagnostic(db_path: Path, predictions: tuple[PredictionRow, ...]) -> dict[str, Any]:
+def wear_proxy_diagnostic(
+    db_path: Path, predictions: tuple[PredictionRow, ...] | None
+) -> dict[str, Any]:
     """Measure cutoff wear bands against later-fit references without modifying the filter."""
     accessor = asof.AsOfAccessor(db_path)
-    cutoffs = sorted({(row.race_id, int(row.cutoff_lap)) for row in predictions})
+    if predictions is None:
+        cutoffs: list[tuple[str, int]] = []
+        for race_id in REGISTERED_RACE_IDS:
+            first = accessor.snapshot(asof.AsOf(race_id, 0))
+            laps_total = _race_laps_total(accessor, race_id, first)
+            cutoffs.extend((race_id, lap) for lap in range(laps_total))
+    else:
+        cutoffs = sorted({(row.race_id, int(row.cutoff_lap)) for row in predictions})
     end_snapshots: dict[str, Any] = {}
     for race_id in REGISTERED_RACE_IDS:
         end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
