@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 
@@ -103,7 +105,8 @@ def test_report_description_is_observational_not_superiority_claim() -> None:
             "timing_error_laps": [0],
         }
     )
-    text = summarize_team_calls(rows, rng=np.random.default_rng(1))["description"].lower()
+    summary = summarize_team_calls(rows, rng=np.random.default_rng(1))
+    text = cast(str, summary["description"]).lower()
     assert "observed team" in text
     assert "beats" not in text
     assert "better than" not in text
@@ -118,8 +121,8 @@ def test_summary_reports_per_race_agreement_and_signed_and_absolute_timing_inter
         }
     )
     result = summarize_team_calls(rows, rng=np.random.default_rng(4))
-    agreement = result["top_action_agreement"]
-    timing = result["stop_timing_error_laps"]
+    agreement = cast(dict[str, Any], result["top_action_agreement"])
+    timing = cast(dict[str, Any], result["stop_timing_error_laps"])
     assert agreement["race_count"] == 2
     assert agreement["per_race"] == {"a": 0.5, "b": 1.0}
     assert set(agreement["race_cluster_95"]) == {"mean", "low", "high", "cluster_count"}

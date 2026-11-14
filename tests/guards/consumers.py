@@ -188,8 +188,8 @@ CONSUMERS: Final[dict[str, Consumer]] = {
 # function and method of the DESIGNATED_MODULES and fails unless each one is either CONSUMED
 # (some registered consumer calls it) or EXEMPT with a written reason. Adding a public function to
 # one of these modules therefore forces a decision here. A module outside this list that reads
-# race data must not hold the accessor at all: the import scan allows `AsOfAccessor` and
-# `RACE_END` only in the replay drivers and the CLI.
+# race data must not hold the accessor unless the import-scan policy explicitly identifies it as a
+# replay/backtest driver; model and plot code must receive prepared snapshots or values instead.
 DESIGNATED_MODULES: Final = (
     "f1si.data.asof",
     "f1si.plots.stints",

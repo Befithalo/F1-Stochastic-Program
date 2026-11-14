@@ -57,7 +57,7 @@ def test_consumed_function_is_really_called_by_its_consumer(qualified: str, cons
 
 
 def test_only_the_drivers_name_the_accessor_in_src() -> None:
-    """No model or plot module may hold an AsOfAccessor or ask for RACE_END."""
+    """Only replay/backtest drivers and the data boundary may name the as-of accessor."""
     users: set[str] = set()
     for path in sorted(SRC_ROOT.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -72,7 +72,15 @@ def test_only_the_drivers_name_the_accessor_in_src() -> None:
                 names |= {alias.name.rsplit(".", 1)[-1] for alias in node.names}
             if names & {"AsOfAccessor", "RACE_END", "RaceEnd"}:
                 users.add(module)
-    assert users <= {"f1si.cli", "f1si.data.asof", "f1si.data._snapshot"}, sorted(users)
+    allowed = {
+        "f1si.backtest.scoring",
+        "f1si.backtest.walk_forward",
+        "f1si.backtest.wear_diagnostic",
+        "f1si.cli",
+        "f1si.data.asof",
+        "f1si.data._snapshot",
+    }
+    assert users <= allowed, sorted(users)
 
 
 def test_the_registry_check_sees_a_new_public_function() -> None:

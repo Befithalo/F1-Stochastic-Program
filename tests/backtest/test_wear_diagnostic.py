@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pandas as pd
 
 from f1si.backtest.wear_diagnostic import build_leave_stint_out_reference, summarize_wear_proxy
@@ -61,9 +63,15 @@ def test_summary_exposes_race_level_coverage_bias_and_own_lap_evidence() -> None
         }
     )
     result = summarize_wear_proxy(rows)
-    assert result["coverage_by_race"] == {
+    coverage_by_race = cast(dict[str, Any], result["coverage_by_race"])
+    early_fit_bias_by_race = cast(dict[str, Any], result["early_fit_bias_by_race"])
+    own_lap_evidence = cast(dict[str, Any], result["own_lap_evidence"])
+    assert coverage_by_race == {
         "r1": {"covered": 1, "denominator": 2, "coverage": 0.5},
         "r2": {"covered": 1, "denominator": 1, "coverage": 1.0},
     }
-    assert result["early_fit_bias_by_race"] == {"r1": 0.2, "r2": -0.2}
-    assert result["own_lap_evidence"]["share_by_race"] == {"r1": 0.4, "r2": 0.2}
+    assert early_fit_bias_by_race == {"r1": 0.2, "r2": -0.2}
+    assert cast(dict[str, Any], own_lap_evidence["share_by_race"]) == {
+        "r1": 0.4,
+        "r2": 0.2,
+    }
