@@ -5,16 +5,16 @@ current_phase: 05
 current_phase_name: Longstaff-Schwartz Strategy & Live Replay
 current_plan: 3
 status: in_progress
-stopped_at: Plan 05-03 local work complete; current-branch CI pending
-last_updated: "2026-11-13T16:51:28.000Z"
+stopped_at: Completed 05-04-PLAN.md; exact-head Ubuntu CI passed, Windows job cancelled at timeout (pending)
+last_updated: "2026-11-14T00:20:22.961Z"
 last_activity: 2026-11-13
 last_activity_desc: Plan 05-03 local validation complete; current-branch CI pending
-state_head: 6f2bd0dbd669bdf88700a5cf98b46b3472215a8f
+state_head: 3f979f84f2ae81292230779402635d5b7b077e24
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 31
-  completed_plans: 30
+  total_plans: 32
+  completed_plans: 32
 milestone_name: milestone
 ---
 
@@ -66,6 +66,7 @@ Progress: [=======---] 67%
 |------|----------|-------|-------|
 | Phase 05 P01 | 9min | 2 tasks | 7 files |
 | Phase 05 P02 | 25min | 2 tasks | 14 files |
+| Phase 05 P04 | 86min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,8 @@ Progress: [=======---] 67%
 - [Phase 05]: Keep reasons score-only without supporting visible evidence; enforce the existing five-lap minimum final stint.
 - [Phase 05]: Full and selected replay share a cutoff builder and format unavailable results when cutoff-visible pace fit is unsupported.
 - [Phase 05]: Replay consumers use the CLI cutoff builder and future-scramble tests preserve D-21 public max-lap metadata while scrambling observations.
+- [Phase 05]: DEC-101: cutoff-visible sparse pace fallback uses existing generic priors and an [ASSUMED] 1.0 s driver-offset SD; results remain uncalibrated.
+- [Phase 05]: If an identified partial fit has no legal second compound, rank stay out as the sole legal action.
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ Progress: [=======---] 67%
 
 ## Session Continuity
 
-Last session: 2026-11-13T16:51:28.000Z
-Stopped at: Plan 05-03 halted pending current-branch GitHub Actions
-Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-03-SUMMARY.md
+Last session: 2026-11-14T00:20:22.416Z
+Stopped at: Completed 05-04-PLAN.md; exact-head Ubuntu CI passed, Windows job cancelled at timeout (pending)
+Resume file: .planning/phases/05-longstaff-schwartz-strategy-live-replay/05-04-SUMMARY.md

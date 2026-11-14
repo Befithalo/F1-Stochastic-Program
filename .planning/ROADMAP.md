@@ -205,7 +205,7 @@ Plans:
 - [x] 05-01-PLAN.md
 - [x] 05-02-PLAN.md
 - [x] 05-03-PLAN.md - Documentation, validation, Bahrain smoke, and current-head Ubuntu/Windows CI complete
-- [ ] 05-04-PLAN.md — Cutoff-only sparse-data recommendations for unsupported fits (gap closure)
+- [x] 05-04-PLAN.md — Cutoff-only sparse-data recommendations for unsupported fits (gap closure)
 
 ### Phase 6: MVP Backtest, Streamlit View & README
 
@@ -265,7 +265,7 @@ Plans:
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
-| 5. Longstaff-Schwartz Strategy & Live Replay | 3/4 | In Progress | - |
+| 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
 | 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |
 | 8. Markov Regimes & Full Backtest | 0/0 | Not started | - |
