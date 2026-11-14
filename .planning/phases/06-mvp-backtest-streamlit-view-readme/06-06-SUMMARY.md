@@ -115,7 +115,7 @@ status: complete
 3. **Task 06-06-02 RED: Cover states and responsive contracts** - `ec6f12c`
 4. **Task 06-06-02 GREEN: Complete replay states and responsive layout** - `4f428df`
 
-**Plan metadata:** final GSD documentation commit will capture this summary and state updates.
+**Plan metadata:** captured in final GSD documentation commit `5dfef63`.
 
 ## Files Created/Modified
 
