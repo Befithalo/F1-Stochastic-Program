@@ -12,9 +12,8 @@ htmlcov/
 
 # Local data and generated output (raw data is never committed or republished)
 /data/
-/reports/
+/reports/*
 # The measured fixed-sample evaluation is a versioned Phase 6 deliverable.
-!/reports/
 !/reports/backtest/
 /reports/backtest/*
 !/reports/backtest/phase-06.json
