@@ -256,10 +256,12 @@ def test_replay_error_renderer_uses_only_approved_copy_and_returns_before_output
 
 
 def test_risk_control_has_visible_endpoints_value_spacing_and_44px_targets() -> None:
+    app = import_module("f1si.app")
     source = app_source()
     assert "0.0 Mean-focused" in source
     assert "1.0 Tail-risk-focused" in source
-    assert "Current risk aversion: 0.50" in source
+    assert app._risk_value_label(0.5) == "Current risk aversion: 0.50"
+    assert "_risk_value_label(risk)" in source
     for token in ("4px", "8px", "16px", "24px", "32px", "48px", "64px"):
         assert token in source
     assert "min-height: 44px" in source
