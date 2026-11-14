@@ -1,7 +1,7 @@
 ---
 phase: "06"
 slug: "mvp-backtest-streamlit-view-readme"
-status: approved
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-13"
@@ -46,22 +46,22 @@ created: "2026-11-13"
 | 06-03-01 | 03 | 3 | BKT-02 | T-06-13 | Every strategy option carries same-draw podium/top-10 probabilities and inclusive inverted-CDF P05/P95 summaries before prediction freeze; no raw draws or results access | unit/integration | `uv run python -m pytest tests/strategy/test_longstaff.py -q` | yes | passed (17 tests) |
 | 06-04-01 | 04 | 4 | BKT-02 | T-06-04 | `test_preflight_requires_all_ten_races_before_scoring`, `test_incomplete_trace_stops_before_results_open_or_score`, and `test_predictions_freeze_before_first_results_open_and_score` prove all-ten preflight, fail-closed trace validation, and full eligible prediction freeze before first ResultsAccessor access or scoring | integration | `uv run python -m pytest tests/backtest/test_metrics.py -x -q` | yes (Wave 0-created; Plan 06-04 adds cases) | passed (included in 48-test focused run) |
 | 06-04-02 | 04 | 4 | BKT-02 | T-06-14 | `test_backtest_report_incomplete_cache_writes_no_completed_report` proves nonzero exit and no new or overwritten completed report; JSON preserves the ten IDs, paired Brier/interval metrics, denominators, seeds and conventions | integration/CLI | `uv run python -m pytest tests/backtest/test_metrics.py tests/backtest/test_walk_forward.py tests/test_cli.py -x -q` | yes | passed (48 focused tests) |
-| 06-05-01 | 05 | 5 | BKT-04 | T-06-05 | Every actual stop matches once to the latest strictly earlier recommendation; intervals resample races | integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | yes | pending |
-| 06-05-02 | 05 | 5 | BKT-04 | T-06-06 | Wear coverage/bias/own-laps evidence uses a labeled leave-current-stint-out proxy and does not tune the filter | unit/integration | `uv run python -m pytest tests/backtest/test_wear_diagnostic.py tests/backtest/test_strategy.py -q` | yes | pending |
-| 06-06-01 | 06 | 6 | UI-01 | T-06-SC | Reviewed dependency is locked; catalog controls/defaults call the shared builder and the page shows the measured ten-race summary | app/service smoke | `uv run python -m pytest tests/app/test_app.py -q`<br>`uv lock --check`<br>`rg -q 'uv sync --locked' .github/workflows/ci.yml` | yes | pending |
-| 06-06-02 | 06 | 6 | UI-01 | T-06-07 | Eight UI truths, proxy/fallback labels, and stale-output suppression hold across states/layouts | app/state | `uv run python -m pytest tests/app/test_app.py -q` | yes | pending |
-| 06-07-01 | 07 | 7 | UI-02 | T-06-08 | README/explainer claims match the measured report and preserve assumptions, denominators, and provider licensing | docs regression | `uv run python -m pytest tests/test_docs.py -x -q` | existing | pending |
-| 06-07-02 | 07 | 7 | UI-02 | T-06-09 | Phase 6 method decisions and publication claims are guarded by documentation tests | docs regression | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | existing | pending |
+| 06-05-01 | 05 | 5 | BKT-04 | T-06-05 | Every actual stop matches once to the latest strictly earlier recommendation; intervals resample races | integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | yes | green (7 passed) |
+| 06-05-02 | 05 | 5 | BKT-04 | T-06-06 | Wear coverage/bias/own-laps evidence uses a labeled leave-current-stint-out proxy and does not tune the filter | unit/integration | `uv run python -m pytest tests/backtest/test_wear_diagnostic.py tests/backtest/test_strategy.py -q` | yes | green (11 passed) |
+| 06-06-01 | 06 | 6 | UI-01 | T-06-SC | Reviewed dependency is locked; catalog controls/defaults call the shared builder and the page shows the measured ten-race summary | app/service smoke | `uv run python -m pytest tests/app/test_app.py -q`<br>`uv lock --check`<br>`rg -q 'uv sync --locked' .github/workflows/ci.yml` | yes | green (23 passed; lock and CI checks passed) |
+| 06-06-02 | 06 | 6 | UI-01 | T-06-07 | Eight UI truths, proxy/fallback labels, and stale-output suppression hold across states/layouts | app/state | `uv run python -m pytest tests/app/test_app.py -q` | yes | green (23 passed) |
+| 06-07-01 | 07 | 7 | UI-02 | T-06-08 | README/explainer claims match the measured report and preserve assumptions, denominators, and provider licensing | docs regression | `uv run python -m pytest tests/test_docs.py -x -q` | existing | green (22 passed) |
+| 06-07-02 | 07 | 7 | UI-02 | T-06-09 | Phase 6 method decisions and publication claims are guarded by documentation tests | docs regression | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | existing | green (52 passed) |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/backtest/test_walk_forward.py` — frozen race list, cutoff ordering, earlier-history boundary, prediction-only tracer, future-scramble equality, and 2026 refusal.
-- [ ] `tests/backtest/test_metrics.py` — Brier score, past-only grid baseline, discrete interval endpoints, equal-race aggregation, deterministic race-cluster bootstrap, and prediction-freeze-before-scoring event order.
-- [ ] `tests/backtest/test_strategy.py` — event-to-pre-event recommendation matching, stop-timing error, and seeded race-cluster intervals.
-- [ ] `tests/backtest/test_wear_diagnostic.py` — leave-current-stint-out proxy, wear-band coverage denominator, early-fit bias, and own-laps evidence.
-- [ ] `tests/app/test_app.py` — required page controls/displays, cutoff-safe wiring, proxy/fallback labels, and all approved empty/loading/error/partial/layout states.
+- [x] `tests/backtest/test_walk_forward.py` — frozen race list, cutoff ordering, earlier-history boundary, prediction-only tracer, future-scramble equality, and 2026 refusal.
+- [x] `tests/backtest/test_metrics.py` — Brier score, past-only grid baseline, discrete interval endpoints, equal-race aggregation, deterministic race-cluster bootstrap, and prediction-freeze-before-scoring event order.
+- [x] `tests/backtest/test_strategy.py` — event-to-pre-event recommendation matching, stop-timing error, and seeded race-cluster intervals.
+- [x] `tests/backtest/test_wear_diagnostic.py` — leave-current-stint-out proxy, wear-band coverage denominator, early-fit bias, and own-laps evidence.
+- [x] `tests/app/test_app.py` — required page controls/displays, cutoff-safe wiring, proxy/fallback labels, and all approved empty/loading/error/partial/layout states.
 
 Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is updated in Plan 06-01. Plan 06-04 adds its scorer cases to the existing Wave 0-created `tests/backtest/test_metrics.py` and CLI report cases to the existing `tests/test_cli.py`; the approved Streamlit dependency/lock work is in Plan 06-06.
 
@@ -108,4 +108,12 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 - [x] Feedback latency < 120s for focused tests.
 - [x] `nyquist_compliant: true` set in frontmatter because all verification paths are runnable or ordered behind Wave 0 creation.
 
-**Approval:** approved 2026-11-14
+**Validation:** validated 2026-11-14
+
+## Validation Audit 2026-11-14
+
+| Metric | Count |
+|---|---|
+| Gaps found | 6 |
+| Resolved | 6 |
+| Escalated | 0 |
