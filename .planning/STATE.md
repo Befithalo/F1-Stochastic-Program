@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Completed 06-00-PLAN.md
-last_updated: "2026-11-14T02:43:07.236Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-11-14T03:11:45.695Z"
 last_activity: 2026-11-13
 last_activity_desc: Phase 06 execution started
-state_head: 944e1547aeaab03860da57e4820664e7af2ee7e9
+state_head: 3c14ee86f82e2a06eb1bb5b269f115ff528a9650
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 38
-  completed_plans: 33
+  completed_plans: 34
 milestone_name: milestone
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 06 (MVP Backtest, Streamlit View & README) — EXECUTING
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 6
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 06 execution started
 
@@ -68,6 +68,7 @@ Progress: [=======---] 67%
 | Phase 05 P02 | 25min | 2 tasks | 14 files |
 | Phase 05 P04 | 86min | 3 tasks | 14 files |
 | Phase 06 P00 | 6min | 2 tasks | 5 files |
+| Phase 06 P01 | 27m | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -120,6 +121,9 @@ Progress: [=======---] 67%
 - [Phase 05]: Replay consumers use the CLI cutoff builder and future-scramble tests preserve D-21 public max-lap metadata while scrambling observations.
 - [Phase 05]: DEC-101: cutoff-visible sparse pace fallback uses existing generic priors and an [ASSUMED] 1.0 s driver-offset SD; results remain uncalibrated.
 - [Phase 05]: If an identified partial fit has no legal second compound, rank stay out as the sole legal action.
+- [Phase 06]: Pre-register the calendar-first 4/3/3 ten-race sample before scoring.
+- [Phase 06]: Build each prediction from its cutoff snapshot and strictly earlier history.
+- [Phase 06]: Keep result access and scoring outside the prediction runner.
 
 ### Pending Todos
 
@@ -134,6 +138,6 @@ Progress: [=======---] 67%
 
 ## Session Continuity
 
-Last session: 2026-11-14T02:43:06.257Z
-Stopped at: Completed 06-00-PLAN.md
+Last session: 2026-11-14T03:11:45.084Z
+Stopped at: Completed 06-01-PLAN.md
 Resume file: None
