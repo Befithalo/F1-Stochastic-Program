@@ -30,6 +30,10 @@ class RankedOption:
     spread: float
     cvar10: float
     score: float
+    podium_probability: float
+    top10_probability: float
+    finish_p05: int
+    finish_p95: int
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,16 @@ def _cvar10(values: Sequence[float] | NDArray[np.float64]) -> float:
     if fraction > 0.0:
         total += fraction * float(ordered[whole])
     return total / mass
+
+
+def _distribution_summary(
+    sample: NDArray[np.float64],
+) -> tuple[float, float, int, int]:
+    """Summarize podium/top-10 mass and inclusive discrete finish endpoints."""
+    podium_probability = float(np.mean(sample <= 3))
+    top10_probability = float(np.mean(sample <= 10))
+    p05, p95 = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
+    return podium_probability, top10_probability, int(p05), int(p95)
 
 
 def _fit_continuation(
@@ -318,6 +332,7 @@ class LongstaffSchwartzPolicy:
                 else value_after_wait[stop_lap][action]
             )
             tail = _cvar10(sample)
+            distribution = _distribution_summary(sample)
             rows.append(
                 RankedOption(
                     action,
@@ -326,10 +341,12 @@ class LongstaffSchwartzPolicy:
                     float(sample.std()),
                     tail,
                     _score_option(sample, self._risk),
+                    *distribution,
                 )
             )
         stay_plan = stay_out
         tail = _cvar10(stay_values)
+        distribution = _distribution_summary(stay_values)
         rows.append(
             RankedOption(
                 "stay out",
@@ -338,6 +355,7 @@ class LongstaffSchwartzPolicy:
                 float(stay_values.std()),
                 tail,
                 _score_option(stay_values, self._risk),
+                *distribution,
             )
         )
         if not rows:

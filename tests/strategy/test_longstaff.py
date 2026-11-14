@@ -329,17 +329,18 @@ def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.Mon
         assert option.top10_probability == pytest.approx(np.mean(sample <= 10))
         expected = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
         assert (option.finish_p05, option.finish_p95) == tuple(expected.astype(int))
+    by_action = {option.action: option for option in analysis.options}
     assert (
-        analysis.options[0].podium_probability,
-        analysis.options[0].top10_probability,
-        analysis.options[0].finish_p05,
-        analysis.options[0].finish_p95,
+        by_action["pit now"].podium_probability,
+        by_action["pit now"].top10_probability,
+        by_action["pit now"].finish_p05,
+        by_action["pit now"].finish_p95,
     ) == (0.3, 0.6, 1, 20)
     assert (
-        analysis.options[1].podium_probability,
-        analysis.options[1].top10_probability,
-        analysis.options[1].finish_p05,
-        analysis.options[1].finish_p95,
+        by_action["pit in 1 lap(s)"].podium_probability,
+        by_action["pit in 1 lap(s)"].top10_probability,
+        by_action["pit in 1 lap(s)"].finish_p05,
+        by_action["pit in 1 lap(s)"].finish_p95,
     ) == (0.0, 1.0, 4, 4)
 
 
