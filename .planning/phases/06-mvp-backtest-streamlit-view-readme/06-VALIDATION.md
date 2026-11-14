@@ -3,7 +3,7 @@ phase: "06"
 slug: "mvp-backtest-streamlit-view-readme"
 status: approved
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: "2026-11-13"
 ---
 
@@ -38,8 +38,8 @@ created: "2026-11-13"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |--------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 06-00-01 | 00 | 0 | BKT-01/BKT-02/BKT-04 | T-06-10 | Backtest test contracts cover cache refusal, cutoff order, prediction freeze before scoring, metric integrity, event alignment, and proxy boundaries | test-contract syntax | `uv run python -c "import ast,pathlib; ps=[pathlib.Path(p) for p in ['tests/backtest/test_walk_forward.py','tests/backtest/test_metrics.py','tests/backtest/test_strategy.py','tests/backtest/test_wear_diagnostic.py']]; [ast.parse(p.read_text(encoding='utf-8'), filename=str(p)) for p in ps]; assert all(p.is_file() for p in ps)"` | planned W0 | pending |
-| 06-00-02 | 00 | 0 | UI-01 | T-06-12 | App test contract covers approved controls, cutoff-safe displays, proxy/fallback labels, and all empty/loading/error/partial/layout states | test-contract syntax | `uv run python -c "import ast,pathlib; p=pathlib.Path('tests/app/test_app.py'); ast.parse(p.read_text(encoding='utf-8'), filename=str(p)); assert p.is_file()"` | planned W0 | pending |
+| 06-00-01 | 00 | 0 | BKT-01/BKT-02/BKT-04 | T-06-10 | Backtest test contracts cover cache refusal, cutoff order, prediction freeze before scoring, metric integrity, event alignment, and proxy boundaries | test-contract syntax | `uv run python -c "import ast,pathlib; ps=[pathlib.Path(p) for p in ['tests/backtest/test_walk_forward.py','tests/backtest/test_metrics.py','tests/backtest/test_strategy.py','tests/backtest/test_wear_diagnostic.py']]; [ast.parse(p.read_text(encoding='utf-8'), filename=str(p)) for p in ps]; assert all(p.is_file() for p in ps)"` | yes | passed |
+| 06-00-02 | 00 | 0 | UI-01 | T-06-12 | App test contract covers approved controls, cutoff-safe displays, proxy/fallback labels, and all empty/loading/error/partial/layout states | test-contract syntax | `uv run python -c "import ast,pathlib; p=pathlib.Path('tests/app/test_app.py'); ast.parse(p.read_text(encoding='utf-8'), filename=str(p)); assert p.is_file()"` | yes | passed |
 | 06-01-01 | 01 | 1 | BKT-01 | T-06-01 | Ten fixed race IDs and full-cache preflight precede a prediction-only tracer row | integration | `uv run python -m pytest tests/backtest/test_walk_forward.py -q` | planned W0 | pending |
 | 06-01-02 | 01 | 1 | BKT-01 | T-06-02 | Every prediction uses its cutoff snapshot and earlier history; all ten races freeze before results access/scoring; future-scramble output is invariant; 2026 stays locked | integration/property | `uv run python -m pytest tests/guards tests/test_decisions_log.py -x -q`<br>`uv run python -m pytest tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -x -q` | planned W0 | pending |
 | 06-02-01 | 02 | 2 | BKT-02 | T-06-03 | Brier masks, neutral past-only baseline, interval endpoints, equal-race means, and paired bootstrap semantics are exact | unit | `uv run python -m pytest tests/backtest/test_metrics.py -q` | planned W0 | pending |
@@ -61,7 +61,12 @@ created: "2026-11-13"
 - [ ] `tests/backtest/test_wear_diagnostic.py` — leave-current-stint-out proxy, wear-band coverage denominator, early-fit bias, and own-laps evidence.
 - [ ] `tests/app/test_app.py` — required page controls/displays, cutoff-safe wiring, proxy/fallback labels, and all approved empty/loading/error/partial/layout states.
 
-Plan 06-00 creates all five missing test files. `tests/guards/consumers.py` is updated in Plan 06-01, and the approved Streamlit dependency/lock work is in Plan 06-04. `wave_0_complete` remains false until execution completes Plan 06-00 and confirms the files on disk.
+Plan 06-00 creates all five missing test files. `tests/guards/consumers.py` is updated in Plan 06-01, and the approved Streamlit dependency/lock work is in Plan 06-04.
+
+### Wave 0 execution record
+
+- Both exact AST checks passed. Repository Ruff check and format check passed.
+- Full pytest collection is temporarily blocked by the missing `f1si.backtest` modules assigned to Plans 06-01 through 06-03. Mypy likewise reports only those not-yet-created backtest modules. Re-run the full suite and mypy after their implementation waves.
 
 ---
 
@@ -78,7 +83,7 @@ Plan 06-00 creates all five missing test files. `tests/guards/consumers.py` is u
 - [x] Every task has a runnable `<automated>` verify or an ordered Wave 0 dependency that creates its test file first.
 - [x] Sampling continuity: no 3 consecutive tasks without automated verify.
 - [x] Wave 0 covers all five missing test references with parse checks; behavior runs with the implementation tasks.
-- [ ] Wave 0 execution has created all five test files (`wave_0_complete` remains false until then).
+- [x] Wave 0 execution has created all five test files and both AST checks passed (`wave_0_complete: true`).
 - [x] No watch-mode flags.
 - [x] Feedback latency < 120s for focused tests.
 - [x] `nyquist_compliant: true` set in frontmatter because all verification paths are runnable or ordered behind Wave 0 creation.
