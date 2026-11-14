@@ -1,8 +1,8 @@
 ---
 phase: "06"
 slug: "mvp-backtest-streamlit-view-readme"
-status: draft
-nyquist_compliant: false
+status: approved
+nyquist_compliant: true
 wave_0_complete: false
 created: "2026-11-13"
 ---
@@ -38,22 +38,30 @@ created: "2026-11-13"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |--------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 06-01-01 | 01 | 1 | BKT-01 | T-06-01 | Every prediction is built from its cutoff snapshot and earlier history; 2026 stays locked | integration/property | `uv run python -m pytest tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -q` | ❌ W0 | ⬜ pending |
-| 06-01-02 | 01 | 1 | BKT-02 | T-06-02 | Final results are opened only by `f1si.backtest.scoring`; baseline uses earlier races only | unit/integration | `uv run python -m pytest tests/backtest/test_metrics.py -q` | ❌ W0 | ⬜ pending |
-| 06-01-03 | 01 | 1 | BKT-04 | T-06-03 | Each team-stop comparison uses a recommendation that predates the observed event | unit/integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | ❌ W0 | ⬜ pending |
-| 06-02-01 | 02 | 2 | UI-01 | T-06-04 | Catalog-backed controls call the shared cutoff-safe builder and label fallback/proxy output | app/service smoke | `uv run python -m pytest tests/app -q` | ❌ W0 | ⬜ pending |
-| 06-02-02 | 02 | 2 | UI-02 | T-06-05 | README reports only measured metrics, discloses hidden variables, and credits data providers | docs regression | `uv run python -m pytest tests/test_docs.py -q` | ✅ existing | ⬜ pending |
+| 06-00-01 | 00 | 0 | BKT-01/BKT-02/BKT-04 | T-06-10 | Backtest test contracts cover cache refusal, cutoff order, prediction freeze before scoring, metric integrity, event alignment, and proxy boundaries | test-contract syntax | `uv run python -c "import ast,pathlib; ps=[pathlib.Path(p) for p in ['tests/backtest/test_walk_forward.py','tests/backtest/test_metrics.py','tests/backtest/test_strategy.py','tests/backtest/test_wear_diagnostic.py']]; [ast.parse(p.read_text(encoding='utf-8'), filename=str(p)) for p in ps]; assert all(p.is_file() for p in ps)"` | planned W0 | pending |
+| 06-00-02 | 00 | 0 | UI-01 | T-06-12 | App test contract covers approved controls, cutoff-safe displays, proxy/fallback labels, and all empty/loading/error/partial/layout states | test-contract syntax | `uv run python -c "import ast,pathlib; p=pathlib.Path('tests/app/test_app.py'); ast.parse(p.read_text(encoding='utf-8'), filename=str(p)); assert p.is_file()"` | planned W0 | pending |
+| 06-01-01 | 01 | 1 | BKT-01 | T-06-01 | Ten fixed race IDs and full-cache preflight precede a prediction-only tracer row | integration | `uv run python -m pytest tests/backtest/test_walk_forward.py -q` | planned W0 | pending |
+| 06-01-02 | 01 | 1 | BKT-01 | T-06-02 | Every prediction uses its cutoff snapshot and earlier history; all ten races freeze before results access/scoring; future-scramble output is invariant; 2026 stays locked | integration/property | `uv run python -m pytest tests/guards tests/test_decisions_log.py -x -q`<br>`uv run python -m pytest tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -x -q` | planned W0 | pending |
+| 06-02-01 | 02 | 2 | BKT-02 | T-06-03 | Brier masks, neutral past-only baseline, interval endpoints, equal-race means, and paired bootstrap semantics are exact | unit | `uv run python -m pytest tests/backtest/test_metrics.py -q` | planned W0 | pending |
+| 06-02-02 | 02 | 2 | BKT-02 | T-06-04 | Complete eligible ten-race/cutoff prediction set freezes before first results access or score; report has required metrics and denominators | integration | `uv run python -m pytest tests/backtest/test_metrics.py tests/backtest/test_walk_forward.py -x -q` | planned W0 | pending |
+| 06-03-01 | 03 | 3 | BKT-04 | T-06-05 | Every actual stop matches once to the latest strictly earlier recommendation; intervals resample races | integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | planned W0 | pending |
+| 06-03-02 | 03 | 3 | BKT-04 | T-06-06 | Wear coverage/bias/own-laps evidence uses a labeled leave-current-stint-out proxy and does not tune the filter | unit/integration | `uv run python -m pytest tests/backtest/test_wear_diagnostic.py tests/backtest/test_strategy.py -q` | planned W0 | pending |
+| 06-04-01 | 04 | 4 | UI-01 | T-06-SC | Reviewed dependency is locked; catalog controls/defaults call the shared builder and the page shows the measured ten-race summary | app/service smoke | `uv run python -m pytest tests/app/test_app.py -q`<br>`uv lock --check`<br>`rg -q 'uv sync --locked' .github/workflows/ci.yml` | planned W0 | pending |
+| 06-04-02 | 04 | 4 | UI-01 | T-06-07 | Eight UI truths, proxy/fallback labels, and stale-output suppression hold across states/layouts | app/state | `uv run python -m pytest tests/app/test_app.py -q` | planned W0 | pending |
+| 06-05-01 | 05 | 5 | UI-02 | T-06-08 | README/explainer claims match the measured report and preserve assumptions, denominators, and provider licensing | docs regression | `uv run python -m pytest tests/test_docs.py -x -q` | existing | pending |
+| 06-05-02 | 05 | 5 | UI-02 | T-06-09 | Phase 6 method decisions and publication claims are guarded by documentation tests | docs regression | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | existing | pending |
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/backtest/test_walk_forward.py` — frozen race list, cutoff ordering, earlier-history boundary, future-scramble equality, and 2026 refusal.
-- [ ] `tests/backtest/test_metrics.py` — Brier score, past-only grid baseline, discrete interval endpoints, equal-race aggregation, and deterministic race-cluster bootstrap.
+- [ ] `tests/backtest/test_walk_forward.py` — frozen race list, cutoff ordering, earlier-history boundary, prediction-only tracer, future-scramble equality, and 2026 refusal.
+- [ ] `tests/backtest/test_metrics.py` — Brier score, past-only grid baseline, discrete interval endpoints, equal-race aggregation, deterministic race-cluster bootstrap, and prediction-freeze-before-scoring event order.
 - [ ] `tests/backtest/test_strategy.py` — event-to-pre-event recommendation matching, stop-timing error, and seeded race-cluster intervals.
-- [ ] `tests/app/` — required page controls/displays and fallback, tire, and safety-car labels without requiring a live browser for metric logic.
-- [ ] `tests/guards/consumers.py` — register each new public as-of consumer; confirm `tests/guards/import_scan.py` limits `f1si.data.results` to `f1si.backtest.scoring`.
-- [ ] `pyproject.toml` and `uv.lock` — add the roadmap-required Streamlit dependency after the package identity review; keep the resolved dependency lock committed for `uv sync --locked` CI.
+- [ ] `tests/backtest/test_wear_diagnostic.py` — leave-current-stint-out proxy, wear-band coverage denominator, early-fit bias, and own-laps evidence.
+- [ ] `tests/app/test_app.py` — required page controls/displays, cutoff-safe wiring, proxy/fallback labels, and all approved empty/loading/error/partial/layout states.
+
+Plan 06-00 creates all five missing test files. `tests/guards/consumers.py` is updated in Plan 06-01, and the approved Streamlit dependency/lock work is in Plan 06-04. `wave_0_complete` remains false until execution completes Plan 06-00 and confirms the files on disk.
 
 ---
 
@@ -61,17 +69,18 @@ created: "2026-11-13"
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| The one-page dashboard is readable and its controls update the selected race, driver, cutoff, and risk consistently | UI-01 | Automated app tests verify wiring and defaults but do not replace visual inspection of the rendered page | Run `uv run python -m streamlit run src/f1si/app.py`; confirm the default Bahrain 2023 / ALO view, move the lap and risk controls, and confirm all required panels update without exposing final results. |
+| The one-page dashboard shows the fixed-sample metrics and is readable as controls update the selected race, driver, cutoff, and risk | UI-01 | Automated app tests verify wiring and defaults but do not replace visual inspection of the rendered page | Run `uv run python -m streamlit run src/f1si/app.py`; confirm the measured ten-race summary, default Bahrain 2023 / ALO view, move the lap and risk controls, and confirm all required panels update without exposing final results. |
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies.
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify.
-- [ ] Wave 0 covers all missing test references.
-- [ ] No watch-mode flags.
-- [ ] Feedback latency < 120s for focused tests.
-- [ ] `nyquist_compliant: true` set in frontmatter.
+- [x] Every task has a runnable `<automated>` verify or an ordered Wave 0 dependency that creates its test file first.
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify.
+- [x] Wave 0 covers all five missing test references with parse checks; behavior runs with the implementation tasks.
+- [ ] Wave 0 execution has created all five test files (`wave_0_complete` remains false until then).
+- [x] No watch-mode flags.
+- [x] Feedback latency < 120s for focused tests.
+- [x] `nyquist_compliant: true` set in frontmatter because all verification paths are runnable or ordered behind Wave 0 creation.
 
-**Approval:** pending
+**Approval:** approved 2026-11-14

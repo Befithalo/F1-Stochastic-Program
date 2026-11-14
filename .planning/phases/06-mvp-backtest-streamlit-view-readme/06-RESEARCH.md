@@ -79,7 +79,7 @@ For the dashboard, use Streamlit's native widgets and cache expensive determinis
 | Python | 3.12 | Existing runtime | Project metadata constrains the interpreter to `>=3.12,<3.13`. `[VERIFIED: pyproject.toml:6]` Exact line: `requires-python = ">=3.12,<3.13"`. |
 | NumPy | Existing range `>=2.3,<3` | Seeded simulations, quantiles, bootstrap sampling | Already used by simulator and `f1si.rng`; no new numerical dependency is needed for race-cluster bootstrap. `[VERIFIED: pyproject.toml:7-10]` Exact lines: `"numpy>=2.3,<3"`, `"pandas>=2.3.3,<3"`. |
 | pandas | Existing range `>=2.3.3,<3` | Race/cutoff/metric tables | Matches existing snapshot and result accessors. `[VERIFIED: pyproject.toml:7-10]` |
-| Streamlit | Current PyPI version observed: `1.67.0` (uploaded 2026-11-05) | One-page read-only UI | Official API docs cover widgets, charts and caching. The legitimacy seam rates the package **SUS** for “too-new” and “unknown-downloads”; plan a `checkpoint:human-verify` task before adding/installing it. `[CITED: https://docs.streamlit.io/; https://pypi.org/project/streamlit/]` |
+| Streamlit | Current PyPI version observed: `1.67.0` (uploaded 2026-11-05) | One-page read-only UI | Official API docs cover widgets, charts and caching. The automated legitimacy seam initially rated the package **SUS** for “too-new” and “unknown-downloads”; official PyPI, repository, and release evidence resolved this as a metadata-heuristic false positive, so no separate checkpoint is required. See [Orchestrator Follow-up](#orchestrator-follow-up). `[CITED: https://docs.streamlit.io/; https://pypi.org/project/streamlit/; https://github.com/streamlit/streamlit; https://github.com/streamlit/streamlit/releases/tag/1.67.0]` |
 
 ### Supporting
 
@@ -98,23 +98,23 @@ For the dashboard, use Streamlit's native widgets and cache expensive determinis
 **Installation:**
 
 ```powershell
-uv add streamlit
+uv add "streamlit>=1.67,<2"
 ```
 
-Run the package-legitimacy human checkpoint before this dependency operation because the current seam verdict is `SUS`. Update `uv.lock` with the dependency. No deployment or streaming extras are in scope. [VERIFIED: package-legitimacy seam response 2026-11-14; `.planning/ROADMAP.md` Phase 6; `pyproject.toml:1-18`]
+The official-source package review and user authorization are recorded in [Orchestrator Follow-up](#orchestrator-follow-up); the initial `SUS` metadata heuristic was a false positive, so no separate human checkpoint is required. Keep the dependency within the authorized version bound and update `uv.lock`. No deployment or streaming extras are in scope. [CITED: https://pypi.org/project/streamlit/; https://github.com/streamlit/streamlit; https://github.com/streamlit/streamlit/releases/tag/1.67.0; `.planning/ROADMAP.md` Phase 6]
 
-**Version verification:** `https://pypi.org/pypi/streamlit/json` reported `1.67.0`, uploaded `2026-11-05T19:53:51.688727Z`, with declared `Requires-Python: >=3.11`. The project targets Python 3.12, but do not treat this metadata alone as package legitimacy; the package gate flagged it SUS. Streamlit is not installed in the current project environment (`uv run python -m streamlit --version` reports no module). [CITED: https://pypi.org/project/streamlit/; environment probe 2026-11-13]
+**Version verification:** `https://pypi.org/pypi/streamlit/json` reported `1.67.0`, uploaded `2026-11-05T19:53:51.688727Z`, with declared `Requires-Python: >=3.11`. The project targets Python 3.12. The automated package gate initially flagged the release metadata, while the official package, repository, license, and matching release evidence in [Orchestrator Follow-up](#orchestrator-follow-up) confirms legitimacy. Streamlit is not installed in the current project environment (`uv run python -m streamlit --version` reports no module). [CITED: https://pypi.org/project/streamlit/; https://github.com/streamlit/streamlit; https://github.com/streamlit/streamlit/releases/tag/1.67.0; environment probe 2026-11-13]
 
 ## Package Legitimacy Audit
 
 | Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
 |---------|----------|-----|-----------|-------------|---------|-------------|
-| `streamlit` | PyPI | 8 days since latest upload observed | Unknown from gate | Official metadata links homepage `streamlit.io`, GitHub source link available | SUS (`too-new`, `unknown-downloads`) | Keep as roadmap-required dependency; add `checkpoint:human-verify` before installation. |
+| `streamlit` | PyPI | 8 days since latest upload observed | Unknown from gate | Official metadata links homepage `streamlit.io`, official GitHub source/release and Apache-2.0 license verified | Cleared by official-source review (initial `SUS` was a metadata-heuristic false positive) | Roadmap-required and user-authorized `streamlit>=1.67,<2`; no separate human checkpoint. |
 
 **Packages removed due to [SLOP] verdict:** none  
-**Packages flagged as suspicious [SUS]:** `streamlit` — planner inserts `checkpoint:human-verify` before adding/installing.
+**Initial automated [SUS] flag:** `streamlit` — resolved by the official-source review recorded in [Orchestrator Follow-up](#orchestrator-follow-up); no separate checkpoint is required.
 
-The current Streamlit documentation identifies the package and APIs, but the required package-legitimacy seam still returns SUS. Resolve that checkpoint before dependency installation; do not silently downgrade the warning. [CITED: https://docs.streamlit.io/; package-legitimacy seam response 2026-11-14]
+The package-legitimacy seam initially returned `SUS` based on release age and unavailable download statistics. Official PyPI, repository, Apache-2.0 license, and matching release evidence resolves the warning as a metadata-heuristic false positive. The user authorized the recommended choice and the roadmap locks Streamlit, so install the bounded dependency without a separate checkpoint. See [Orchestrator Follow-up](#orchestrator-follow-up). [CITED: https://docs.streamlit.io/; https://pypi.org/project/streamlit/; https://github.com/streamlit/streamlit; https://github.com/streamlit/streamlit/releases/tag/1.67.0]
 
 ## Architecture Patterns
 
@@ -304,30 +304,30 @@ Treat `by_race[race_id]` as that race's already-aggregated metric, not each driv
 | A2 | Use paired race-level bootstrap replicates and a persisted RNG seed/count. | Architecture patterns | Different resampling or interval convention changes uncertainty width and reproducibility. |
 | A3 | For team-call alignment, use the latest eligible recommendation before each observed stop, with that stop not yet visible. | Architecture patterns | A different operational event/cutoff matching rule changes agreement/timing metrics. |
 | A4 | Decide explicit null-position, podium/top-10, discrete quantile and coverage inclusion semantics before implementation. | Pitfalls | Ambiguous result handling invalidates proper-score and coverage comparisons. |
-| A5 | `streamlit` package legitimacy remains SUS until the required checkpoint clears. | Stack / package audit | Installing without resolving the gate bypasses the project's required legitimacy control. |
+| A5 | The automated Streamlit legitimacy check initially returned SUS; official-source review cleared it as a metadata-heuristic false positive, and no separate checkpoint is required. | Stack / package audit / Orchestrator Follow-up | The dependency remains bounded to `streamlit>=1.67,<2` and authorized by the roadmap and user. |
 | A6 | A computed one-page dashboard can use Matplotlib and Streamlit native APIs without adding a chart package. | Standard stack | A later confirmed chart requirement may justify another dependency and its audit. |
 
 ## Open Questions
 
-1. **What exactly defines an eligible cutoff and scored outcome?**
-   - What we know: Phase 5 replay walks cutoffs including lap zero and one selected-driver replay; Phase 6 needs comparable model/baseline data across drivers and cutoffs.
-   - What's unclear: Whether lap 0 is in Brier/interval scoring, whether every race lap is included, and the exact final-position/null and integer-quantile conventions.
-   - Recommendation: Lock semantics in the scoring plan/tests before running the ten-race score, and keep strategy event alignment separately defined.
+1. **RESOLVED — What exactly defines an eligible cutoff and scored outcome?**
+   - Evaluate every eligible cutoff from lap 0 through each race's final strategy-eligible cutoff. Freeze the prediction-only full sample before any final-results access.
+   - Count unclassified starters as non-podium and non-top-10 for binary scores. Compute finishing-interval coverage only for classified finishers and report the classified-finisher denominator.
+   - Use inclusive empirical 5th/95th endpoints with `method="inverted_cdf"` for the central 90% finishing-position interval.
+   - Decision record: [Orchestrator Follow-up — scoring semantics selected for the plan](#orchestrator-follow-up).
 
-2. **What neutral prior should initialize the first grid baseline?**
-   - What we know: D-03 requires a conservative neutral prior when no earlier result is usable.
-   - What's unclear: A numeric starting probability or smoothing family.
-   - Recommendation: Have planner propose one transparent fixed prior for podium and top-10, document it as a method decision, then apply identical past-only updates to all later cutoffs.
+2. **RESOLVED — What neutral prior should initialize the first grid baseline?**
+   - Use the neutral event-rate prior: podium `3 / field_size`; top-10 `min(10, field_size) / field_size`.
+   - Shrink sparse grid-position estimates toward those rates with five pseudo-observations, updating only from earlier completed races.
+   - Decision record: [Orchestrator Follow-up — scoring semantics selected for the plan](#orchestrator-follow-up).
 
-3. **What confidence level should accompany Brier and interval-coverage uncertainty?**
-   - What we know: Race-cluster uncertainty is required; BKT-04 specifically locks 95% intervals.
-   - What's unclear: D-04 does not state a numeric confidence level for coverage, and D-03 does not state one for Brier scores.
-   - Recommendation: Keep 95% for all reported bootstrap intervals for consistency unless the owner specifies otherwise; record paired model-minus-baseline intervals.
+3. **RESOLVED — What confidence level should accompany Brier and interval-coverage uncertainty?**
+   - Use 95% race-cluster bootstrap intervals for Brier, interval coverage, and team-call summaries, including paired model-minus-baseline Brier intervals.
+   - Decision record: [Orchestrator Follow-up — scoring semantics selected for the plan](#orchestrator-follow-up).
 
-4. **Should the package legitimacy warning be cleared before adding Streamlit?**
-   - What we know: Gate returns SUS; official docs use Streamlit APIs and PyPI lists the package.
-   - What's unclear: Package age/download heuristics are not sufficient to establish a clean verdict.
-   - Recommendation: Add the mandated `checkpoint:human-verify` before `uv add streamlit`; do not silently waive the SUS result.
+4. **RESOLVED — Should the package legitimacy warning be cleared before adding Streamlit?**
+   - Official [PyPI project evidence](https://pypi.org/project/streamlit/), the [Streamlit repository](https://github.com/streamlit/streamlit), its [Apache-2.0 license](https://github.com/streamlit/streamlit/blob/develop/LICENSE), and the matching [1.67.0 release](https://github.com/streamlit/streamlit/releases/tag/1.67.0) confirm the legitimate Streamlit project and provenance. The local `SUS` result was a metadata-heuristic false positive, consistent with the Phase 3 Numba precedent in `.planning/phases/03-monte-carlo-simulator/03-01-PLAN.md`.
+   - Use the roadmap-required, user-authorized `streamlit>=1.67,<2` dependency without a separate checkpoint.
+   - Decision record: [Orchestrator Follow-up — package legitimacy review](#orchestrator-follow-up).
 
 ## Environment Availability
 
@@ -336,11 +336,11 @@ Treat `by_race[race_id]` as that race's already-aggregated metric, not each driv
 | uv | Python dependency and project commands | ✓ | 0.13.5 | — |
 | CPython | Runtime | ✓ | 3.12.10 via `uv run python` | — |
 | Local DuckDB race cache | Backtest and app data | ✓ | 87 completed catalog entries: 70 in-sample 2023–2025 and 17 locked 2026 | — |
-| Streamlit | UI-01 | ✗ (not installed in project venv) | Candidate 1.67.0, install pending package checkpoint | Add after human verification; no UI framework fallback because requirement names Streamlit |
+| Streamlit | UI-01 | ✗ (not installed in project venv) | Candidate 1.67.0, installation authorized after official-source review | Add the bounded dependency per roadmap; no UI framework fallback because requirement names Streamlit |
 
 The cache catalog command showed all 70 2023–2025 races as loaded and 17 2026 races as locked. Recheck selected-race completeness from the target cache before pre-registration/scoring. `uv run f1si races` was available; `uv run python -m streamlit --version` found no Streamlit module. `[VERIFIED: environment probes 2026-11-13]`
 
-**Missing dependencies with no fallback:** Streamlit until package checkpoint and dependency addition; this blocks the UI run but not backtest research.
+**Missing dependencies with no fallback:** Streamlit until the authorized bounded dependency is added; this blocks the UI run but not backtest research. The package review is resolved and no separate checkpoint is required.
 
 **Missing dependencies with fallback:** none.
 
@@ -426,7 +426,7 @@ Existing tests use `tests/guards/test_future_scramble.py`, `tests/guards/test_co
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: MEDIUM — repo/runtime verified; current Streamlit API researched in official docs, but legitimacy check is SUS and app dependency is not installed.
+- Standard stack: MEDIUM — repo/runtime and official Streamlit identity/release/license evidence verified; the app dependency is not installed yet.
 - Architecture: HIGH — data doors, CLI builder and guard contracts read in source this session; race-level bootstrap choice follows locked context.
 - Pitfalls: HIGH — grounded in source, locked decisions and documented prior Phase 3/4 findings.
 

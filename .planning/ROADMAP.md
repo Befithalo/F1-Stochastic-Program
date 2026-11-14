@@ -223,7 +223,27 @@ Plans:
 
 **Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
 
-**Plans**: TBD
+**Plans:** 6 plans
+
+Plans:
+
+**Wave 0**
+- [ ] 06-00-PLAN.md — Create the five missing backtest and app test modules before implementation verifies them
+
+**Wave 1**
+- [ ] 06-01-PLAN.md — Cache-gated fixed-sample walk-forward tracer and cutoff predictions
+
+**Wave 2**
+- [ ] 06-02-PLAN.md — Brier, baseline, and finishing-interval evaluation report
+
+**Wave 3**
+- [ ] 06-03-PLAN.md — Team-call comparison and retrospective wear proxy
+
+**Wave 4**
+- [ ] 06-04-PLAN.md — One-page Streamlit view over measured results and cutoff replay
+
+**Wave 5**
+- [ ] 06-05-PLAN.md — Measured README results, explainer, decisions, and docs checks
 **UI hint**: yes
 
 ### Phase 7: Bayesian Pace Model
