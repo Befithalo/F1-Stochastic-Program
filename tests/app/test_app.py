@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from importlib import import_module
 from pathlib import Path
 
 import pytest
@@ -73,6 +74,5 @@ def test_empty_loading_error_and_partial_states_are_explicit(
 
 
 def test_streamlit_harness_can_open_page_for_zero_one_many_and_layout_assertions() -> None:
-    from streamlit.testing.v1 import AppTest
-
-    assert AppTest.from_file(str(APP_PATH)) is not None
+    app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
+    assert app_test.from_file(str(APP_PATH)) is not None

@@ -89,15 +89,15 @@ def test_cluster_bootstrap_is_paired_race_level_and_seed_reproducible() -> None:
 def test_all_ten_predictions_freeze_before_results_door_and_first_score() -> None:
     events: list[str] = []
 
-    def freeze(rows):
+    def freeze(rows: list[dict[str, object]]) -> list[dict[str, object]]:
         events.append(f"freeze:{len(rows)}")
         return rows
 
-    def results(race_id):
+    def results(race_id: str) -> pd.DataFrame:
         events.append(f"results:{race_id}")
         return pd.DataFrame()
 
-    def score(rows):
+    def score(rows: list[dict[str, object]]) -> list[dict[str, object]]:
         events.append("score")
         return rows
 

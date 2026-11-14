@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError, is_dataclass
+from typing import Any, cast
 
 import pytest
 from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, preflight_races, run_walk_forward
@@ -38,15 +39,15 @@ def test_incomplete_sample_stops_before_any_prediction_or_results_access() -> No
     events: list[str] = []
 
     class Accessor:
-        def catalog(self):
+        def catalog(self) -> dict[str, bool]:
             events.append("catalog")
             return {race_id: race_id != "2024-02" for race_id in EXPECTED_RACES}
 
-        def snapshot(self, _at):
+        def snapshot(self, _at: object) -> None:
             events.append("snapshot")
             raise AssertionError("prediction started before all-race preflight")
 
-        def history(self, _at):
+        def history(self, _at: object) -> None:
             events.append("history")
             raise AssertionError("prediction started before all-race preflight")
 
@@ -60,13 +61,13 @@ def test_incomplete_sample_stops_before_any_prediction_or_results_access() -> No
 def test_prediction_freeze_precedes_results_access_and_scoring() -> None:
     events: list[tuple[str, int]] = []
 
-    def freeze(rows):
+    def freeze(rows: list[Any]) -> None:
         events.append(("freeze", len(rows)))
 
-    def results(_race_id):
+    def results(_race_id: str) -> None:
         events.append(("results", 0))
 
-    def score(_rows):
+    def score(_rows: list[Any]) -> None:
         events.append(("score", 0))
 
     trace = run_walk_forward(
@@ -92,7 +93,7 @@ def test_cutoffs_are_chronological_and_frozen_rows_are_immutable() -> None:
     first = trace.predictions[0]
     if is_dataclass(first):
         with pytest.raises((FrozenInstanceError, AttributeError, TypeError)):
-            first.cutoff_lap = -1
+            cast(Any, first).cutoff_lap = -1
 
 
 def test_requesting_regulation_reset_race_is_rejected() -> None:
