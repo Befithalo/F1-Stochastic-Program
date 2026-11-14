@@ -5,11 +5,11 @@ current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
 current_plan: 8
 status: verifying
-stopped_at: Completed 06-07-PLAN.md
-last_updated: "2026-11-14T12:15:41.808Z"
+stopped_at: Phase 06 UI follow-up decisions gathered
+last_updated: "2026-11-14T20:01:54.339Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: 9f163ba2426872897e59188b3dac3f31250e8756
+state_head: 1b35724c8c5ebdb0ad56841f0e010b5048eae2a1
 progress:
   total_phases: 8
   completed_phases: 4
@@ -159,6 +159,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-14T12:15:41.243Z
-Stopped at: Completed 06-07-PLAN.md
-Resume file: None
+Last session: 2026-11-14T20:01:53.741Z
+Stopped at: Phase 06 UI follow-up decisions gathered
+Resume file: .planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md
