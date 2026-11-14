@@ -9,6 +9,7 @@ Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
 """
 
 import argparse
+import json
 import re
 import sys
 import time
@@ -247,13 +248,22 @@ def build_parser() -> argparse.ArgumentParser:
         help=("risk aversion in [0, 1]: 0 weights mean, 1 weights worst-decile CVaR (default 0.5)"),
     )
     replay.add_argument("--seed", type=int, default=0, metavar="S", help="random seed (default 0)")
-    backtest = sub.add_parser("backtest", help="generate one registered walk-forward prediction")
-    backtest.add_argument("--race", required=True, help="registered race ID, for example 2023-01")
-    backtest.add_argument("--driver", required=True, metavar="CODE", help="driver code, e.g. ALO")
-    backtest.add_argument("--lap", required=True, type=int, metavar="N", help="cutoff lap")
+    backtest = sub.add_parser("backtest", help="score the registered sample or make one prediction")
+    backtest.add_argument("--race", help="registered race ID, for example 2023-01")
+    backtest.add_argument("--driver", metavar="CODE", help="driver code, e.g. ALO")
+    backtest.add_argument("--lap", type=int, metavar="N", help="cutoff lap")
     backtest.add_argument("--n", type=int, default=1000, help="seeded simulation count")
     backtest.add_argument("--risk", type=float, default=0.5, help="risk aversion in [0, 1]")
     backtest.add_argument("--seed", type=int, default=0, help="seed for repeatable predictions")
+    backtest.add_argument(
+        "--report", action="store_true", help="score and report the full registered race sample"
+    )
+    backtest.add_argument(
+        "--output",
+        type=Path,
+        default=Path("reports/backtest/phase-06.json"),
+        help="completed report path (default: reports/backtest/phase-06.json)",
+    )
     return parser
 
 
@@ -1133,7 +1143,14 @@ def _cmd_replay(
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "backtest":
+        single_cutoff_values = (args.race, args.driver, args.lap)
+        if args.report and any(value is not None for value in single_cutoff_values):
+            parser.error("--report cannot be combined with --race, --driver, or --lap")
+        if not args.report and any(value is None for value in single_cutoff_values):
+            parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
         if args.command == "plot":
@@ -1165,6 +1182,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 data_dir, args.slug, args.driver, args.lap, args.n, args.risk, args.seed
             )
         if args.command == "backtest":
+            if args.report:
+                from f1si.backtest.scoring import score_registered_sample
+
+                report = score_registered_sample(
+                    paths.db_path(data_dir),
+                    n_simulations=args.n,
+                    risk=args.risk,
+                    seed=args.seed,
+                )
+                output: Path = args.output
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(
+                    json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+                    encoding="utf-8",
+                )
+                print(f"Wrote completed backtest report to {output}")
+                return 0
             from f1si.backtest.walk_forward import predict_at_cutoff
 
             row = predict_at_cutoff(
