@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Any, cast
 
@@ -410,6 +411,19 @@ def extend_existing_report(
     seed: int,
 ) -> dict[str, Any]:
     """Add the task 06-05 diagnostics to a matching measured Phase 6 probability report."""
+
+    def finite_in_range(value: object, low: float, high: float) -> bool:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return False
+        try:
+            number = float(value)
+        except (OverflowError, ValueError):
+            return False
+        return math.isfinite(number) and low <= number <= high
+
+    def positive_int(value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
     metadata_value = report.get("metadata")
     metadata = metadata_value if isinstance(metadata_value, dict) else {}
     expected = {
@@ -462,11 +476,31 @@ def extend_existing_report(
                     or component.get("race_count") != len(REGISTERED_RACE_IDS)
                 ):
                     mismatches.append(f"{name}.{part} race denominator is incomplete")
+                if isinstance(component, dict):
+                    if not finite_in_range(component.get("mean"), 0.0, 1.0):
+                        mismatches.append(f"{name}.{part}.mean must be finite and within [0, 1]")
+                    if isinstance(per_race, dict) and any(
+                        not finite_in_range(value, 0.0, 1.0) for value in per_race.values()
+                    ):
+                        mismatches.append(
+                            f"{name}.{part}.per_race values must be finite and within [0, 1]"
+                        )
+                    if component.get("race_count") != len(REGISTERED_RACE_IDS):
+                        mismatches.append(f"{name}.{part}.race_count is inconsistent")
             paired = score.get("model_minus_baseline_95")
             if not isinstance(paired, dict) or not all(
                 field in paired for field in ("mean", "low", "high", "cluster_count")
             ):
                 mismatches.append(f"{name} paired uncertainty summary is incomplete")
+            elif (
+                any(
+                    not finite_in_range(paired.get(field), -1.0, 1.0)
+                    for field in ("mean", "low", "high")
+                )
+                or paired["low"] > paired["high"]
+                or paired.get("cluster_count") != len(REGISTERED_RACE_IDS)
+            ):
+                mismatches.append(f"{name} paired uncertainty values or denominator are invalid")
         count = metrics.get("brier_observation_count")
         if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
             mismatches.append("brier_observation_count is missing or invalid")
@@ -477,10 +511,57 @@ def extend_existing_report(
             field in interval.get("coverage", {}) for field in ("mean", "per_race", "race_count")
         ):
             mismatches.append("finish_interval_90 coverage summary is incomplete")
+        else:
+            coverage = interval["coverage"]
+            per_race = coverage.get("per_race")
+            if not finite_in_range(coverage.get("mean"), 0.0, 1.0):
+                mismatches.append(
+                    "finish_interval_90 coverage mean must be finite and within [0, 1]"
+                )
+            if (
+                not isinstance(per_race, dict)
+                or not per_race
+                or not set(per_race).issubset(REGISTERED_RACE_IDS)
+                or coverage.get("race_count") != len(per_race)
+                or not positive_int(coverage.get("race_count"))
+                or any(not finite_in_range(value, 0.0, 1.0) for value in per_race.values())
+            ):
+                mismatches.append(
+                    "finish_interval_90 coverage race values or denominator are invalid"
+                )
+            cluster = interval.get("race_cluster_95")
+            if not isinstance(cluster, dict) or not all(
+                field in cluster for field in ("mean", "low", "high", "cluster_count")
+            ):
+                mismatches.append("finish_interval_90 uncertainty summary is incomplete")
+            elif (
+                any(
+                    not finite_in_range(cluster.get(field), 0.0, 1.0)
+                    for field in ("mean", "low", "high")
+                )
+                or cluster["low"] > cluster["high"]
+                or cluster.get("cluster_count") != coverage.get("race_count")
+            ):
+                mismatches.append(
+                    "finish_interval_90 uncertainty values or denominator are invalid"
+                )
         if isinstance(interval, dict) and any(
             field not in interval for field in ("covered", "classified_finishers")
         ):
             mismatches.append("finish_interval_90 denominator fields are incomplete")
+        elif isinstance(interval, dict):
+            covered = interval.get("covered")
+            classified = interval.get("classified_finishers")
+            if (
+                not isinstance(covered, int)
+                or isinstance(covered, bool)
+                or covered < 0
+                or not positive_int(classified)
+                or covered > classified
+            ):
+                mismatches.append(
+                    "finish_interval_90 counts must have a positive consistent denominator"
+                )
     if mismatches:
         detail = "; ".join(mismatches)
         raise ValueError("Existing report does not match diagnostic inputs: " + detail)
