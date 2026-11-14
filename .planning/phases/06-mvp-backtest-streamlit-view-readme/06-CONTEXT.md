@@ -2,6 +2,7 @@
 
 **Gathered:** 2026-11-13
 **Status:** Ready for planning
+**Follow-up decisions added:** 2026-11-14, based on the approved UI review
 
 > **How these decisions were made.** The user had already selected all four discussion areas and authorized the agent to choose the recommended option. The choices below use those recommended defaults; the discussion log records the alternatives.
 
@@ -34,6 +35,7 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 ### Streamlit page and defaults
 - **D-07:** Build one read-only page with the required strategy table, finishing-position fan chart, regime gauge, tire estimate and uncertainty panel, reason line, and risk dial. Provide race, driver, cutoff-lap, and risk controls. Default to Bahrain 2023, ALO, a middle eligible cutoff, and risk aversion 0.5.
 - **D-08:** Reuse cutoff-safe replay inputs and show the existing safety-car probability as the regime view; do not imply that Phase 8's Markov regime model exists. Clearly label prior-driven or sparse-fallback output as uncalibrated. Add Streamlit as a project dependency as required by the roadmap, without adding deployment or live streaming.
+- **D-10:** Resolve the Phase 6 UI review findings against the approved `06-UI-SPEC.md`: use its exact replay error copy without showing raw exception text; mark the actual first-ranked table action with the accent; keep fan-chart bars neutral and use the accent for a clearly labeled summary marker from the selected cutoff's simulation; bring chart text, spacing, and control sizing into the declared design scale where native widgets permit. Show the risk slider endpoints visibly. Validate the rendered page at desktop and narrow widths.
 
 ### the agent's Discretion
 - The exact ten race IDs within the pre-registered season/round rule, with Bahrain 2023 fixed and the full list recorded before scoring.
@@ -67,6 +69,13 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 - `src/f1si/pace/kalman.py` — wear estimates and uncertainty inputs.
 - `tests/guards/import_scan.py` and `tests/guards/consumers.py` — import boundaries and future-scramble consumer registration.
 - `README.md` — existing user-facing command, assumptions, and source-credit conventions.
+
+### UI review follow-up
+- `.planning/phases/06-mvp-backtest-streamlit-view-readme/06-UI-SPEC.md` — approved copy, color, typography, spacing, responsive, and interaction contract.
+- `.planning/phases/06-mvp-backtest-streamlit-view-readme/06-UI-REVIEW.md` — audited gaps and required human inspection.
+- `src/f1si/app.py` — existing replay page, state handling, table, and CSS integration points.
+- `src/f1si/plots/simulate.py` — finishing-position chart data and renderer.
+- `tests/app/test_app.py` and `tests/plots/test_simulate_plot.py` — current UI and chart acceptance coverage.
 </canonical_refs>
 
 <code_context>
@@ -87,6 +96,9 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 - There is no backtest package or Streamlit dependency yet. The roadmap calls for adding the Phase 6 scoring layer and the required Streamlit view.
 - The Streamlit page should call shared cutoff-safe construction rather than duplicate data access or compute an end-of-race fit for earlier cutoffs.
 - README and the Phase 6 explainer should report actual measured output, explain fuel and tire wear as hidden variables, disclose model assumptions, and credit FastF1/OpenF1 with licensing notes.
+- The existing app defines the approved empty/loading/error copy, catches replay failures in `_safe_replay_result`, builds the strategy table in `_render_selected`, and injects its responsive styles in `_apply_styles`.
+- `prepare_sim_plot_data` and `build_sim_figure` are shared by the app and CLI plot output; preserve their plain-data/Figure pattern while improving chart readability.
+- Streamlit `AppTest` already checks page states and copy; add behavior-focused assertions for the error message, first-ranked marker, chart styling, and risk endpoints.
 </code_context>
 
 <specifics>
@@ -95,6 +107,7 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 - The four areas already selected for discussion are race selection/aggregation, platform versus team calls, probability scoring/interval coverage, and Streamlit controls/defaults.
 - Carry forward the Phase 3 ALO interval miss and Phase 4 early-fit bias and own-laps double-counting measurements.
 - Keep the dashboard's default on the known Bahrain 2023 ALO replay, with a neutral risk setting, while clearly showing fallback and calibration limits.
+- Treat the selected-cutoff chart marker as a summary of that cutoff's simulated finishing distribution; label it accurately and do not imply it is a lap coordinate on the finishing-position axis.
 </specifics>
 
 <deferred>
@@ -109,4 +122,4 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 ---
 
 *Phase: 06-mvp-backtest-streamlit-view-readme*
-*Context gathered: 2026-11-13*
+*Context gathered: 2026-11-13; UI follow-up decisions added: 2026-11-14*

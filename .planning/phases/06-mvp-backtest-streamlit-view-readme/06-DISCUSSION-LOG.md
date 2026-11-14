@@ -7,6 +7,9 @@
 **Phase:** 6-MVP Backtest, Streamlit View & README
 **Areas discussed:** Race selection and aggregation, probability scores and interval coverage, platform recommendations and observed team stops, Streamlit controls and defaults
 
+**Follow-up date:** 2026-11-14
+**Follow-up area:** UI review remediation, using the user's standing instruction to select the agent-recommended option.
+
 ---
 
 ## Race selection and aggregation
@@ -64,3 +67,17 @@
 - Hierarchical Bayesian pace modeling (Phase 7).
 - Markov regimes and regime-dependent pit loss (Phase 8).
 - Live streaming, production deployment, market-odds benchmarking, and broader dashboard features.
+
+---
+
+## Follow-up: UI review remediation (2026-11-14)
+
+| Area | Recommended option selected | Rationale |
+|---|---|---|
+| Error recovery | Render the exact approved error copy and keep raw exception text out of the user-facing state. | Matches the UI-SPEC recovery contract and avoids leaking implementation details. |
+| Ranked strategy table | Mark the actual first-ranked row with the accent. | The generic banner alone does not identify the row among the ranked actions. |
+| Finishing-position chart | Use neutral bars and an accent marker labeled as the selected-cutoff distribution summary. | Preserves the selected-cutoff signal while keeping the chart's finishing-position axis truthful. |
+| Typography and layout | Use readable chart sizes, documented spacing/control sizing where Streamlit permits, visible risk endpoints, and inspect desktop plus narrow layouts. | Closes the remaining contract and live-layout gaps without expanding the page scope. |
+
+**Selection:** Agent-selected recommended options, authorized by the user's standing instruction to choose the recommendation.
+**Deferred ideas:** None; this follow-up stays within Phase 6's approved one-page view.
