@@ -154,7 +154,7 @@ def test_replay_error_state_cannot_reuse_stale_selected_output() -> None:
     app = import_module("f1si.app")
     assert hasattr(app, "_safe_replay_result")
     failed = app._safe_replay_result(lambda: (_ for _ in ()).throw(ValueError("bad cutoff")))
-    assert failed == {"status": "error", "value": None}
+    assert failed == {"status": "error", "value": None, "reason": "bad cutoff"}
     assert "Replay could not be built for this selection." in app.ERROR_COPY
 
 

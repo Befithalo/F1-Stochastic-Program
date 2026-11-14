@@ -87,8 +87,8 @@ def _safe_replay_result(builder: Callable[[], dict[str, Any]]) -> dict[str, Any]
     """Return a fresh error state without carrying any previous selection's output."""
     try:
         return {"status": "ready", "value": builder()}
-    except Exception:
-        return {"status": "error", "value": None}
+    except Exception as err:
+        return {"status": "error", "value": None, "reason": str(err)}
 
 
 @st.cache_data(show_spinner=False, max_entries=64)
@@ -400,9 +400,9 @@ def main() -> None:
             accessor = cli._make_asof_accessor(data_path)
             first = accessor.snapshot(asof.AsOf(race_id, 0))
             laps_total = walk_forward._race_laps_total(accessor, race_id, first)
-        except Exception:
+        except Exception as err:
             st.subheader(EMPTY_TITLE)
-            st.write(EMPTY_BODY)
+            st.info(f"Replay unavailable: {err}")
             return
         cutoff_options = list(range(max(0, laps_total - 1)))
         driver_options = sorted({str(code).upper() for code in first.entries["driver_code"]})
@@ -457,11 +457,12 @@ def main() -> None:
                 )
             )
         if outcome["status"] == "error":
-            st.error(ERROR_COPY)
+            reason = str(outcome.get("reason", ERROR_COPY))
+            st.info(f"Replay unavailable: {reason}")
             return
         _render_selected(cast(dict[str, Any], outcome["value"]))
-    except Exception:
-        st.error(ERROR_COPY)
+    except Exception as err:
+        st.info(f"Replay unavailable: {err}")
 
 
 if __name__ == "__main__":
