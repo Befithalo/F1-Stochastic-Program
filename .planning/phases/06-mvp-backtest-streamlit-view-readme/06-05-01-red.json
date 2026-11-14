@@ -1,0 +1,13 @@
+{
+    "command":  "uv run python -m pytest tests/backtest/test_strategy.py::test_each_stop_uses_latest_recommendation_strictly_before_event -q --junitxml .planning/phases/06-mvp-backtest-streamlit-view-readme/06-05-01-red.xml",
+    "exitCode":  1,
+    "output":  "\u003c?xml version=\"1.0\" encoding=\"utf-8\"?\u003e\u003ctestsuites name=\"pytest tests\"\u003e\u003ctestsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"1\" time=\"1.162\" timestamp=\"2026-11-14T04:16:08.344931-05:00\" hostname=\"LAPTOP-OAMU4RG3\"\u003e\u003ctestcase classname=\"tests.backtest.test_strategy\" name=\"test_each_stop_uses_latest_recommendation_strictly_before_event\" time=\"0.006\"\u003e\u003cfailure message=\"assert 0 == 1\u0026#10; +  where 0 = len(Empty DataFrame\\nColumns: []\\nIndex: [])\"\u003edef test_each_stop_uses_latest_recommendation_strictly_before_event() -\u0026gt; None:\r\n        recommendations = pd.DataFrame(\r\n            {\r\n                \"race_id\": [\"2023-01\"] * 4,\r\n                \"driver\": [\"ALO\"] * 4,\r\n                \"cutoff_lap\": [4, 7, 9, 10],\r\n                \"top_action\": [\"stay out\", \"pit\", \"pit\", \"stay out\"],\r\n                \"planned_stop_lap\": [None, 8, 10, None],\r\n            }\r\n        )\r\n        stops = pd.DataFrame({\"race_id\": [\"2023-01\"], \"driver\": [\"ALO\"], \"in_lap\": [10]})\r\n        matched = match_team_stops(recommendations, stops)\r\n\u0026gt;       assert len(matched) == 1\r\nE       assert 0 == 1\r\nE        +  where 0 = len(Empty DataFrame\\nColumns: []\\nIndex: [])\r\n\r\ntests\\backtest\\test_strategy.py:22: AssertionError\u003c/failure\u003e\u003c/testcase\u003e\u003c/testsuite\u003e\u003c/testsuites\u003e",
+    "targetTest":  "test_each_stop_uses_latest_recommendation_strictly_before_event",
+    "targetFile":  "tests/backtest/test_strategy.py",
+    "expected":  "One observed stop is paired with the latest strictly earlier recommendation.",
+    "actual":  "The placeholder matcher returned zero rows; assertion len(matched) == 1 failed.",
+    "reportPath":  ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-05-01-red.xml",
+    "runStartedAt":  "2026-11-14T09:14:44.0946340Z",
+    "reportModifiedAt":  "2026-11-14T09:16:09.5074717Z",
+    "semanticAssessment":  "The named target test executed and failed on the planned behavior assertion because the matcher returned an empty DataFrame; no import, fixture, collection, or unrelated failure occurred."
+}
