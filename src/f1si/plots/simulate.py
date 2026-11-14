@@ -28,7 +28,8 @@ from f1si.plots.stints import EDGE_COLOR
 
 _SLUG = re.compile(r"[a-z0-9-]+")
 _DRIVER = re.compile(r"[A-Z]{3}")
-_BAR_COLOR: Final = "#4c78a8"
+_BAR_COLOR: Final = "#E9EEF3"
+_SUMMARY_COLOR: Final = "#D90429"
 
 
 @dataclass(frozen=True, eq=False)
@@ -100,20 +101,27 @@ def prepare_sim_plot_data(
     )
 
 
-def build_sim_figure(data: SimPlotData) -> Figure:
-    """Draw one bar per finishing position (Figure API, no pyplot)."""
+def build_sim_figure(data: SimPlotData, *, include_caption: bool = True) -> Figure:
+    """Draw a finishing-position distribution and its cutoff-local mean summary."""
     fig = Figure(figsize=(9, 5), layout="constrained")
     ax = fig.subplots()
     places = np.arange(1, len(data.probabilities) + 1)
     ax.bar(places, data.probabilities, edgecolor=EDGE_COLOR, color=_BAR_COLOR)
-    ax.axvline(data.mean, color=EDGE_COLOR, linestyle="--", linewidth=1.2, label="mean")
+    ax.axvline(
+        data.mean,
+        color=_SUMMARY_COLOR,
+        linestyle="--",
+        linewidth=2.0,
+        label="Mean finish at selected cutoff",
+    )
     ax.set_xticks(places)
-    ax.set_xlabel("Finishing position", fontsize=9)
-    ax.set_ylabel("Share of simulated races", fontsize=9)
-    ax.tick_params(labelsize=8)
-    ax.legend(fontsize=8)
-    fig.suptitle(data.title)
-    fig.supxlabel(data.caption, fontsize=6, wrap=True)
+    ax.set_xlabel("Finishing position", fontsize=12)
+    ax.set_ylabel("Share of simulated races", fontsize=12)
+    ax.tick_params(labelsize=10.5)
+    ax.legend(fontsize=10.5)
+    fig.suptitle(data.title, fontsize=15, fontweight="semibold")
+    if include_caption:
+        fig.text(0.01, 0.01, data.caption, fontsize=12, wrap=True, va="bottom")
     return fig
 
 

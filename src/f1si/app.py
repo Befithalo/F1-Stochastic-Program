@@ -324,8 +324,8 @@ def _render_selected(result: dict[str, Any]) -> None:
                 hindsight=False,
                 n_cars=int(result["n_cars"]),
             )
-            st.pyplot(build_sim_figure(chart), clear_figure=True)
-            st.caption("Finishing fan chart · simulated outcomes for the selected ranked action.")
+            st.pyplot(build_sim_figure(chart, include_caption=False), clear_figure=True)
+            st.caption(chart.caption)
         else:
             st.info(
                 "Unavailable at this cutoff: " + str(result.get("reason") or "No strategy data.")
