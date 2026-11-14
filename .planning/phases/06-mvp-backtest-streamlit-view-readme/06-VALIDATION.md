@@ -43,13 +43,15 @@ created: "2026-11-13"
 | 06-01-01 | 01 | 1 | BKT-01 | T-06-01 | Ten fixed race IDs and full-cache preflight precede a prediction-only tracer row | integration | `uv run python -m pytest tests/backtest/test_walk_forward.py -q` | yes | passed (7 tests) |
 | 06-01-02 | 01 | 1 | BKT-01 | T-06-02 | Every prediction uses its cutoff snapshot and earlier history; all ten races freeze before results access/scoring; future-scramble output is invariant; 2026 stays locked | integration/property | `uv run python -m pytest tests/guards tests/test_decisions_log.py -x -q`<br>`uv run python -m pytest tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -x -q` | yes | passed (224 + 58 tests) |
 | 06-02-01 | 02 | 2 | BKT-02 | T-06-03 | Brier masks, neutral past-only baseline, interval endpoints, equal-race means, and paired bootstrap semantics are exact | unit | `uv run python -m pytest tests/backtest/test_metrics.py -q` | yes | passed (7 tests) |
-| 06-02-02 | 02 | 2 | BKT-02 | T-06-04 | Complete eligible ten-race/cutoff set carries compact selected-draw probabilities and P05/P95 endpoints before results access or scoring; report has required metrics and denominators | integration | `uv run python -m pytest tests/backtest/test_metrics.py tests/backtest/test_walk_forward.py tests/strategy/test_longstaff.py -x -q` | yes | pending (scope amendment awaits plan checker) |
-| 06-03-01 | 03 | 3 | BKT-04 | T-06-05 | Every actual stop matches once to the latest strictly earlier recommendation; intervals resample races | integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | yes | pending |
-| 06-03-02 | 03 | 3 | BKT-04 | T-06-06 | Wear coverage/bias/own-laps evidence uses a labeled leave-current-stint-out proxy and does not tune the filter | unit/integration | `uv run python -m pytest tests/backtest/test_wear_diagnostic.py tests/backtest/test_strategy.py -q` | yes | pending |
-| 06-04-01 | 04 | 4 | UI-01 | T-06-SC | Reviewed dependency is locked; catalog controls/defaults call the shared builder and the page shows the measured ten-race summary | app/service smoke | `uv run python -m pytest tests/app/test_app.py -q`<br>`uv lock --check`<br>`rg -q 'uv sync --locked' .github/workflows/ci.yml` | yes | pending |
-| 06-04-02 | 04 | 4 | UI-01 | T-06-07 | Eight UI truths, proxy/fallback labels, and stale-output suppression hold across states/layouts | app/state | `uv run python -m pytest tests/app/test_app.py -q` | yes | pending |
-| 06-05-01 | 05 | 5 | UI-02 | T-06-08 | README/explainer claims match the measured report and preserve assumptions, denominators, and provider licensing | docs regression | `uv run python -m pytest tests/test_docs.py -x -q` | existing | pending |
-| 06-05-02 | 05 | 5 | UI-02 | T-06-09 | Phase 6 method decisions and publication claims are guarded by documentation tests | docs regression | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | existing | pending |
+| 06-03-01 | 03 | 3 | BKT-02 | T-06-13 | Every strategy option carries same-draw podium/top-10 probabilities and inclusive inverted-CDF P05/P95 summaries before prediction freeze; no raw draws or results access | unit/integration | `uv run python -m pytest tests/strategy/test_longstaff.py -q` | yes | pending |
+| 06-04-01 | 04 | 4 | BKT-02 | T-06-04 | Full ten-race prediction key set freezes before the first ResultsAccessor open or score call; incomplete traces stop before result access | integration | `uv run python -m pytest tests/backtest/test_scoring.py -x -q` | no (Plan 06-04 creates it) | pending |
+| 06-04-02 | 04 | 4 | BKT-02 | T-06-14 | Incomplete cache exits nonzero with no completed report; JSON preserves the ten IDs, paired Brier/interval metrics, denominators, seeds and conventions | integration/CLI | `uv run python -m pytest tests/backtest/test_scoring.py tests/backtest/test_walk_forward.py tests/test_cli.py -x -q` | no (Plan 06-04 creates it) | pending |
+| 06-05-01 | 05 | 5 | BKT-04 | T-06-05 | Every actual stop matches once to the latest strictly earlier recommendation; intervals resample races | integration | `uv run python -m pytest tests/backtest/test_strategy.py -q` | yes | pending |
+| 06-05-02 | 05 | 5 | BKT-04 | T-06-06 | Wear coverage/bias/own-laps evidence uses a labeled leave-current-stint-out proxy and does not tune the filter | unit/integration | `uv run python -m pytest tests/backtest/test_wear_diagnostic.py tests/backtest/test_strategy.py -q` | yes | pending |
+| 06-06-01 | 06 | 6 | UI-01 | T-06-SC | Reviewed dependency is locked; catalog controls/defaults call the shared builder and the page shows the measured ten-race summary | app/service smoke | `uv run python -m pytest tests/app/test_app.py -q`<br>`uv lock --check`<br>`rg -q 'uv sync --locked' .github/workflows/ci.yml` | yes | pending |
+| 06-06-02 | 06 | 6 | UI-01 | T-06-07 | Eight UI truths, proxy/fallback labels, and stale-output suppression hold across states/layouts | app/state | `uv run python -m pytest tests/app/test_app.py -q` | yes | pending |
+| 06-07-01 | 07 | 7 | UI-02 | T-06-08 | README/explainer claims match the measured report and preserve assumptions, denominators, and provider licensing | docs regression | `uv run python -m pytest tests/test_docs.py -x -q` | existing | pending |
+| 06-07-02 | 07 | 7 | UI-02 | T-06-09 | Phase 6 method decisions and publication claims are guarded by documentation tests | docs regression | `uv run python -m pytest tests/test_docs.py tests/test_decisions_log.py -x -q` | existing | pending |
 
 ---
 
@@ -61,17 +63,17 @@ created: "2026-11-13"
 - [ ] `tests/backtest/test_wear_diagnostic.py` — leave-current-stint-out proxy, wear-band coverage denominator, early-fit bias, and own-laps evidence.
 - [ ] `tests/app/test_app.py` — required page controls/displays, cutoff-safe wiring, proxy/fallback labels, and all approved empty/loading/error/partial/layout states.
 
-Plan 06-00 creates all five missing test files. `tests/guards/consumers.py` is updated in Plan 06-01, and the approved Streamlit dependency/lock work is in Plan 06-04.
+Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is updated in Plan 06-01, Plan 06-04 creates the scorer test file, and the approved Streamlit dependency/lock work is in Plan 06-06.
 
 ### Wave 0 execution record
 
 - Both exact AST checks passed. Repository Ruff check and format check passed.
-- Full pytest collection is temporarily blocked by the missing `f1si.backtest` modules assigned to Plans 06-01 through 06-03. Mypy likewise reports only those not-yet-created backtest modules. Re-run the full suite and mypy after their implementation waves.
+- Full pytest collection is temporarily blocked by the missing scoring, team-strategy, and wear-diagnostic modules assigned to Plans 06-04 and 06-05; the Streamlit dependency and app are assigned to Plan 06-06. Mypy likewise reports not-yet-created backtest modules. Re-run the full suite and mypy after their implementation waves.
 
 ### Wave 1 execution record
 
 - Walk-forward tests passed (7); guards plus the decision log passed (224); the final walk-forward and future-scramble run passed (58). Ruff check and format check passed.
-- Full pytest collection still cannot start because the scoring, team strategy, and wear-proxy modules are scheduled for Waves 2 and 3. Mypy reports only those missing future-wave modules; rerun both gates as those modules land.
+- Full pytest collection still cannot start because the scorer, team strategy, and wear-proxy modules are scheduled for Waves 4 and 5. Mypy reports only those missing future-wave modules; rerun both gates as those modules land.
 
 ---
 
