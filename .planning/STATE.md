@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 7
+current_plan: 8
 status: executing
-stopped_at: Completed 06-05-PLAN.md
-last_updated: "2026-11-14T10:23:42.476Z"
+stopped_at: Completed 06-06-PLAN.md
+last_updated: "2026-11-14T10:42:19.040Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: dadafe6ceeaf72745723256b7c1dd78b03d777ab
+state_head: 4f428df59d5dab8ca07685b7c2a92906ef387291
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 40
-  completed_plans: 38
+  completed_plans: 39
 milestone_name: milestone
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 06 (MVP Backtest, Streamlit View & README) — EXECUTING
-Current Plan: 7
+Current Plan: 8
 Total Plans in Phase: 8
-Plan: 7 of 8
+Plan: 8 of 8
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 06 execution started
 
@@ -72,6 +72,7 @@ Progress: [====------] 38%
 | Phase 06 P03 | 12min | 1 tasks | 2 files |
 | Phase 06 P04 | 4h27m | 2 tasks | 16 files |
 | Phase 06 P05 | 1h15m | 2 tasks | 12 files |
+| Phase 06 P06 | 12min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -133,6 +134,7 @@ Progress: [====------] 38%
 - [Phase 06]: Version only the measured Phase 6 report under reports/; keep other generated report files ignored.
 - [Phase 06]: Match each stop to the newest recommendation strictly before its in-lap whose snapshot has not yet exposed the event.
 - [Phase 06]: Compare cutoff wear estimates to the existing pace fit after removing the evaluated driver stint; report unavailable proxies explicitly.
+- [Phase 06]: The Streamlit page uses the shared cutoff replay builder and a cache keyed by selected inputs, local cache metadata, and model-source identity.
 
 ### Pending Todos
 
@@ -147,6 +149,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-14T10:23:41.842Z
-Stopped at: Completed 06-05-PLAN.md
+Last session: 2026-11-14T10:42:18.496Z
+Stopped at: Completed 06-06-PLAN.md
 Resume file: None

@@ -66,7 +66,7 @@
 
 ### Presentation
 
-- [ ] **UI-01**: A one-page Streamlit view shows strategy table, finishing-position fan chart, regime gauge, tire panel, reason line and risk dial
+- [x] **UI-01**: A one-page Streamlit view shows strategy table, finishing-position fan chart, regime gauge, tire panel, reason line and risk dial
 - [ ] **UI-02**: README documents real measured results, hidden-variable assumptions and data licensing/credits
 - [x] **UI-03**: After each phase, a plain-language explanation of what was built is produced
 
@@ -122,7 +122,7 @@
 | BKT-01 | Phase 6 | Complete |
 | BKT-02 | Phase 6 | Complete |
 | BKT-04 | Phase 6 | Complete |
-| UI-01 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Complete |
 | UI-02 | Phase 6 | Pending |
 | PAC-05 | Phase 7 | Pending |
 | PAC-06 | Phase 7 | Pending |
