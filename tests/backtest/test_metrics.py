@@ -72,6 +72,12 @@ def test_interval_coverage_excludes_unclassified_finishers_and_reports_denominat
     assert result["covered"] == 1
 
 
+def test_dataframe_finish_interval_requires_explicit_observed_flag() -> None:
+    rows = pd.DataFrame({"finish_samples": [[1, 2, 3]], "finish_position": [2]})
+    with pytest.raises(ValueError, match="DataFrame inputs require observed=True"):
+        finish_interval(rows)
+
+
 def test_observation_masks_are_shared_between_model_and_baseline() -> None:
     rows = pd.DataFrame(
         {

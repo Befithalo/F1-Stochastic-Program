@@ -98,6 +98,8 @@ def finish_interval(
         raise ValueError("coverage must be between zero and one")
     alpha = (1.0 - coverage) / 2.0
     if isinstance(samples, pd.DataFrame):
+        if not observed:
+            raise ValueError("DataFrame inputs require observed=True")
         if not {"finish_samples", "finish_position"}.issubset(samples.columns):
             raise ValueError("coverage rows require finish_samples and finish_position")
         classified = pd.to_numeric(samples["finish_position"], errors="coerce").notna()
