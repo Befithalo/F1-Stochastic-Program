@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+
 from f1si.backtest.strategy import match_team_stops, summarize_team_calls
 
 
@@ -80,3 +81,22 @@ def test_report_description_is_observational_not_superiority_claim() -> None:
     assert "observed team" in text
     assert "beats" not in text
     assert "better than" not in text
+
+
+def test_summary_reports_per_race_agreement_and_signed_and_absolute_timing_intervals() -> None:
+    rows = pd.DataFrame(
+        {
+            "race_id": ["a", "a", "b"],
+            "action_agrees": [True, False, True],
+            "timing_error_laps": [-1, 3, 2],
+        }
+    )
+    result = summarize_team_calls(rows, rng=np.random.default_rng(4))
+    agreement = result["top_action_agreement"]
+    timing = result["stop_timing_error_laps"]
+    assert agreement["race_count"] == 2
+    assert agreement["per_race"] == {"a": 0.5, "b": 1.0}
+    assert set(agreement["race_cluster_95"]) == {"mean", "low", "high", "cluster_count"}
+    assert timing["signed"]["per_race"] == {"a": 1.0, "b": 2.0}
+    assert timing["absolute"]["per_race"] == {"a": 2.0, "b": 2.0}
+    assert timing["signed"]["race_cluster_95"]["cluster_count"] == 2
