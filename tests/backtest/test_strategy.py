@@ -23,6 +23,8 @@ def test_each_stop_uses_latest_recommendation_strictly_before_event() -> None:
     assert len(matched) == 1
     assert matched.iloc[0]["cutoff_lap"] == 9
     assert matched.iloc[0]["in_lap"] == 10
+    assert matched.iloc[0]["action_agrees"]
+    assert matched.iloc[0]["timing_error_laps"] == 0
 
 
 def test_actual_event_contributes_once_despite_many_prior_recommendations() -> None:
@@ -51,6 +53,30 @@ def test_cutoff_at_or_after_inlap_never_matches() -> None:
     )
     stops = pd.DataFrame({"race_id": ["r"], "driver": ["ALO"], "in_lap": [6]})
     assert match_team_stops(recommendations, stops).iloc[0]["cutoff_lap"] == 5
+
+
+def test_visible_event_is_skipped_in_favor_of_latest_safe_recommendation() -> None:
+    recommendations = pd.DataFrame(
+        {
+            "race_id": ["r"] * 2,
+            "driver": ["ALO"] * 2,
+            "cutoff_lap": [7, 9],
+            "top_action": ["stay out", "pit now"],
+            "planned_stop_lap": [None, 10],
+        }
+    )
+    stops = pd.DataFrame({"race_id": ["r"], "driver": ["ALO"], "in_lap": [10]})
+    visible = pd.DataFrame(
+        {
+            "race_id": ["r"],
+            "driver": ["ALO"],
+            "in_lap": [10],
+            "cutoff_lap": [9],
+        }
+    )
+    matched = match_team_stops(recommendations, stops, visible_events=visible)
+    assert matched.iloc[0]["cutoff_lap"] == 7
+    assert not matched.iloc[0]["event_visible_at_cutoff"]
 
 
 def test_per_race_summary_and_seeded_intervals_resample_races() -> None:

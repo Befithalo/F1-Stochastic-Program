@@ -1,10 +1,17 @@
 """Comparison of frozen strategy recommendations with observed pit events."""
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 
 
-def match_team_stops(recommendations: pd.DataFrame, stops: pd.DataFrame) -> pd.DataFrame:
+def match_team_stops(
+    recommendations: pd.DataFrame,
+    stops: pd.DataFrame,
+    *,
+    visible_events: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Pair each observed stop with the latest strictly earlier recommendation."""
     recommendation_columns = {
         "race_id",
@@ -20,6 +27,13 @@ def match_team_stops(recommendations: pd.DataFrame, stops: pd.DataFrame) -> pd.D
         )
     if not stop_columns.issubset(stops.columns):
         raise ValueError("stops require race_id, driver, and in_lap")
+    if visible_events is not None and not {
+        "race_id",
+        "driver",
+        "in_lap",
+        "cutoff_lap",
+    }.issubset(visible_events.columns):
+        raise ValueError("visible_events require race_id, driver, in_lap, and cutoff_lap")
 
     recs = recommendations.copy()
     events = stops.drop_duplicates(["race_id", "driver", "in_lap"], keep="first")
@@ -30,27 +44,40 @@ def match_team_stops(recommendations: pd.DataFrame, stops: pd.DataFrame) -> pd.D
 
     rows: list[dict[str, object]] = []
     for event in events.sort_values(["race_id", "driver", "in_lap"]).itertuples(index=False):
+        visible_cutoffs: set[float] = set()
+        if visible_events is not None:
+            visible = visible_events.loc[
+                (visible_events["race_id"] == event.race_id)
+                & (visible_events["driver"] == event.driver)
+                & (pd.to_numeric(visible_events["in_lap"], errors="coerce") == event.in_lap)
+            ]
+            visible_cutoffs = set(
+                pd.to_numeric(visible["cutoff_lap"], errors="coerce").dropna().astype(float)
+            )
         eligible = recs.loc[
             (recs["race_id"] == event.race_id)
             & (recs["driver"] == event.driver)
             & (recs["cutoff_lap"] < event.in_lap)
+            & ~recs["cutoff_lap"].isin(visible_cutoffs)
         ]
         if eligible.empty:
             continue
         selected = eligible.sort_values("cutoff_lap", kind="stable").iloc[-1]
         planned = pd.to_numeric(pd.Series([selected["planned_stop_lap"]]), errors="coerce").iloc[0]
-        timing_error = float(planned - event.in_lap) if pd.notna(planned) else np.nan
+        in_lap = float(cast(Any, event.in_lap))
+        timing_error = float(planned - in_lap) if pd.notna(planned) else np.nan
         rows.append(
             {
                 "race_id": str(event.race_id),
                 "driver": str(event.driver),
-                "in_lap": int(event.in_lap),
-                "cutoff_lap": int(selected["cutoff_lap"]),
+                "in_lap": int(in_lap),
+                "cutoff_lap": int(float(cast(Any, selected["cutoff_lap"]))),
                 "top_action": str(selected["top_action"]),
-                "planned_stop_lap": int(planned) if pd.notna(planned) else None,
-                "action_agrees": str(selected["top_action"]).lower() == "pit",
+                "planned_stop_lap": int(float(planned)) if pd.notna(planned) else None,
+                "action_agrees": str(selected["top_action"]).lower().startswith("pit"),
                 "timing_error_laps": timing_error,
                 "absolute_timing_error_laps": abs(timing_error),
+                "event_visible_at_cutoff": False,
             }
         )
     return pd.DataFrame(
@@ -65,6 +92,7 @@ def match_team_stops(recommendations: pd.DataFrame, stops: pd.DataFrame) -> pd.D
             "action_agrees",
             "timing_error_laps",
             "absolute_timing_error_laps",
+            "event_visible_at_cutoff",
         ],
     )
 
@@ -97,7 +125,11 @@ def summarize_team_calls(rows: pd.DataFrame, *, rng: np.random.Generator) -> dic
     signed = summarize("timing_error_laps")
     absolute = summarize("absolute_timing_error_laps")
     race_count = max(
-        (int(item["race_count"]) for item in (agreement, signed, absolute) if item is not None),
+        (
+            int(cast(Any, item["race_count"]))
+            for item in (agreement, signed, absolute)
+            if item is not None
+        ),
         default=0,
     )
     return {
