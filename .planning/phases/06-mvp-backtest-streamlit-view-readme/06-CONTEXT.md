@@ -25,6 +25,7 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 ### Probability scores and uncertainty coverage
 - **D-03:** Report Brier scores for podium and top-10 outcomes beside a probabilistic grid-position baseline learned only from earlier races. Use a conservative neutral prior when the first evaluation race has no usable earlier results. Report the model and baseline on the same drivers and cutoffs.
 - **D-04:** Build each driver's 90% finishing-position interval from the central empirical interval of simulated outcomes at that cutoff. Report observed coverage with race-clustered uncertainty; do not tune the interval on the ten evaluation races.
+- **D-09:** Before final-results access, freeze compact podium probability, top-10 probability, and inclusive empirical P05/P95 finish-position endpoints for each selected strategy option. Derive all four values from the same simulated finish-position draws already used to summarize that option, and discard the full draw arrays before retaining the prediction trace.
 - **D-05:** Measure Phase 4's real-data wear-band follow-up as a retrospective diagnostic against a leave-current-stint-out reference. Label this as a proxy rather than latent ground truth, report early-fit bias and own-laps double-counting evidence, and do not change the filter merely to make this diagnostic look better.
 
 ### Platform recommendations and observed team stops
@@ -74,7 +75,7 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 ### Reusable Assets
 - `AsOfAccessor.snapshot` and `.history` provide cutoff-local race inputs and strictly earlier completed race history.
 - `ResultsAccessor.final_classification` exposes final outcomes through the module restricted to `f1si.backtest.scoring`.
-- `LongstaffSchwartzPolicy.analyze` exposes ranked options and their simulated finish distributions; the Phase 5 cutoff builder already composes the pace fit, wear filter, race state, and safety-car estimate.
+- `LongstaffSchwartzPolicy.analyze` currently exposes ranked option aggregates but discards its finish draws. Plan 06-02 must add the compact D-09 probabilities and endpoints from each selected option's existing draw array before the prediction trace freezes; it must not approximate them from mean, spread, or CVaR or retain full arrays. The Phase 5 cutoff builder already composes the pace fit, wear filter, race state, and safety-car estimate.
 - `RaceState`, seeded `NumpySimulator`, existing plot helpers, the local race catalog, and the `reports/` output convention provide building blocks for the report and page.
 
 ### Established Patterns
