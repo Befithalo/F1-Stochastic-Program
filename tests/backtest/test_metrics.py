@@ -200,10 +200,12 @@ def _scoring_fakes(
                 race=SimpleNamespace(scheduled_laps=1),
                 entries=pd.DataFrame(
                     {
+                        "driver_number": [1],
                         "driver_code": ["AAA"],
                         "grid_position": [1],
                     }
                 ),
+                pit_events=pd.DataFrame(columns=["driver_number", "in_lap"]),
             )
 
         def history(self, _at: object) -> object:
@@ -236,6 +238,7 @@ def _scoring_fakes(
     monkeypatch.setattr("f1si.backtest.scoring.asof.AsOfAccessor", AsOf)
     monkeypatch.setattr(scoring, "_new_results_accessor", Results)
     monkeypatch.setattr(scoring, "run_walk_forward", lambda *_args, **_kwargs: trace)
+    monkeypatch.setattr(scoring, "wear_proxy_diagnostic", lambda *_args: {})
     monkeypatch.setattr("f1si.backtest.scoring.brier_scores", brier)
     monkeypatch.setattr(
         "f1si.backtest.scoring.asof.catalog",

@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 1
+open_count: 0
 waived_count: 0
-fixed_count: 1
+fixed_count: 2
 total_count: 2
-last_updated: 2026-11-14T10:54:24.632Z
+last_updated: 2026-11-14T11:06:24.865Z
 ---
 
 # Broken Windows Ledger
@@ -16,7 +16,7 @@ last_updated: 2026-11-14T10:54:24.632Z
 | id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
 | 1 | 06 | deviation | src/f1si/backtest/scoring.py |  | Pre-existing import-ban failures: scoring.py calls numpy.random.default_rng at lines 205, 238, and 319 outside Plan 06-06 scope. | fixed |  | 2026-11-14T10:40:34.229Z | 2026-11-14T10:54:24.251Z |
-| 2 | 06 | deviation | tests/backtest/test_metrics.py | 262 | Focused scoring suite has a pre-existing fixture failure: snapshot entries omit driver_number in test_predictions_freeze_before_first_results_open_and_score; unrelated to the RNG factory change. | open |  | 2026-11-14T10:54:24.632Z |  |
+| 2 | 06 | deviation | tests/backtest/test_metrics.py | 262 | Focused scoring suite has a pre-existing fixture failure: snapshot entries omit driver_number in test_predictions_freeze_before_first_results_open_and_score; unrelated to the RNG factory change. | fixed |  | 2026-11-14T10:54:24.632Z | 2026-11-14T11:06:24.865Z |
 
 ````json
 [
@@ -40,10 +40,10 @@ last_updated: 2026-11-14T10:54:24.632Z
     "file": "tests/backtest/test_metrics.py",
     "line": 262,
     "description": "Focused scoring suite has a pre-existing fixture failure: snapshot entries omit driver_number in test_predictions_freeze_before_first_results_open_and_score; unrelated to the RNG factory change.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-11-14T10:54:24.632Z",
-    "resolved_at": null,
+    "resolved_at": "2026-11-14T11:06:24.865Z",
     "milestone": "v1.0"
   }
 ]

@@ -6,10 +6,10 @@ current_phase_name: MVP Backtest, Streamlit View & README
 current_plan: 8
 status: executing
 stopped_at: Completed 06-06-PLAN.md
-last_updated: "2026-11-14T10:58:27.295Z"
+last_updated: "2026-11-14T11:06:29.600Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: 1c36457f192453485f9510c67279d631619c1ceb
+state_head: c000b74ec4b6b019c9584dc233ac3454f1b7ce97
 progress:
   total_phases: 8
   completed_phases: 4
@@ -152,6 +152,7 @@ Progress: [====------] 38%
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
 | 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
+| 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
 
 ## Session Continuity
 
