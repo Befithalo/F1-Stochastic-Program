@@ -189,7 +189,7 @@ Plans:
 
 ### Phase 5: Longstaff-Schwartz Strategy & Live Replay
 
-**Goal**: User can replay Bahrain 2023 lap by lap for any driver and get a ranked, explained pit recommendation with uncertainty
+**Goal**: As a strategist, I want to see explained, uncertainty-aware pit rankings per driver and lap, so that I can choose.
 **Mode:** mvp
 **Depends on**: Phase 4
 **Requirements**: STR-01, STR-02, STR-03, STR-04, RPL-01, RPL-02
