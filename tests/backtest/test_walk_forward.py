@@ -211,6 +211,54 @@ def test_full_runner_uses_completed_lap_horizon_when_schedule_is_missing(
     assert len(trace.predictions) == len(EXPECTED_RACES) * 3
 
 
+def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si import cli
+
+    monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, _at: object) -> object:
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=3),
+                entries=pd.DataFrame({"driver_code": ["AAA", "BBB"]}),
+            )
+
+    monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+    prepared: list[tuple[str, int, object]] = []
+    received: list[tuple[str, int, str, object]] = []
+
+    def prepare(_accessor: object, race_id: str, lap: int, **_options: object) -> object:
+        context = object()
+        prepared.append((race_id, lap, context))
+        return context
+
+    monkeypatch.setattr(cli, "_prepare_replay_context", prepare, raising=False)
+
+    def prediction(
+        _accessor: object,
+        race_id: str,
+        driver: str,
+        lap: int,
+        **options: object,
+    ) -> PredictionRow:
+        received.append((race_id, lap, driver, options.get("prepared_context")))
+        return PredictionRow(race_id, driver, lap, None, "test row")
+
+    monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
+    run_walk_forward(Path("cache.duckdb"))
+
+    expected_cutoffs = [(race_id, lap) for race_id in EXPECTED_RACES for lap in range(3)]
+    assert [(race_id, lap) for race_id, lap, _ in prepared] == expected_cutoffs
+    assert len(received) == 2 * len(expected_cutoffs)
+    contexts = {(race_id, lap): context for race_id, lap, context in prepared}
+    assert all(context is contexts[(race_id, lap)] for race_id, lap, _, context in received)
+
+
 def test_requesting_2026_race_is_rejected_before_prediction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

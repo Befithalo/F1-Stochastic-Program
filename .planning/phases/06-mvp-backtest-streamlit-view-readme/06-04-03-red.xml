@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.976" timestamp="2026-11-14T02:19:04.669342-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.backtest.test_walk_forward" name="test_full_runner_prepares_shared_replay_context_once_per_cutoff" time="0.006"><failure message="AssertionError: assert [] == [('2023-01', ...-02', 2), ...]&#10;  &#10;  Right contains 30 more items, first extra item: ('2023-01', 0)&#10;  Use -v to get more diff">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000022DABC4A300&gt;
+
+    def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        from f1si import cli
+    
+        monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
+    
+        class Accessor:
+            def __init__(self, _db: Path) -&gt; None:
+                pass
+    
+            def snapshot(self, _at: object) -&gt; object:
+                return SimpleNamespace(
+                    race=SimpleNamespace(scheduled_laps=3),
+                    entries=pd.DataFrame({"driver_code": ["AAA", "BBB"]}),
+                )
+    
+        monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+        prepared: list[tuple[str, int, object]] = []
+        received: list[tuple[str, int, str, object]] = []
+    
+        def prepare(_accessor: object, race_id: str, lap: int, **_options: object) -&gt; object:
+            context = object()
+            prepared.append((race_id, lap, context))
+            return context
+    
+        monkeypatch.setattr(cli, "_prepare_replay_context", prepare, raising=False)
+    
+        def prediction(
+            _accessor: object,
+            race_id: str,
+            driver: str,
+            lap: int,
+            **options: object,
+        ) -&gt; PredictionRow:
+            received.append((race_id, lap, driver, options.get("prepared_context")))
+            return PredictionRow(race_id, driver, lap, None, "test row")
+    
+        monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
+        run_walk_forward(Path("cache.duckdb"))
+    
+        expected_cutoffs = [(race_id, lap) for race_id in EXPECTED_RACES for lap in range(3)]
+&gt;       assert [(race_id, lap) for race_id, lap, _ in prepared] == expected_cutoffs
+E       AssertionError: assert [] == [('2023-01', ...-02', 2), ...]
+E         
+E         Right contains 30 more items, first extra item: ('2023-01', 0)
+E         Use -v to get more diff
+
+tests\backtest\test_walk_forward.py:255: AssertionError</failure></testcase></testsuite></testsuites>
