@@ -1,15 +1,15 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 05
-current_phase_name: Longstaff-Schwartz Strategy & Live Replay
-current_plan: 3
-status: in_progress
+current_phase: 06
+current_phase_name: MVP Backtest, Streamlit View & README
+current_plan: 1
+status: executing
 stopped_at: Phase 06 plans approved by independent checker
-last_updated: "2026-11-14T02:32:16.285Z"
+last_updated: "2026-11-14T02:36:21.567Z"
 last_activity: 2026-11-13
-last_activity_desc: Plan 05-03 local validation complete; current-branch CI pending
-state_head: dbc5994a980062add40ed10d7b1179635c536422
+last_activity_desc: Phase 06 execution started
+state_head: "0b8dc0f8c5ea4d99a96aa75eb020a0706f5e3a82"
 progress:
   total_phases: 8
   completed_phases: 4
@@ -25,16 +25,16 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-10-22)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 5 — longstaff schwartz strategy & live replay
+**Current focus:** Phase 06 — MVP Backtest, Streamlit View & README
 
 ## Current Position
 
-Phase: 05 (Longstaff-Schwartz Strategy & Live Replay) — IN PROGRESS
-Current Plan: 3
-Total Plans in Phase: 3
-Plan: 3 of 3
-Status: Plan 05-03 halted; current-branch GitHub Actions pending
-Last activity: 2026-11-13 - Local Plan 05-03 validation and Bahrain smoke passed; current-branch CI pending
+Phase: 06 (MVP Backtest, Streamlit View & README) — EXECUTING
+Current Plan: 1
+Total Plans in Phase: 6
+Plan: 1 of 6
+Status: Executing Phase 06
+Last activity: 2026-11-13 — Phase 06 execution started
 
 Progress: [=======---] 67%
 
