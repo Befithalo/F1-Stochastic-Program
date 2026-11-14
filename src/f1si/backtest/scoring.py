@@ -26,6 +26,7 @@ from f1si.backtest.walk_forward import (
 )
 from f1si.backtest.wear_diagnostic import wear_proxy_diagnostic
 from f1si.data import asof
+from f1si.rng import make_rng
 
 BOOTSTRAP_RESAMPLES = 2_000
 BOOTSTRAP_SEED_OFFSET = 61_409
@@ -202,7 +203,7 @@ def _summarize_brier(rows: pd.DataFrame, *, seed: int, n_resamples: int) -> dict
         difference = race_cluster_interval(
             losses,
             value=f"difference_{name}",
-            rng=np.random.default_rng(seed + BOOTSTRAP_SEED_OFFSET + offset),
+            rng=make_rng(seed + BOOTSTRAP_SEED_OFFSET + offset),
             n_resamples=n_resamples,
         )
         return {
@@ -235,7 +236,7 @@ def _summarize_interval_coverage(
     interval = race_cluster_interval(
         covered,
         value="covered",
-        rng=np.random.default_rng(seed + BOOTSTRAP_SEED_OFFSET + 2),
+        rng=make_rng(seed + BOOTSTRAP_SEED_OFFSET + 2),
         n_resamples=n_resamples,
     )
     return {
@@ -316,7 +317,7 @@ def _strategy_comparison(
     if not matched.empty and (matched["cutoff_lap"] >= matched["in_lap"]).any():
         raise ValueError("Strategy comparison included a recommendation visible at the stop event.")
     bootstrap_seed = seed + STRATEGY_BOOTSTRAP_SEED_OFFSET
-    summary = summarize_team_calls(matched, rng=np.random.default_rng(bootstrap_seed))
+    summary = summarize_team_calls(matched, rng=make_rng(bootstrap_seed))
     event_count = len(stop_frame.drop_duplicates(["race_id", "driver", "in_lap"]))
     summary.update(
         {
