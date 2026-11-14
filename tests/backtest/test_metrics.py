@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from f1si.backtest.metrics import (
     brier_scores,
@@ -95,3 +99,175 @@ def test_cluster_bootstrap_is_paired_race_level_and_seed_reproducible() -> None:
     second = race_cluster_interval(rows, value="value", rng=np.random.default_rng(31))
     assert first == second
     assert first["cluster_count"] == 3
+
+
+def test_preflight_requires_all_ten_races_before_scoring(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.backtest import scoring
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        scoring.asof,
+        "catalog",
+        lambda _db: pd.DataFrame(
+            {
+                "race_id": ["2023-01"],
+                "load_status": ["complete"],
+                "out_of_sample": [False],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        scoring,
+        "run_walk_forward",
+        lambda *_args, **_kwargs: events.append("prediction"),
+    )
+    monkeypatch.setattr(
+        scoring,
+        "ResultsAccessor",
+        lambda *_args, **_kwargs: pytest.fail("results opened before all-ten preflight"),
+    )
+
+    with pytest.raises(ValueError, match="2023-02"):
+        scoring.score_registered_sample(Path("cache.duckdb"))
+    assert events == []
+
+
+def _scoring_fakes(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    missing: tuple[tuple[str, int, str], ...] = (),
+    duplicate: bool = False,
+    events: list[str] | None = None,
+) -> None:
+    from f1si.backtest import scoring
+    from f1si.backtest.walk_forward import (
+        REGISTERED_RACE_IDS,
+        PredictionRow,
+        WalkForwardTrace,
+    )
+
+    trace_events = events if events is not None else []
+    race_ids = REGISTERED_RACE_IDS
+    predictions = tuple(
+        PredictionRow(
+            race_id,
+            "AAA",
+            0,
+            SimpleNamespace(
+                best=SimpleNamespace(
+                    podium_probability=0.2,
+                    top10_probability=0.7,
+                    finish_p05=2,
+                    finish_p95=8,
+                )
+            ),
+        )
+        for race_id in race_ids
+        if (race_id, 0, "AAA") not in missing
+    )
+    if duplicate:
+        predictions += (predictions[0],)
+    trace = WalkForwardTrace(predictions)
+
+    class AsOf:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, _at: object) -> object:
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=1),
+                entries=pd.DataFrame(
+                    {
+                        "driver_code": ["AAA"],
+                        "grid_position": [1],
+                    }
+                ),
+            )
+
+    class Results:
+        def __init__(self, _db: Path) -> None:
+            trace_events.append("results_open")
+            expected = {(row.race_id, row.cutoff_lap, row.driver) for row in trace.predictions}
+            assert len(expected) == len(race_ids), (
+                "full prediction set must freeze before results open"
+            )
+
+        def final_classification(self, race_id: str) -> pd.DataFrame:
+            return pd.DataFrame(
+                {
+                    "race_id": [race_id],
+                    "driver_code": ["AAA"],
+                    "final_position": [3],
+                }
+            )
+
+    def brier(rows: pd.DataFrame, *, paired: bool = False) -> dict[str, Any]:
+        trace_events.append("score")
+        assert paired
+        return {
+            "observation_count": int(rows["predicted_podium"].notna().sum()),
+            "podium": 0.1,
+            "top10": 0.2,
+            "baseline_podium": 0.2,
+            "baseline_top10": 0.3,
+            "model_podium_losses": np.full(len(rows), 0.1),
+            "baseline_podium_losses": np.full(len(rows), 0.2),
+            "model_top10_losses": np.full(len(rows), 0.2),
+            "baseline_top10_losses": np.full(len(rows), 0.3),
+            "model_mask": rows["predicted_podium"].notna(),
+            "baseline_mask": rows["predicted_podium"].notna(),
+        }
+
+    monkeypatch.setattr(scoring, "AsOfAccessor", AsOf)
+    monkeypatch.setattr(scoring, "ResultsAccessor", Results)
+    monkeypatch.setattr(scoring, "run_walk_forward", lambda *_args, **_kwargs: trace)
+    monkeypatch.setattr(scoring, "brier_scores", brier)
+    monkeypatch.setattr(
+        scoring.asof,
+        "catalog",
+        lambda _db: pd.DataFrame(
+            {
+                "race_id": list(race_ids),
+                "load_status": ["complete"] * len(race_ids),
+                "out_of_sample": [False] * len(race_ids),
+            }
+        ),
+    )
+    if events is not None:
+        trace_events.append("predictions_ready")
+
+
+def test_predictions_freeze_before_first_results_open_and_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.backtest import scoring
+
+    events: list[str] = []
+    _scoring_fakes(monkeypatch, events=events)
+    scoring.score_registered_sample(Path("cache.duckdb"))
+    assert events[0] == "predictions_ready"
+    assert "results_open" in events
+    score_positions = [i for i, event in enumerate(events) if event == "score"]
+    results_positions = [i for i, event in enumerate(events) if event == "results_open"]
+    assert score_positions
+    assert max(results_positions) < min(score_positions)
+
+
+@pytest.mark.parametrize("duplicate", [False, True])
+def test_incomplete_or_duplicate_trace_stops_before_results_open_or_score(
+    monkeypatch: pytest.MonkeyPatch, duplicate: bool
+) -> None:
+    from f1si.backtest import scoring
+
+    events: list[str] = []
+    _scoring_fakes(
+        monkeypatch,
+        missing=(("2024-02", 0, "AAA"),) if not duplicate else (),
+        duplicate=duplicate,
+        events=events,
+    )
+    with pytest.raises(ValueError, match="prediction trace"):
+        scoring.score_registered_sample(Path("cache.duckdb"))
+    assert events == ["predictions_ready"]
