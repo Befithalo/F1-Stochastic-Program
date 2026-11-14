@@ -62,7 +62,9 @@ def test_page_shows_fixed_sample_scores_and_denominators() -> None:
     display = app._report_display_values(app._report_summary())
     assert display["podium"] == "0.04996 / 0.08174"
     assert display["top10"] == "0.14533 / 0.19090"
-    assert display["coverage"] == "8,004 / 9,602 (83.0%)"
+    assert display["coverage"] == "Equal-race average: 83.0%; pooled: 83.4% (8,004 / 9,602)"
+    assert "Equal-race average" in display["coverage"]
+    assert "pooled" in display["coverage"]
     assert "388 observed stops" in display["team"]
     assert "79.0%" in display["team"]
     assert "1.40 laps" in display["team"]

@@ -233,8 +233,9 @@ def _report_display_values(report: dict[str, Any]) -> dict[str, str]:
         "podium": f"{podium['model']['mean']:.5f} / {podium['baseline']['mean']:.5f}",
         "top10": f"{top10['model']['mean']:.5f} / {top10['baseline']['mean']:.5f}",
         "coverage": (
-            f"{coverage['covered']:,} / {coverage['classified_finishers']:,} "
-            f"({coverage['coverage']['mean']:.1%})"
+            f"Equal-race average: {coverage['coverage']['mean']:.1%}; "
+            f"pooled: {coverage['covered'] / coverage['classified_finishers']:.1%} "
+            f"({coverage['covered']:,} / {coverage['classified_finishers']:,})"
         ),
         "team": (
             f"{agreement['mean']:.1%} top-action agreement "
@@ -264,7 +265,7 @@ def _render_report_summary(report: dict[str, Any]) -> None:
         display["top10"],
     )
     columns[2].metric(
-        "90% finish interval coverage · classified denominator",
+        "90% finish interval coverage · equal-race average and pooled classified denominator",
         display["coverage"],
     )
     st.caption("Team comparison: " + display["team"])
