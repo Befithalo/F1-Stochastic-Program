@@ -125,7 +125,7 @@ def test_preflight_requires_all_ten_races_before_scoring(
     )
     monkeypatch.setattr(
         scoring,
-        "ResultsAccessor",
+        "_new_results_accessor",
         lambda *_args, **_kwargs: pytest.fail("results opened before all-ten preflight"),
     )
 
@@ -170,6 +170,7 @@ def _scoring_fakes(
     if duplicate:
         predictions += (predictions[0],)
     trace = WalkForwardTrace(predictions)
+    real_brier_scores = scoring.brier_scores
 
     class AsOf:
         def __init__(self, _db: Path) -> None:
@@ -184,6 +185,12 @@ def _scoring_fakes(
                         "grid_position": [1],
                     }
                 ),
+            )
+
+        def history(self, _at: object) -> object:
+            return SimpleNamespace(
+                entries=pd.DataFrame(columns=["race_id", "driver_number", "grid_position"]),
+                results=pd.DataFrame(columns=["race_id", "driver_number", "final_position"]),
             )
 
     class Results:
@@ -205,23 +212,10 @@ def _scoring_fakes(
 
     def brier(rows: pd.DataFrame, *, paired: bool = False) -> dict[str, Any]:
         trace_events.append("score")
-        assert paired
-        return {
-            "observation_count": int(rows["predicted_podium"].notna().sum()),
-            "podium": 0.1,
-            "top10": 0.2,
-            "baseline_podium": 0.2,
-            "baseline_top10": 0.3,
-            "model_podium_losses": np.full(len(rows), 0.1),
-            "baseline_podium_losses": np.full(len(rows), 0.2),
-            "model_top10_losses": np.full(len(rows), 0.2),
-            "baseline_top10_losses": np.full(len(rows), 0.3),
-            "model_mask": rows["predicted_podium"].notna(),
-            "baseline_mask": rows["predicted_podium"].notna(),
-        }
+        return real_brier_scores(rows, paired=paired)
 
-    monkeypatch.setattr(scoring, "AsOfAccessor", AsOf)
-    monkeypatch.setattr(scoring, "ResultsAccessor", Results)
+    monkeypatch.setattr(scoring.asof, "AsOfAccessor", AsOf)
+    monkeypatch.setattr(scoring, "_new_results_accessor", Results)
     monkeypatch.setattr(scoring, "run_walk_forward", lambda *_args, **_kwargs: trace)
     monkeypatch.setattr(scoring, "brier_scores", brier)
     monkeypatch.setattr(
@@ -243,16 +237,18 @@ def test_predictions_freeze_before_first_results_open_and_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from f1si.backtest import scoring
+    from f1si.backtest.walk_forward import REGISTERED_RACE_IDS
 
     events: list[str] = []
     _scoring_fakes(monkeypatch, events=events)
-    scoring.score_registered_sample(Path("cache.duckdb"))
+    report = scoring.score_registered_sample(Path("cache.duckdb"))
     assert events[0] == "predictions_ready"
     assert "results_open" in events
     score_positions = [i for i, event in enumerate(events) if event == "score"]
     results_positions = [i for i, event in enumerate(events) if event == "results_open"]
     assert score_positions
     assert max(results_positions) < min(score_positions)
+    assert report["metrics"]["brier_observation_count"] == len(REGISTERED_RACE_IDS)
 
 
 @pytest.mark.parametrize("duplicate", [False, True])
