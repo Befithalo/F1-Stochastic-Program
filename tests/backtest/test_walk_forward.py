@@ -314,6 +314,53 @@ def test_prepared_replay_matches_standalone_prediction_exactly(long_synthetic_db
     assert shared == standalone
 
 
+def test_walk_forward_exposes_bounded_worker_control() -> None:
+    from inspect import signature
+
+    assert "workers" in signature(run_walk_forward).parameters
+
+
+def test_serial_and_parallel_full_trace_match_exactly(tmp_path: Path) -> None:
+    from datetime import UTC, datetime
+
+    from f1si import paths
+    from f1si.data.loader import load_races
+    from f1si.data.sources.synthetic_source import SyntheticSource
+    from f1si.rng import make_rng
+    from f1si.synthetic import SyntheticRaceSpec
+
+    specs = tuple(
+        SyntheticRaceSpec(
+            season, round_number, f"Race {season}-{round_number}", n_drivers=2, n_laps=4
+        )
+        for season, rounds in ((2023, 4), (2024, 3), (2025, 3))
+        for round_number in range(1, rounds + 1)
+    )
+    db_path = paths.db_path(tmp_path)
+    load_races(
+        SyntheticSource(specs, rng=make_rng(42)),
+        db_path,
+        (2023, 2024, 2025),
+        now=datetime(2026, 10, 22, tzinfo=UTC),
+        echo=lambda _line: None,
+    )
+
+    serial = run_walk_forward(db_path, n_simulations=1, risk=0.5, seed=159, workers=1)
+    parallel = run_walk_forward(db_path, n_simulations=1, risk=0.5, seed=159, workers=2)
+
+    drivers = sorted({row.driver for row in serial.predictions if row.race_id == EXPECTED_RACES[0]})
+    expected = [
+        (race_id, lap, driver)
+        for race_id in EXPECTED_RACES
+        for lap in range(4)
+        for driver in drivers
+    ]
+    actual = [(row.race_id, row.cutoff_lap, row.driver) for row in parallel.predictions]
+    assert actual == expected
+    assert len(expected) == 80
+    assert parallel == serial
+
+
 def test_requesting_2026_race_is_rejected_before_prediction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
