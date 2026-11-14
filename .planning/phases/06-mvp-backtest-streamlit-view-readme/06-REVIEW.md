@@ -1,12 +1,11 @@
 ---
 phase: 06-mvp-backtest-streamlit-view-readme
-reviewed: 2026-11-14T12:36:25Z
+reviewed: 2026-11-14T21:19:09Z
 depth: standard
-files_reviewed: 3
+files_reviewed: 2
 files_reviewed_list:
-  - src/f1si/backtest/scoring.py
-  - src/f1si/cli.py
-  - tests/backtest/test_metrics.py
+  - src/f1si/app.py
+  - src/f1si/plots/simulate.py
 findings:
   critical: 0
   warning: 0
@@ -17,14 +16,14 @@ status: clean
 
 # Phase 06: Code Review Report
 
-**Reviewed:** 2026-11-14T12:36:25Z
+**Reviewed:** 2026-11-14T21:19:09Z
 **Depth:** standard
-**Files Reviewed:** 3
+**Files Reviewed:** 2
 **Status:** clean
 
 ## Summary
 
-Re-reviewed the diagnostics-only integrity path after commit `7d06058`. The source-pinned digest covers schema version, race IDs, complete scoring metadata, all four probability evidence sections (including score summaries, denominators, and interval endpoints), and the full `carry_forward_diagnostic`. Validation completes before either diagnostic runs or the report is mutated. The CLI rejects malformed JSON and non-object JSON roots with friendly errors. Independently recomputed the digest for `reports/backtest/phase-06.json`; it matches the code-pinned SHA-256 value. No issues found.
+Reviewed the Streamlit replay page and finishing-position plotting module, including their cutoff snapshot, replay construction, simulation, report, and rendering call paths. No confirmed correctness, security, or maintainability issues were found in the scoped files. This source review does not change the pending live-browser acceptance check.
 
 ## Narrative Findings (AI reviewer)
 
@@ -32,6 +31,6 @@ All reviewed files meet quality standards. No issues found.
 
 ---
 
-_Reviewed: 2026-11-14T12:36:25Z_
+_Reviewed: 2026-11-14T21:19:09Z_
 _Reviewer: the agent (gsd-code-reviewer)_
 _Depth: standard_
