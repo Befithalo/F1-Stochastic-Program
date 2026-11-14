@@ -1251,6 +1251,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                     encoding="utf-8",
                 )
                 print(f"Wrote completed backtest report to {output}")
+                print(
+                    "Report includes one-to-one team-stop comparisons with race-cluster "
+                    "uncertainty and retrospective wear-proxy diagnostics."
+                )
                 return 0
             from f1si.backtest.walk_forward import predict_at_cutoff
 

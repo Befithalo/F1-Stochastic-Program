@@ -14,6 +14,7 @@ from f1si.backtest.metrics import (
     race_cluster_interval,
     summarize_by_race,
 )
+from f1si.backtest.strategy import match_team_stops, summarize_team_calls
 from f1si.backtest.walk_forward import (
     REGISTERED_RACE_IDS,
     PredictionRow,
@@ -26,6 +27,7 @@ from f1si.data import asof
 
 BOOTSTRAP_RESAMPLES = 2_000
 BOOTSTRAP_SEED_OFFSET = 61_409
+STRATEGY_BOOTSTRAP_SEED_OFFSET = 71_633
 
 
 def _new_results_accessor(db_path: Path) -> Any:
@@ -243,6 +245,71 @@ def _summarize_interval_coverage(
     }
 
 
+def _strategy_comparison(
+    db_path: Path,
+    predictions: tuple[PredictionRow, ...],
+    *,
+    seed: int,
+) -> dict[str, Any]:
+    """Compare one frozen recommendation per cutoff with each observed stop event once."""
+    recommendations: list[dict[str, Any]] = []
+    for row in predictions:
+        if row.analysis is None or not row.analysis.options:
+            continue
+        best = row.analysis.best
+        planned = best.plan.stop_laps[0] if best.plan.stop_laps else None
+        recommendations.append(
+            {
+                "race_id": row.race_id,
+                "driver": row.driver.upper(),
+                "cutoff_lap": row.cutoff_lap,
+                "top_action": best.action,
+                "planned_stop_lap": planned,
+            }
+        )
+
+    accessor = asof.AsOfAccessor(db_path)
+    stops: list[dict[str, Any]] = []
+    for race_id in REGISTERED_RACE_IDS:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+        drivers = end.entries.set_index("driver_number")["driver_code"]
+        for event in end.pit_events.itertuples(index=False):
+            driver = drivers.get(int(event.driver_number))
+            if driver is None:
+                continue
+            stops.append(
+                {
+                    "race_id": race_id,
+                    "driver": str(driver).upper(),
+                    "in_lap": int(event.in_lap),
+                }
+            )
+
+    stop_frame = pd.DataFrame(stops, columns=["race_id", "driver", "in_lap"])
+    recommendation_frame = pd.DataFrame(
+        recommendations,
+        columns=["race_id", "driver", "cutoff_lap", "top_action", "planned_stop_lap"],
+    )
+    matched = match_team_stops(recommendation_frame, stop_frame)
+    if not matched.empty and (matched["cutoff_lap"] >= matched["in_lap"]).any():
+        raise ValueError("Strategy comparison included a recommendation visible at the stop event.")
+    summary = summarize_team_calls(
+        matched,
+        rng=np.random.default_rng(seed + STRATEGY_BOOTSTRAP_SEED_OFFSET),
+    )
+    event_count = len(stop_frame.drop_duplicates(["race_id", "driver", "in_lap"]))
+    summary.update(
+        {
+            "observed_stop_event_count": event_count,
+            "matched_stop_event_count": len(matched),
+            "unmatched_stop_event_count": event_count - len(matched),
+            "matching": "latest recommendation cutoff strictly before the observed in-lap",
+            "interpretation": "retrospective comparison with observed team behavior",
+        }
+    )
+    return summary
+
+
 def score_registered_sample(
     db_path: Path,
     *,
@@ -271,6 +338,7 @@ def score_registered_sample(
     joined = _join_results_and_baseline(db_path, predictions, results)
     metrics = _summarize_brier(joined, seed=seed, n_resamples=n_resamples)
     coverage = _summarize_interval_coverage(joined, seed=seed, n_resamples=n_resamples)
+    strategy = _strategy_comparison(db_path, frozen, seed=seed)
     reference = joined.loc[(joined["race_id"] == "2023-01") & (joined["driver_code"] == "ALO")]
     reference_outcome = reference["finish_position"].dropna()
     diagnostic = {
@@ -290,6 +358,7 @@ def score_registered_sample(
             "top10_brier": metrics["top10"],
             "brier_observation_count": metrics["observation_count"],
             "finish_interval_90": coverage,
+            "team_strategy_comparison": strategy,
         },
         "metadata": {
             "base_seed": seed,
