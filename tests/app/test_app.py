@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-APP_PATH = Path("src/f1si/app.py")
+APP_PATH = Path(__file__).resolve().parents[2] / "src" / "f1si" / "app.py"
 
 
 def app_source() -> str:
@@ -58,18 +58,14 @@ def test_page_exposes_measured_summary_and_required_outputs(
 
 
 def test_page_shows_fixed_sample_scores_and_denominators() -> None:
-    source = app_source().lower()
-    for measured_value in (
-        "0.04996",
-        "0.08174",
-        "0.14533",
-        "0.19090",
-        "8,004 / 9,602",
-        "388",
-        "0.7899",
-        "1.40 laps",
-    ):
-        assert measured_value in source
+    app = import_module("f1si.app")
+    display = app._report_display_values(app._report_summary())
+    assert display["podium"] == "0.04996 / 0.08174"
+    assert display["top10"] == "0.14533 / 0.19090"
+    assert display["coverage"] == "8,004 / 9,602 (83.0%)"
+    assert "388 observed stops" in display["team"]
+    assert "79.0%" in display["team"]
+    assert "1.40 laps" in display["team"]
 
 
 def test_page_uses_full_immutable_replay_cache_identity() -> None:
@@ -107,4 +103,6 @@ def test_empty_loading_error_and_partial_states_are_explicit(
 
 def test_streamlit_harness_can_open_page_for_zero_one_many_and_layout_assertions() -> None:
     app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
-    assert app_test.from_file(str(APP_PATH)) is not None
+    result = app_test.from_file(APP_PATH).run()
+    assert not result.exception
+    assert any("Complete ten-race evaluation" in item.value for item in result.subheader)

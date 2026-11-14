@@ -16,6 +16,7 @@ dependencies = [
   # CLAUDE.md stack: Sobol sampling (scipy) and the lap kernel (numba), DEC-074
   "scipy>=1.15,<2",
   "numba>=0.68,<1",
+  "streamlit>=1.67,<2",
 ]
 
 [project.scripts]
