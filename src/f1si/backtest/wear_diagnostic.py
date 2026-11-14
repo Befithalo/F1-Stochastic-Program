@@ -105,6 +105,7 @@ def wear_proxy_diagnostic(
         end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
         end_snapshots[race_id] = end
 
+    reference_rates: dict[tuple[str, int, int], float | None] = {}
     measurements: list[dict[str, Any]] = []
     for race_id, cutoff in cutoffs:
         snapshot = accessor.snapshot(asof.AsOf(race_id, cutoff))
@@ -114,12 +115,17 @@ def wear_proxy_diagnostic(
         for result in results:
             if not result.is_current or not result.rows or result.n_used < 1:
                 continue
-            end_snapshot = end_snapshots[race_id]
-            reference = build_leave_stint_out_reference(
-                end_snapshot.laps, driver=str(result.driver_number), stint=result.stint
-            )
-            reference_fit = fit_linear_pace(replace(end_snapshot, laps=reference))
-            proxy = reference_fit.wear_rate(result.compound)
+            reference_key = (race_id, result.driver_number, result.stint)
+            if reference_key not in reference_rates:
+                end_snapshot = end_snapshots[race_id]
+                reference = build_leave_stint_out_reference(
+                    end_snapshot.laps,
+                    driver=str(result.driver_number),
+                    stint=result.stint,
+                )
+                reference_fit = fit_linear_pace(replace(end_snapshot, laps=reference))
+                reference_rates[reference_key] = reference_fit.wear_rate(result.compound)
+            proxy = reference_rates[reference_key]
             if proxy is None:
                 continue
             last = result.rows[-1]
