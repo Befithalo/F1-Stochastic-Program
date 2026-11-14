@@ -346,7 +346,13 @@ def test_diagnostics_extension_rejects_inconsistent_probability_summaries_withou
 
 @pytest.mark.parametrize(
     "tamper",
-    ["coherent-race-subset", "arbitrary-denominators", "altered-interval", "metadata"],
+    [
+        "coherent-race-subset",
+        "arbitrary-denominators",
+        "altered-interval",
+        "metadata",
+        "carry-forward-reference",
+    ],
 )
 def test_diagnostics_extension_rejects_coherent_tampering_of_trusted_probability_evidence(
     monkeypatch: pytest.MonkeyPatch, tamper: str
@@ -376,9 +382,11 @@ def test_diagnostics_extension_rejects_coherent_tampering_of_trusted_probability
         interval = report["metrics"]["finish_interval_90"]["race_cluster_95"]
         interval["low"] = 0.80
         interval["high"] = 0.86
-    else:
+    elif tamper == "metadata":
         report["metadata"]["paired_model_baseline_mask"] = "separately selected rows"
         report["metadata"]["bootstrap_seed"] += 1
+    else:
+        report["carry_forward_diagnostic"]["historical_phase_03_observed_finish"] += 1
 
     before = copy.deepcopy(report)
     monkeypatch.setattr(

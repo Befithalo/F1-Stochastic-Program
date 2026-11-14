@@ -41,7 +41,7 @@ STRATEGY_BOOTSTRAP_SEED_OFFSET = 71_633
 # the expected value in code: a hash stored only in the editable report cannot
 # establish provenance.
 PHASE_6_PROBABILITY_EVIDENCE_SHA256 = (
-    "9d5f0d57274fb40e34d55fe223f8b89a5bc869ed637dbfa3d6921f2444d7b2f7"
+    "ff713e06ddb186c075cff028251c1f28a9801fd3492104729e2b662ededd4449"
 )
 
 
@@ -63,6 +63,7 @@ def _probability_evidence_digest(report: dict[str, Any]) -> str | None:
         "schema_version": report.get("schema_version"),
         "race_ids": report.get("race_ids"),
         "metadata": metadata,
+        "carry_forward_diagnostic": report.get("carry_forward_diagnostic"),
         "metrics": {name: metrics[name] for name in probability_names},
     }
     try:
