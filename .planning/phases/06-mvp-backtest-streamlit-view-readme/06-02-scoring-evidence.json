@@ -1,0 +1,13 @@
+{
+  "command": "uv run python -m pytest tests/backtest/test_metrics.py -q --junitxml=.planning/phases/06-mvp-backtest-streamlit-view-readme/06-02-scoring-red.xml",
+  "exitCode": 1,
+  "reportPath": ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-02-scoring-red.xml",
+  "runStartedAt": "2026-11-14T03:25:55.5616298Z",
+  "reportModifiedAt": "2026-11-14T03:25:58.5113273Z",
+  "targetTest": "test_frozen_prediction_scoring_api_is_available",
+  "targetFile": "tests/backtest/test_metrics.py",
+  "expected": "The isolated scorer exists to consume frozen predictions before opening results.",
+  "actual": "The test failed on its API assertion because the scoring module is not available.",
+  "output": "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuites name=\"pytest tests\"><testsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"8\"><testcase classname=\"tests.backtest.test_metrics\" name=\"test_frozen_prediction_scoring_api_is_available\"><failure message=\"AssertionError: the isolated scorer must consume frozen predictions&#10;assert None is not None\">test_frozen_prediction_scoring_api_is_available -&gt; None: expected scoring module, but importlib.util.find_spec returned None</failure></testcase><testcase classname=\"tests.backtest.test_metrics\" name=\"test_brier_outcomes_treat_unclassified_starters_as_binary_failures\" time=\"0.011\" /><testcase classname=\"tests.backtest.test_metrics\" name=\"test_grid_prior_is_neutral_then_shrinks_with_five_pseudo_observations\" time=\"0.001\" /><testcase classname=\"tests.backtest.test_metrics\" name=\"test_finish_interval_uses_inclusive_discrete_inverted_cdf_endpoints\" time=\"0.003\" /><testcase classname=\"tests.backtest.test_metrics\" name=\"test_interval_coverage_excludes_unclassified_finishers_and_reports_denominator\" time=\"0.001\" /><testcase classname=\"tests.backtest.test_metrics\" name=\"test_observation_masks_are_shared_between_model_and_baseline\" time=\"0.002\" /><testcase classname=\"tests.backtest.test_metrics\" name=\"test_race_aggregation_weights_races_equally_not_rows\" time=\"0.007\" /><testcase classname=\"tests.backtest.test_metrics\" name=\"test_cluster_bootstrap_is_paired_race_level_and_seed_reproducible\" time=\"0.003\" /></testsuite></testsuites>",
+  "semanticAssessment": "The target executed and failed directly on the planned scorer API assertion; no load or unrelated failure occurred."
+}

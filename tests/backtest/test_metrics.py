@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pandas as pd
 
@@ -12,6 +14,11 @@ from f1si.backtest.metrics import (
     race_cluster_interval,
     summarize_by_race,
 )
+
+
+def test_frozen_prediction_scoring_api_is_available() -> None:
+    module = importlib.util.find_spec("f1si.backtest.scoring")
+    assert module is not None, "the isolated scorer must consume frozen predictions"
 
 
 def test_brier_outcomes_treat_unclassified_starters_as_binary_failures() -> None:
