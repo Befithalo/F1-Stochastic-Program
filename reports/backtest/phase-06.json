@@ -232,6 +232,11 @@
           "covered": 628,
           "denominator": 883
         },
+        "2023-03": {
+          "coverage": null,
+          "covered": null,
+          "denominator": 0
+        },
         "2023-04": {
           "coverage": 0.7971491228070176,
           "covered": 727,
@@ -252,6 +257,11 @@
           "covered": 857,
           "denominator": 960
         },
+        "2025-01": {
+          "coverage": null,
+          "covered": null,
+          "denominator": 0
+        },
         "2025-02": {
           "coverage": 0.8388030888030888,
           "covered": 869,
@@ -267,10 +277,12 @@
       "early_fit_bias_by_race": {
         "2023-01": -0.006681722887236333,
         "2023-02": 0.05676274344481754,
+        "2023-03": null,
         "2023-04": -0.009700714501278108,
         "2024-01": -0.014469895912433658,
         "2024-02": -0.13744155291828195,
         "2024-03": -0.017085225200188788,
+        "2025-01": null,
         "2025-02": 0.08767474078200609,
         "2025-03": -0.014644177079321108
       },
@@ -286,10 +298,12 @@
         "share_by_race": {
           "2023-01": 0.03789319560857573,
           "2023-02": 0.06623680868844473,
+          "2023-03": null,
           "2023-04": 0.05229791382137443,
           "2024-01": 0.037846511733490115,
           "2024-02": 0.08736978578304137,
           "2024-03": 0.04163753819477148,
+          "2025-01": null,
           "2025-02": 0.05263975708971628,
           "2025-03": 0.06331508928170469
         }
@@ -297,15 +311,21 @@
       "per_race_measurements": {
         "2023-01": 1024,
         "2023-02": 883,
+        "2023-03": 0,
         "2023-04": 912,
         "2024-01": 1039,
         "2024-02": 861,
         "2024-03": 960,
+        "2025-01": 0,
         "2025-02": 1036,
         "2025-03": 963
       },
       "proxy_definition": "existing fuel-plus-compound pace fit on race-end laps after excluding the evaluated driver stint; the remaining laps form retrospective proxy evidence",
-      "tuned_on_evaluation_races": false
+      "tuned_on_evaluation_races": false,
+      "unavailable_races": {
+        "2023-03": "no estimable leave-stint-out wear reference in the available clean laps",
+        "2025-01": "no estimable leave-stint-out wear reference in the available clean laps"
+      }
     }
   },
   "race_ids": [
