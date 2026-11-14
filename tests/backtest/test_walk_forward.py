@@ -8,7 +8,13 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
-from f1si.backtest.walk_forward import REGISTERED_RACE_IDS, predict_at_cutoff, preflight_races
+from f1si.backtest.walk_forward import (
+    REGISTERED_RACE_IDS,
+    PredictionRow,
+    predict_at_cutoff,
+    preflight_races,
+    run_walk_forward,
+)
 from f1si.cli import main
 
 EXPECTED_RACES = (
@@ -83,11 +89,12 @@ def test_reference_cli_returns_prediction_row_after_full_preflight(
         def snapshot(self, _at: object) -> object:
             events.append("snapshot")
             return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=1),
                 laps=pd.DataFrame({"lap_number": [1]}),
                 entries=pd.DataFrame({"driver_code": ["ALO"]}),
             )
 
-    monkeypatch.setattr(walk_forward.asof, "AsOfAccessor", Accessor)
+    monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
     monkeypatch.setattr("f1si.paths.db_path", lambda _data_dir: Path("cache.duckdb"))
 
     def replay(accessor: object, *_args: object, **_kwargs: object) -> object:
@@ -118,6 +125,49 @@ def test_prediction_runner_has_no_results_or_scoring_imports() -> None:
     assert "f1si.data.results" not in source
     assert "ResultsAccessor" not in source
     assert "score(" not in source
+
+
+def test_full_runner_freezes_every_driver_and_cutoff_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.backtest import walk_forward
+
+    calls: list[tuple[str, int, str]] = []
+    monkeypatch.setattr(walk_forward.asof, "catalog", lambda _db: _catalog())
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, _at: object) -> object:
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=3),
+                entries=pd.DataFrame({"driver_code": ["AAA", "BBB"]}),
+            )
+
+    monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+
+    def prediction(
+        _accessor: object,
+        race_id: str,
+        driver: str,
+        lap: int,
+        **_options: object,
+    ) -> PredictionRow:
+        calls.append((race_id, lap, driver))
+        return PredictionRow(race_id, driver, lap, None, "test row")
+
+    monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
+    trace = run_walk_forward(Path("cache.duckdb"))
+    expected = [
+        (race_id, lap, driver)
+        for race_id in EXPECTED_RACES
+        for lap in range(3)
+        for driver in ("AAA", "BBB")
+    ]
+    assert calls == expected
+    assert isinstance(trace.predictions, tuple)
+    assert len(trace.predictions) == len(expected)
 
 
 def test_requesting_2026_race_is_rejected_before_prediction(

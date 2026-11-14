@@ -5,7 +5,7 @@ from __future__ import annotations
 import zlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final
+from typing import Any, Final, Protocol
 
 from f1si.data import asof
 from f1si.data.errors import OutOfSampleLockedError
@@ -23,6 +23,19 @@ REGISTERED_RACE_IDS: Final = (
     "2025-02",
     "2025-03",
 )
+
+
+class _AsOfReader(Protocol):
+    def snapshot(self, at: asof.AsOf) -> Any: ...
+
+    def history(self, at: asof.AsOf) -> Any: ...
+
+
+def _new_accessor(db_path: Path) -> _AsOfReader:
+    """Ask the CLI composition layer to create the sole cache-reading capability."""
+    from f1si.cli import _make_asof_accessor
+
+    return _make_asof_accessor(db_path)
 
 
 @dataclass(frozen=True)
@@ -67,7 +80,7 @@ def _seed(race_id: str, driver: str, lap: int, seed: int) -> int:
 
 
 def _predict_from_accessor(
-    accessor: asof.AsOfAccessor,
+    accessor: _AsOfReader,
     race_id: str,
     driver: str,
     lap: int,
@@ -79,12 +92,12 @@ def _predict_from_accessor(
     """Build one row from the shared replay cutoff builder; never reads final outcomes."""
     if race_id not in REGISTERED_RACE_IDS:
         raise ValueError(f"Race {race_id} is outside the registered 2023-2025 backtest sample.")
-    end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
-    if end.laps.empty:
-        raise ValueError(f"No lap data available for {race_id}.")
-    laps_total = int(end.laps["lap_number"].max())
+    snapshot = accessor.snapshot(asof.AsOf(race_id, lap))
+    laps_total = snapshot.race.scheduled_laps
+    if not laps_total:
+        raise ValueError(f"No scheduled race distance available for {race_id}.")
     code = driver.upper()
-    known = set(str(value) for value in end.entries["driver_code"])
+    known = set(str(value) for value in snapshot.entries["driver_code"])
     if code not in known:
         raise ValueError(f"Unknown driver {code!r} in {race_id}.")
     if lap < 0 or lap >= laps_total:
@@ -122,7 +135,7 @@ def predict_at_cutoff(
     _preflight_database(db_path)
     try:
         return _predict_from_accessor(
-            asof.AsOfAccessor(db_path),
+            _new_accessor(db_path),
             race_id,
             driver,
             lap,
@@ -136,13 +149,26 @@ def predict_at_cutoff(
 
 def cutoff_consumer(db_path: Path, at: asof.AsOf) -> PredictionRow:
     """Single-cutoff consumer registered with the future-row scramble guard."""
-    if not isinstance(at.lap, int):
-        raise ValueError("The walk-forward consumer requires an integer cutoff lap.")
+    if at.race_id not in REGISTERED_RACE_IDS:
+        raise ValueError(f"Race {at.race_id} is outside the registered backtest sample.")
+    # The scramble harness can supply RACE_END as a boundary marker. Resolve it to the last
+    # scheduled strategy cutoff so the marker never grants access to future observations.
+    lap = at.lap if isinstance(at.lap, int) else 0
+    accessor = _new_accessor(db_path)
+    snapshot = accessor.snapshot(asof.AsOf(at.race_id, lap))
+    if not isinstance(at.lap, int) and snapshot.race.scheduled_laps:
+        lap = int(snapshot.race.scheduled_laps) - 1
+        snapshot = accessor.snapshot(asof.AsOf(at.race_id, lap))
+    elif snapshot.race.scheduled_laps:
+        lap = min(lap, int(snapshot.race.scheduled_laps) - 1)
+    drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
+    if not drivers:
+        raise ValueError(f"No drivers available in {at.race_id} at lap {at.lap}.")
     return _predict_from_accessor(
-        asof.AsOfAccessor(db_path),
+        accessor,
         at.race_id,
-        "ALO",
-        at.lap,
+        drivers[0],
+        lap,
         n_simulations=1,
         risk=0.5,
         seed=0,
@@ -158,15 +184,16 @@ def run_walk_forward(
 ) -> WalkForwardTrace:
     """Freeze all drivers' predictions at every eligible cutoff of the ten registered races."""
     _preflight_database(db_path)
-    accessor = asof.AsOfAccessor(db_path)
+    accessor = _new_accessor(db_path)
     rows: list[PredictionRow] = []
     for race_id in REGISTERED_RACE_IDS:
-        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
-        if end.laps.empty:
-            raise ValueError(f"No lap data available for registered race {race_id}.")
-        laps_total = int(end.laps["lap_number"].max())
-        drivers = sorted(str(value) for value in end.entries["driver_code"])
+        first = accessor.snapshot(asof.AsOf(race_id, 0))
+        laps_total = first.race.scheduled_laps
+        if not laps_total:
+            raise ValueError(f"No scheduled race distance for registered race {race_id}.")
         for lap in range(laps_total):
+            snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
+            drivers = sorted(str(value) for value in snapshot.entries["driver_code"])
             for driver in drivers:
                 rows.append(
                     _predict_from_accessor(

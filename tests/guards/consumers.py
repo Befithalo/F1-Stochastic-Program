@@ -11,6 +11,7 @@ from typing import Final
 
 import numpy as np
 
+from f1si.backtest.walk_forward import cutoff_consumer
 from f1si.cli import _replay_at_cutoff
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
@@ -179,6 +180,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "sc_rate": sc_rate,
     "wear_filter": wear_filter,
     "strategy_replay": strategy_replay,
+    "walk_forward_cutoff": cutoff_consumer,
 }
 
 

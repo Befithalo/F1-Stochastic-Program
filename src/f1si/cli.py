@@ -257,6 +257,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _make_asof_accessor(db_path: Path) -> asof.AsOfAccessor:
+    """Create the cache-reading capability for CLI and backtest replay drivers."""
+    return asof.AsOfAccessor(db_path)
+
+
 def _cmd_load(
     data_dir: Path,
     source_name: str,
