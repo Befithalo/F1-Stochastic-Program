@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.336" timestamp="2026-11-13T22:21:27.264707-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.backtest.test_metrics" name="test_brier_score_api_is_available_for_binary_outcomes" time="1.042"><failure message="AssertionError: metrics must expose deterministic Brier scoring&#10;assert None is not None">def test_brier_score_api_is_available_for_binary_outcomes() -&gt; None:
+        module = importlib.util.find_spec("f1si.backtest.metrics")
+&gt;       assert module is not None, "metrics must expose deterministic Brier scoring"
+E       AssertionError: metrics must expose deterministic Brier scoring
+E       assert None is not None
+
+tests\backtest\test_metrics.py:10: AssertionError</failure></testcase></testsuite></testsuites>
