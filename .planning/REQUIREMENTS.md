@@ -59,7 +59,7 @@
 - [x] **RPL-01**: User can replay a race lap by lap for any driver and get a recommendation with uncertainty each lap
 - [x] **RPL-02**: Live replay of Bahrain 2023 works end to end (M1 definition of done)
 - [x] **BKT-01**: A walk-forward backtester runs races from 2023-2025 with zero look-ahead
-- [ ] **BKT-02**: Backtest reports Brier score (podium, top-10) vs a grid-position baseline and 90% finishing-interval coverage
+- [x] **BKT-02**: Backtest reports Brier score (podium, top-10) vs a grid-position baseline and 90% finishing-interval coverage
 - [ ] **BKT-03**: Backtest covers at least 20 races (10 at the MVP checkpoint), with results reported per era
 - [ ] **BKT-04**: Strategy calls are compared with actual team calls, with confidence intervals
 - [ ] **BKT-05**: A locked holdout set is defined and touched only once, at milestone end
@@ -120,7 +120,7 @@
 | RPL-01 | Phase 5 | Complete |
 | RPL-02 | Phase 5 | Complete |
 | BKT-01 | Phase 6 | Complete |
-| BKT-02 | Phase 6 | Pending |
+| BKT-02 | Phase 6 | Complete |
 | BKT-04 | Phase 6 | Pending |
 | UI-01 | Phase 6 | Pending |
 | UI-02 | Phase 6 | Pending |

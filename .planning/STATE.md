@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 4
+current_plan: 5
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-11-14T04:03:10.958Z"
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-11-14T04:17:32.129Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: bda391506cefdc8dcdd552b0c04d9efb8679dcff
+state_head: 8b77f3a84393a9a1a81326c465f3657da0b060e8
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 40
-  completed_plans: 35
+  completed_plans: 36
 milestone_name: milestone
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 06 (MVP Backtest, Streamlit View & README) — EXECUTING
-Current Plan: 4
+Current Plan: 5
 Total Plans in Phase: 8
-Plan: 4 of 8
+Plan: 5 of 8
 Status: Ready to execute
 Last activity: 2026-11-13 — Phase 06 execution started
 
@@ -69,6 +69,7 @@ Progress: [====------] 38%
 | Phase 05 P04 | 86min | 3 tasks | 14 files |
 | Phase 06 P00 | 6min | 2 tasks | 5 files |
 | Phase 06 P01 | 27m | 2 tasks | 5 files |
+| Phase 06 P03 | 12min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,7 @@ Progress: [====------] 38%
 - [Phase 06]: Pre-register the calendar-first 4/3/3 ten-race sample before scoring.
 - [Phase 06]: Build each prediction from its cutoff snapshot and strictly earlier history.
 - [Phase 06]: Keep result access and scoring outside the prediction runner.
+- [Phase 06]: Ranked options retain podium/top-10 probabilities and inclusive inverted-CDF endpoints from their own finish draws; raw draws remain local to analysis.
 
 ### Pending Todos
 
@@ -138,6 +140,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-14T03:56:29Z
-Stopped at: Completed 06-02-PLAN.md
+Last session: 2026-11-14T04:17:30.487Z
+Stopped at: Completed 06-03-PLAN.md
 Resume file: None
