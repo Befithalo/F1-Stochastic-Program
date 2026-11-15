@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 8
+current_plan: 9
 status: executing
 stopped_at: Phase 06 visual redesign decisions gathered
-last_updated: "2026-11-15T02:50:15.607Z"
+last_updated: "2026-11-15T03:13:04.903Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: c64e60ac9a9cf20c81b4d0e2bd7ca03d132ca8fd
+state_head: a0fb2d5ad2b1be3cceb9a43a82ceff78ed7924ab
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 41
+  total_plans: 43
   completed_plans: 40
 milestone_name: milestone
 ---
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 06 (MVP Backtest, Streamlit View & README) — READY TO EXECUTE
-Current Plan: 8
-Total Plans in Phase: 9
-Plan: 8 of 8
+Current Plan: 9
+Total Plans in Phase: 11
+Plan: 9 of 11
 Status: Ready to execute
 Last activity: 2026-11-14 — Completed quick task 261114-814: Route scoring RNG creation through f1si.rng.make_rng without changing seeded output
 
@@ -138,6 +138,7 @@ Progress: [====------] 38%
 - [Phase 06]: The Streamlit page uses the shared cutoff replay builder and a cache keyed by selected inputs, local cache metadata, and model-source identity.
 - [Phase 06]: Keep published Phase 6 metrics tied to the fixed report, preserving samples, denominators, and interval conventions.
 - [Phase 06]: Describe observed team calls comparatively and wear estimates as retrospective proxy evidence, not proof of superiority or latent ground truth.
+- [Phase 06]: D-11: Redesign the read-only replay page as a polished graphite/slate motorsport dashboard; preserve D-07/D-08/D-10 data and display semantics, use no new dependencies, and require actual desktop/narrow browser acceptance.
 
 ### Pending Todos
 
