@@ -222,9 +222,17 @@ class NumpySimulator:
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
-        """Simulate `n_races` continuations of `state` (see the module docstring)."""
-        result, _ = self._simulate(state, n_races=n_races, rng=rng, plans=plans, checkpoint_laps=())
+        """Simulate `n_races` continuations, optionally retaining one driver's future ranks."""
+        result, _ = self._simulate(
+            state,
+            n_races=n_races,
+            rng=rng,
+            plans=plans,
+            checkpoint_laps=(),
+            position_history_driver=position_history_driver,
+        )
         return result
 
     def _simulate(
@@ -235,6 +243,7 @@ class NumpySimulator:
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None,
         checkpoint_laps: Sequence[int],
+        position_history_driver: str | None = None,
     ) -> tuple[SimulationResult, dict[int, _PathCheckpoint]]:
         """Private simulation core; checkpoint copies are produced only for branch callers."""
         self._validate(state, n_races)
@@ -242,6 +251,16 @@ class NumpySimulator:
         cars = state.cars
         n_cars = len(cars)
         diagnostics: list[str] = []
+        history_driver_index: int | None = None
+        if position_history_driver is not None:
+            try:
+                history_driver_index = next(
+                    index for index, car in enumerate(cars) if car.driver == position_history_driver
+                )
+            except StopIteration as err:
+                raise ValueError(
+                    f"Unknown position-history driver {position_history_driver!r}."
+                ) from err
 
         resolved, sources = resolve_plans(state, plans, self._optimizer, self._compounds)
         diagnostics.extend(f"{s.driver}: {s.reason}" for s in sources if s.source == "fallback")
@@ -364,6 +383,11 @@ class NumpySimulator:
             sc_left[:] = max(1, self._sc.duration_laps - state.sc_laps_elapsed)
             sc_fresh[:] = True
         sc_mask = np.zeros((n, n_sim), dtype=np.bool_)
+        position_history = (
+            np.empty((n, n_sim), dtype=np.int64) if history_driver_index is not None else None
+        )
+        history_ranks = np.empty_like(order) if position_history is not None else None
+        place_numbers = np.broadcast_to(np.arange(1, n_cars + 1, dtype=np.int64), order.shape)
         checkpoints: dict[int, _PathCheckpoint] = {}
         clocks = np.zeros((n, n_sim, n_cars), dtype=np.float64) if self._record else None
         lap_mask = np.zeros(n, dtype=np.bool_)
@@ -415,6 +439,9 @@ class NumpySimulator:
             sc_mask[:, j] = lap_mask
             if clocks is not None:
                 clocks[:, j, :] = clock
+            if position_history is not None and history_ranks is not None:
+                np.put_along_axis(history_ranks, order, place_numbers, axis=1)
+                position_history[:, j] = history_ranks[:, history_driver_index]
             lap_no = int(laps[j])
             if lap_no in checkpoint_laps:
                 checkpoints[lap_no] = _PathCheckpoint(
@@ -451,6 +478,7 @@ class NumpySimulator:
                 plan_sources=sources,
                 diagnostics=tuple(diagnostics),
                 clock_s=clocks,
+                position_history=position_history,
             ),
             checkpoints,
         )

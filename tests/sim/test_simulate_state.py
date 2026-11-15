@@ -152,15 +152,13 @@ def test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results
 
 def test_position_history_rejects_unknown_driver() -> None:
     state = hand_state(3, lap=2, laps_total=8)
-    try:
+    with pytest.raises(ValueError, match="ZZZ"):
         _zero_sim().simulate(
             state,
             n_races=4,
             rng=make_rng(4),
             position_history_driver="ZZZ",
         )
-    except TypeError:
-        pytest.fail("The simulator should accept and validate a selected history driver.")
 
 
 def test_borrowed_pace_is_listed() -> None:

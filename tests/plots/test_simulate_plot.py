@@ -13,7 +13,11 @@ from matplotlib.image import imread
 from numpy.typing import NDArray
 
 from f1si.plots.simulate import (
+    build_fan_chart,
+    build_quantile_dotplot,
     build_sim_figure,
+    prepare_fan_chart_data,
+    prepare_quantile_dotplot_data,
     prepare_sim_plot_data,
     render_sim_plot,
     sim_file_name,
@@ -139,3 +143,53 @@ def test_module_imports_without_pyplot() -> None:
         "import sys, f1si.plots.simulate; sys.exit(1 if 'matplotlib.pyplot' in sys.modules else 0)"
     )
     assert subprocess.run([sys.executable, "-I", "-c", code], check=False).returncode == 0
+
+
+def test_quantile_dotplot_places_100_dots_at_known_midpoint_quantiles() -> None:
+    sample = np.repeat(np.arange(1, 11, dtype=np.int64), 10)
+    probabilities = (np.arange(100, dtype=np.float64) + 0.5) / 100.0
+    expected = np.quantile(sample, probabilities, method="inverted_cdf").astype(np.int64)
+    data = prepare_quantile_dotplot_data(
+        ("pit now",),
+        (tuple(int(value) for value in expected),),
+        mean_finish=float(sample.mean()),
+        n_cars=10,
+        simulation_count=len(sample),
+    )
+
+    fig = build_quantile_dotplot(data)
+    offsets = np.asarray(fig.axes[0].collections[0].get_offsets())
+
+    assert offsets.shape == (100, 2)
+    np.testing.assert_array_equal(offsets[:, 0], expected)
+    assert fig.axes[0].get_lines()[0].get_label() == "Mean finish at selected cutoff"
+    assert fig.axes[0].get_lines()[0].get_color() == "#9BA1A8"
+    assert "100 simulated finishes" in data.caption
+
+
+def test_fan_chart_bands_match_each_lap_percentiles_and_report_real_count() -> None:
+    history = np.asarray(
+        [
+            [1, 1, 2],
+            [2, 3, 3],
+            [4, 5, 6],
+            [6, 7, 8],
+            [8, 9, 10],
+            [10, 10, 11],
+        ],
+        dtype=np.int64,
+    )
+    data = prepare_fan_chart_data(history, first_lap=8, n_cars=12)
+    levels = np.quantile(history, [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9], axis=0)
+
+    assert data.laps == (8, 9, 10)
+    np.testing.assert_allclose(data.p10, levels[0])
+    np.testing.assert_allclose(data.p25, levels[1])
+    np.testing.assert_allclose(data.p40, levels[2])
+    np.testing.assert_allclose(data.p50, levels[3])
+    np.testing.assert_allclose(data.p60, levels[4])
+    np.testing.assert_allclose(data.p75, levels[5])
+    np.testing.assert_allclose(data.p90, levels[6])
+    assert data.simulation_count == 6
+    assert "6 simulated races" in data.caption
+    assert len(build_fan_chart(data).axes[0].collections) == 3
