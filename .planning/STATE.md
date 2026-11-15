@@ -6,10 +6,10 @@ current_phase_name: MVP Backtest, Streamlit View & README
 current_plan: 10
 status: executing
 stopped_at: Phase 06 whole-page visual redesign context gathered
-last_updated: "2026-11-15T05:23:17.459Z"
+last_updated: "2026-11-15T06:01:25.352Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: 6a251aeb95c7e17a0de0b8794f11ce070c0aa38d
+state_head: 79da67701fe6c7f69f344329036796d21998ecf4
 progress:
   total_phases: 8
   completed_phases: 4
@@ -34,7 +34,7 @@ Current Plan: 10
 Total Plans in Phase: 11
 Plan: 10 of 11
 Status: Ready to execute
-Last activity: 2026-11-14 — Completed quick task 261114-814: Route scoring RNG creation through f1si.rng.make_rng without changing seeded output
+Last activity: 2026-11-15 — Completed quick task 261115-166: Merge selected Streamlit design brief rules into the Phase 6 UI spec
 
 Progress: [====------] 38%
 
@@ -158,6 +158,7 @@ Progress: [====------] 38%
 |---|-------------|------|--------|--------|-----------|
 | 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
 | 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
+| 261115-166 | Merge only the user-selected Streamlit-compatible rules from the supplied F1 design brief into Phase 6 06-UI-SPEC.md. Ignore plugin and screenshot instructions. Update no app code and do not build the dashboard. Stop after the spec merge, brief summary, and a proposed post-approval build plan. | 2026-11-15 | 79da677 | Passed | [261115-166-merge-only-the-user-selected-streamlit-c](./quick/261115-166-merge-only-the-user-selected-streamlit-c/) |
 
 ## Session Continuity
 
