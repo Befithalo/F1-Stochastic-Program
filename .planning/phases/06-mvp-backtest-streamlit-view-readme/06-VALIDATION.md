@@ -179,4 +179,14 @@ The actual Streamlit page was rendered through local Edge/CDP at both sizes. The
 
 No remaining color, tabular-number, or copy violation was visible in either rendered state. No overall-best lap appears on the page; if added later, it must use neutral fog and the `Best` label. The live app remains on `http://127.0.0.1:8501`; `/_stcore/health` returned HTTP 200 (`ok`).
 
-**Owner acceptance:** pending. These automated gates and the empty-state viewport audit do not substitute for owner approval of the actual rendered page. A live chart-bearing viewport review remains unavailable until schedule horizons exist in the local cache.
+**Owner acceptance:** pending. Plan 06-11 below supersedes this earlier empty-state-only audit with a chart-bearing replay and actual viewport screenshots; explicit owner approval remains open in Plan 06-10.
+
+## Plan 06-11 Replay and Viewport Follow-up (2026-11-15)
+
+- FastF1 backfill: all 70 eligible cached 2023-2025 races have positive scheduled-lap counts; all 70 use winner completed laps as the allowed fallback because session totals were unavailable. The CLI rerun reported 70 already valid and 0 unresolved. The 17 2026 out-of-sample rows remain untouched.
+- Tests added: `tests/data/test_scheduled_laps.py` checks provider resolution, winner fallback, eligible-race lap counts, update boundaries, and idempotence; `tests/plots/test_simulate_plot.py` retains the known-distribution check for all 100 quantile dots.
+- Bahrain 2023 / ALO live replay rendered both uncertainty charts from 1,000 simulation outputs after laps 15 and 40. Direct replay results and chart observations are in `06-11-SUMMARY.md`.
+- Viewport screenshots with Bahrain 2023 after lap 15: 1440x900 and 390x844, plus full-chart captures at 1440x1700 and 390x1300. The audit records the issues found and fixes. Final views have no remaining color, tabular-number, or copy violations.
+- Local focused checks: 83 passed. Full suite: 1,117 passed, 25 deselected. Ruff, formatting, mypy, lock, and diff checks passed.
+- Exact implementation SHA `afa2aeee9fd888bba452a0c7103fe9062531a0bb`: [GitHub Actions run 43702390713](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713); Ubuntu job 132776132845 and Windows job 132776133125 both succeeded, including the full pytest step.
+- Owner approval remains pending in Plan 06-10; `nyquist_compliant` stays `false` until the owner accepts the populated rendered views.

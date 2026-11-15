@@ -139,4 +139,4 @@ This audit supersedes the earlier code-only review and the 2026-11-14 live-revie
 - Focused Phase 06 checks: 83 passed.
 - Full local suite after the loader-boundary fix: 1,117 passed, 25 deselected.
 - Ruff check, Ruff format check, mypy, and lock validation passed.
-- Exact-head Ubuntu/Windows CI remains pending until the final implementation commit is pushed and both jobs complete. See `06-11-SUMMARY.md` for the final head and CI record.
+- Exact-head Ubuntu/Windows CI passed for `afa2aeee9fd888bba452a0c7103fe9062531a0bb`: run [43702390713](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713), Ubuntu job [132776132845](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713/job/132776132845), and Windows job [132776133125](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713/job/132776133125). Full gates and exact results are recorded in `06-11-SUMMARY.md`.

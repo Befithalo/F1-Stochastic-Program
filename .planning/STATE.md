@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 11
-status: executing
-stopped_at: Completed 06-08-PLAN.md
-last_updated: "2026-11-15T07:16:46.093Z"
+current_plan: 10
+status: awaiting_owner_approval
+stopped_at: Completed 06-11-PLAN.md; waiting for the Plan 06-10 owner approval checkpoint
+last_updated: "2026-11-15T10:28:48Z"
 last_activity: 2026-11-15
-last_activity_desc: Phase 06 execution started
-state_head: c52d981f80ed4305ce39640aeeb80d8f05e21324
+last_activity_desc: Completed Plan 06-11 and exact-head Ubuntu/Windows CI; owner approval is pending
+state_head: afa2aeee9fd888bba452a0c7103fe9062531a0bb
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 43
-  completed_plans: 42
+  total_plans: 44
+  completed_plans: 43
 milestone_name: milestone
 ---
 
@@ -29,12 +29,12 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 
 ## Current Position
 
-Phase: 06 (MVP Backtest, Streamlit View & README) — READY TO EXECUTE
-Current Plan: 11
-Total Plans in Phase: 11
-Plan: 11 of 11
-Status: Ready to execute
-Last activity: 2026-11-15 — Completed quick task 261115-166: Merge selected Streamlit design brief rules into the Phase 6 UI spec
+Phase: 06 (MVP Backtest, Streamlit View & README) — OWNER ACCEPTANCE PENDING
+Current Plan: 10
+Total Plans in Phase: 12
+Plan: 10 of 12
+Status: Awaiting owner approval after completed Plan 06-11
+Last activity: 2026-11-15 — Completed Phase 06 Plan 11; exact-head Ubuntu and Windows CI passed
 
 Progress: [====------] 38%
 
