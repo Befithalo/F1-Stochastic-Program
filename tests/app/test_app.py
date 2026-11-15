@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ast
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from importlib import import_module
 from pathlib import Path
 
@@ -189,10 +189,27 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
 ) -> None:
     app = import_module("f1si.app")
     figures = []
-    captions: list[str] = []
+    captions: list[tuple[str | None, str]] = []
+    containers: list[dict[str, object]] = []
+    active_container: list[str | None] = []
+
+    @contextmanager
+    def capture_container(**kwargs: object):
+        containers.append(kwargs)
+        active_container.append(kwargs.get("key") if isinstance(kwargs.get("key"), str) else None)
+        try:
+            yield
+        finally:
+            active_container.pop()
+
     monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: (nullcontext(), nullcontext()))
+    monkeypatch.setattr(app.st, "container", capture_container)
     monkeypatch.setattr(app.st, "pyplot", lambda figure, **_kwargs: figures.append(figure))
-    monkeypatch.setattr(app.st, "caption", captions.append)
+    monkeypatch.setattr(
+        app.st,
+        "caption",
+        lambda text: captions.append((active_container[-1] if active_container else None, text)),
+    )
     for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown"):
         monkeypatch.setattr(app.st, name, lambda *_args, **_kwargs: None)
 
@@ -223,7 +240,8 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
     mean_artist = figures[0].axes[0].get_lines()[0]
     assert mean_artist.get_xdata()[0] == pytest.approx(float(np.mean(finishes)))
     assert mean_artist.get_xdata()[0] != 8
-    assert any("90% interval" in caption for caption in captions)
+    assert {"border": True, "key": "finish-chart"} in containers
+    assert any(key == "finish-chart" and "90% interval" in caption for key, caption in captions)
 
 
 def test_top_ranked_marker_stays_on_first_action_and_preserves_each_basis() -> None:

@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 from matplotlib.colors import to_rgba
 from matplotlib.figure import Figure
+from matplotlib.image import imread
 from numpy.typing import NDArray
 
 from f1si.plots.simulate import (
@@ -84,16 +85,28 @@ def test_selected_finish_summary_uses_neutral_bars_accent_marker_and_readable_ro
     assert x_data[0] == pytest.approx(float(np.mean([2, 4, 4, 6])))
     assert cast(str, ax.get_lines()[0].get_color()).lower() == "#d90429"
     accent = to_rgba("#D90429")
+    neutral = to_rgba("#AAB5C0")
+    assert all(patch.get_facecolor() == neutral for patch in ax.patches)
     assert all(
         cast(tuple[float, float, float, float], patch.get_facecolor()) != accent
         for patch in ax.patches
     )
+    assert fig.get_facecolor() == to_rgba("#1A222C")
+    assert ax.get_facecolor() == to_rgba("#242E39")
     assert ax.xaxis.label.get_fontsize() == 12
     assert ax.yaxis.label.get_fontsize() == 12
+    assert ax.xaxis.label.get_color() == "#F2F5F8"
+    assert ax.yaxis.label.get_color() == "#F2F5F8"
     assert ax.get_xticklabels()[0].get_fontsize() == 10.5
+    assert ax.get_xticklabels()[0].get_color() == "#B7C2CE"
+    assert all(spine.get_edgecolor() == to_rgba("#536171") for spine in ax.spines.values())
+    assert ax.yaxis.get_gridlines()[0].get_color() == "#536171"
+    assert fig.texts[0].get_color() == "#F2F5F8"
     legend = ax.get_legend()
     assert legend is not None
     assert legend.get_texts()[0].get_fontsize() == 10.5
+    assert legend.get_texts()[0].get_color() == "#F2F5F8"
+    assert legend.get_frame().get_facecolor() == to_rgba("#1A222C")
     assert any(data.caption in text.get_text() for text in fig.texts)
 
 
@@ -101,6 +114,8 @@ def test_render_writes_a_png(tmp_path: Path) -> None:
     out = render_sim_plot(_data(), tmp_path / "x" / "a.png")
     assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
     assert out.stat().st_size > 0
+    image = imread(out)
+    assert image[0, 0, :3] == pytest.approx(np.array([26, 34, 44]) / 255, abs=1 / 255)
 
 
 def test_sim_file_name() -> None:
