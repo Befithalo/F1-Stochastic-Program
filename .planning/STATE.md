@@ -5,11 +5,11 @@ current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
 current_plan: 10
 status: executing
-stopped_at: Completed 06-09-PLAN.md
-last_updated: "2026-11-15T03:37:11.415Z"
+stopped_at: Phase 06 whole-page visual redesign context gathered
+last_updated: "2026-11-15T05:23:17.459Z"
 last_activity: 2026-11-14
 last_activity_desc: Phase 06 execution started
-state_head: 1d951514d25019111aa90ce1be98580a7411ca93
+state_head: 6a251aeb95c7e17a0de0b8794f11ce070c0aa38d
 progress:
   total_phases: 8
   completed_phases: 4
@@ -139,7 +139,7 @@ Progress: [====------] 38%
 - [Phase 06]: The Streamlit page uses the shared cutoff replay builder and a cache keyed by selected inputs, local cache metadata, and model-source identity.
 - [Phase 06]: Keep published Phase 6 metrics tied to the fixed report, preserving samples, denominators, and interval conventions.
 - [Phase 06]: Describe observed team calls comparatively and wear estimates as retrospective proxy evidence, not proof of superiority or latent ground truth.
-- [Phase 06]: D-11: Redesign the read-only replay page as a polished graphite/slate motorsport dashboard; preserve D-07/D-08/D-10 data and display semantics, use no new dependencies, and require actual desktop/narrow browser acceptance.
+- [Phase 06]: D-11's graphite dashboard was rejected after the owner inspected it; D-12 through D-15 supersede its visual choices with a light, editorial, replay-first page and an ex-ante schedule-horizon requirement. Preserve D-07/D-08 data semantics and the one-page scope.
 
 ### Pending Todos
 
@@ -161,6 +161,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-15T03:37:10.773Z
-Stopped at: Completed 06-09-PLAN.md
-Resume file: None
+Last session: 2026-11-15T05:23:14.297Z
+Stopped at: Phase 06 whole-page visual redesign context gathered
+Resume file: .planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md
