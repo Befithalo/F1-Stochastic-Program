@@ -34,6 +34,7 @@ class RankedOption:
     top10_probability: float
     finish_p05: int
     finish_p95: int
+    finish_quantiles: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,18 @@ def _distribution_summary(
     top10_probability = float(np.mean(sample <= 10))
     p05, p95 = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
     return podium_probability, top10_probability, int(p05), int(p95)
+
+
+def _midpoint_finish_quantiles(sample: NDArray[np.float64]) -> tuple[int, ...]:
+    """Return 100 midpoint inverted-CDF quantiles for integer finishing positions."""
+    values = np.asarray(sample, dtype=np.float64)
+    if values.ndim != 1 or values.size == 0 or not np.isfinite(values).all():
+        raise ValueError("finish quantiles require a non-empty finite one-dimensional sample")
+    if not np.equal(values, np.floor(values)).all():
+        raise ValueError("finish quantiles require integer finishing positions")
+    probabilities = (np.arange(100, dtype=np.float64) + 0.5) / 100.0
+    points = np.quantile(values, probabilities, method="inverted_cdf")
+    return tuple(int(value) for value in points)
 
 
 def _fit_continuation(
@@ -342,6 +355,7 @@ class LongstaffSchwartzPolicy:
                     tail,
                     _score_option(sample, self._risk),
                     *distribution,
+                    _midpoint_finish_quantiles(sample),
                 )
             )
         stay_plan = stay_out
@@ -356,6 +370,7 @@ class LongstaffSchwartzPolicy:
                 tail,
                 _score_option(stay_values, self._risk),
                 *distribution,
+                _midpoint_finish_quantiles(stay_values),
             )
         )
         if not rows:

@@ -329,6 +329,9 @@ def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.Mon
         assert option.top10_probability == pytest.approx(np.mean(sample <= 10))
         expected = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
         assert (option.finish_p05, option.finish_p95) == tuple(expected.astype(int))
+        quantile_levels = (np.arange(100, dtype=np.float64) + 0.5) / 100.0
+        expected_quantiles = np.quantile(sample, quantile_levels, method="inverted_cdf")
+        assert option.finish_quantiles == tuple(expected_quantiles.astype(int))
     by_action = {option.action: option for option in analysis.options}
     assert (
         by_action["pit now"].podium_probability,
