@@ -344,6 +344,51 @@ def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.Mon
     ) == (0.0, 1.0, 4, 4)
 
 
+def test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sample = np.repeat(np.arange(1, 11, dtype=np.int64), 10)
+
+    class KnownDistributionSimulator:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def _branch_paths(
+            self,
+            checkpoint: _PathCheckpoint,
+            *,
+            actions: Mapping[str, Mapping[str, Plan]],
+            n_races: int,
+            rng: np.random.Generator,
+            checkpoint_laps: Sequence[int],
+            capture_actions: Sequence[str],
+        ) -> dict[str, Any]:
+            assert set(actions) == {"stay out"}
+            outcomes = np.column_stack((sample, np.full(n_races, 11, dtype=np.int64)))
+            return {
+                "stay out": SimpleNamespace(
+                    result=SimpleNamespace(finish_positions=outcomes),
+                    checkpoints={},
+                )
+            }
+
+    monkeypatch.setattr(longstaff, "NumpySimulator", KnownDistributionSimulator)
+    option = (
+        LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD",), n_simulations=100, seed=3)
+        .analyze(state(lap=10, laps_total=16), driver="AAA")
+        .best
+    )
+
+    expected = tuple(int(value) for value in sample)
+    assert getattr(option, "finish_quantiles", None) == expected, (
+        "The ranked option should retain all 100 midpoint inverted-CDF quantiles "
+        "from its known finish distribution."
+    )
+    assert len(option.finish_quantiles) == 100
+    assert "sample" not in vars(option)
+    assert "draws" not in vars(option)
+
+
 def test_frozen_prediction_trace_carries_summaries_without_draw_arrays(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
