@@ -144,8 +144,7 @@ def prepare_quantile_dotplot_data(
         y_positions.append(tuple(positions))
 
     caption = (
-        f"Each dot represents 1% of its option's {simulation_count:,} simulated finishes and is "
-        "placed at a midpoint empirical quantile."
+        f"Each dot shows one of the {simulation_count:,} simulated finishes, spaced by percentile."
     )
     return QuantileDotplotData(
         labels=labels,
@@ -159,18 +158,20 @@ def prepare_quantile_dotplot_data(
     )
 
 
-def build_quantile_dotplot(data: QuantileDotplotData, *, include_caption: bool = True) -> Figure:
+def build_quantile_dotplot(
+    data: QuantileDotplotData, *, include_caption: bool = True, compact: bool = False
+) -> Figure:
     """Render a deterministic 100-dot row per ranked option and a neutral mean marker."""
     row_count = len(data.labels)
     row_gap = 1.0 if row_count < 2 else data.row_centers[1] - data.row_centers[0]
     height = max(4.0, 1.15 + row_gap * row_count * 0.56)
-    fig = Figure(figsize=(9, height), layout="constrained")
+    fig = Figure(figsize=(4 if compact else 9, height), layout="constrained")
     fig.set_facecolor(_UI_ASPHALT)
     ax = fig.subplots()
     ax.set_facecolor(_UI_PITWALL)
 
     shown_labels = tuple(
-        f"Top · {label}" if index == 0 else label for index, label in enumerate(data.labels)
+        f"Top: {label}" if index == 0 else label for index, label in enumerate(data.labels)
     )
     for index, (x_values, y_values) in enumerate(
         zip(data.quantiles, data.y_positions, strict=True)
@@ -194,7 +195,10 @@ def build_quantile_dotplot(data: QuantileDotplotData, *, include_caption: bool =
         zorder=2,
     )
     ax.set_xlim(0.5, data.n_cars + 0.5)
-    ax.set_xticks(np.arange(1, data.n_cars + 1))
+    if compact:
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=5))
+    else:
+        ax.set_xticks(np.arange(1, data.n_cars + 1))
     ax.set_yticks(data.row_centers, shown_labels)
     ax.invert_yaxis()
     ax.set_title("Finish quantiles by strategy", color=_UI_CHALK, fontsize=16, pad=14)
@@ -211,7 +215,7 @@ def build_quantile_dotplot(data: QuantileDotplotData, *, include_caption: bool =
     for spine in ax.spines.values():
         spine.set_color(_UI_RULE)
         spine.set_linewidth(0.8)
-    legend = ax.legend(fontsize=10, frameon=False, loc="best")
+    legend = ax.legend(fontsize=8 if compact else 10, frameon=False, loc="best")
     if legend is not None:
         for label in legend.get_texts():
             label.set_color(_UI_CHALK)
@@ -267,9 +271,11 @@ def prepare_fan_chart_data(
     )
 
 
-def build_fan_chart(data: FanChartData, *, include_caption: bool = True) -> Figure:
+def build_fan_chart(
+    data: FanChartData, *, include_caption: bool = True, compact: bool = False
+) -> Figure:
     """Render nested uncertainty bands for the recommended plan's simulated future ranks."""
-    fig = Figure(figsize=(9, 4.4), layout="constrained")
+    fig = Figure(figsize=(4, 4.8) if compact else (9, 4.4), layout="constrained")
     fig.set_facecolor(_UI_ASPHALT)
     ax = fig.subplots()
     ax.set_facecolor(_UI_PITWALL)
@@ -312,8 +318,9 @@ def build_fan_chart(data: FanChartData, *, include_caption: bool = True) -> Figu
     ax.set_xlabel("Lap", color=_UI_CHALK, fontsize=12)
     ax.set_ylabel("Finishing position", color=_UI_CHALK, fontsize=12)
     ax.set_ylim(data.n_cars + 0.5, 0.5)
-    ax.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=8))
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=8))
+    tick_count = 5 if compact else 8
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True, nbins=tick_count))
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=tick_count))
     ax.tick_params(labelsize=10.5, colors=_UI_FOG, color=_UI_RULE)
     for axis in (ax.xaxis, ax.yaxis):
         for tick in axis.get_ticklabels():

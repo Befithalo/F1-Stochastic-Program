@@ -69,7 +69,16 @@ from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 from f1si.strategy.longstaff import LongstaffSchwartzPolicy, StrategyAnalysis
 
 _FRIENDLY_VALUE_ERRORS = frozenset(
-    {"plot", "wear", "plan", "simulate", "wear-filter", "replay", "backtest"}
+    {
+        "plot",
+        "wear",
+        "plan",
+        "simulate",
+        "wear-filter",
+        "replay",
+        "backtest",
+        "backfill-scheduled-laps",
+    }
 )
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
 
@@ -274,6 +283,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=4,
         help="bounded report prediction workers, 1 through 4 (default: 4)",
+    )
+    backfill = sub.add_parser(
+        "backfill-scheduled-laps",
+        help="fill missing 2023-2025 race lap counts from FastF1",
+    )
+    backfill.add_argument(
+        "--output",
+        type=Path,
+        default=Path(
+            ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-11-lap-count-backfill.csv"
+        ),
+        help="write lap-count source provenance to this CSV",
     )
     return parser
 
@@ -1206,6 +1227,24 @@ def _cmd_replay(
     return 0
 
 
+def _cmd_backfill_scheduled_laps(data_dir: Path, provenance_path: Path) -> int:
+    """Run the guarded FastF1 race-metadata repair and report unresolved rows."""
+    from f1si.data.loader import backfill_scheduled_laps
+
+    report = backfill_scheduled_laps(
+        paths.db_path(data_dir),
+        fastf1_cache_dir=data_dir / "http-cache" / "fastf1",
+        provenance_path=provenance_path,
+    )
+    if report.failed:
+        print("Unresolved eligible races:", file=sys.stderr)
+        for failure in report.failed:
+            print(f"  {failure.race_id}: {failure.reason}", file=sys.stderr)
+        print("Run the same command again to retry unresolved races.", file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
     parser = build_parser()
@@ -1220,6 +1259,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
+        if args.command == "backfill-scheduled-laps":
+            return _cmd_backfill_scheduled_laps(data_dir, args.output)
         if args.command == "plot":
             reports_dir: Path = (
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()

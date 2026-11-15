@@ -162,6 +162,15 @@ def test_quantile_dotplot_places_100_dots_at_known_midpoint_quantiles() -> None:
 
     assert offsets.shape == (100, 2)
     np.testing.assert_array_equal(offsets[:, 0], expected)
+    assert fig.axes[0].get_xticklabels()[0].get_fontfamily() == ["DejaVu Sans Mono"]
+    compact = build_quantile_dotplot(data, compact=True)
+    assert compact.get_size_inches()[0] == pytest.approx(4)
+    compact_legend = compact.axes[0].get_legend()
+    assert compact_legend is not None
+    assert compact_legend.get_texts()[0].get_fontsize() == pytest.approx(8)
+    assert len(compact.axes[0].get_xticks()) <= 7
+    assert len(compact.axes[0].get_xticks()) < data.n_cars
+    assert compact.axes[0].get_xticklabels()[0].get_fontfamily() == ["DejaVu Sans Mono"]
     assert fig.axes[0].get_lines()[0].get_label() == "Mean finish at selected cutoff"
     assert fig.axes[0].get_lines()[0].get_color() == "#9BA1A8"
     assert "100 simulated finishes" in data.caption
@@ -192,4 +201,10 @@ def test_fan_chart_bands_match_each_lap_percentiles_and_report_real_count() -> N
     np.testing.assert_allclose(data.p90, levels[6])
     assert data.simulation_count == 6
     assert "6 simulated races" in data.caption
-    assert len(build_fan_chart(data).axes[0].collections) == 3
+    fan = build_fan_chart(data)
+    assert len(fan.axes[0].collections) == 3
+    assert fan.axes[0].get_xticklabels()[0].get_fontfamily() == ["DejaVu Sans Mono"]
+    assert fan.axes[0].get_yticklabels()[0].get_fontfamily() == ["DejaVu Sans Mono"]
+    compact_fan = build_fan_chart(data, compact=True)
+    assert compact_fan.get_size_inches() == pytest.approx((4, 4.8))
+    assert len(compact_fan.axes[0].get_xticks()) <= 5

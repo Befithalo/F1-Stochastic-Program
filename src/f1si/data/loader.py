@@ -18,16 +18,20 @@ Behavior (D-05, D-14):
 
 from __future__ import annotations
 
+import csv
+import logging
+import math
 import time
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Literal, cast
 
 import pandas as pd
 
 from f1si.data import derive, schema
-from f1si.data.errors import CacheBusyError, MixedSourceError
+from f1si.data.errors import CacheBusyError, CacheMissingError, MixedSourceError
 from f1si.data.sources import (
     CacheDiscarding,
     NormalizedRace,
@@ -278,3 +282,209 @@ def _load_one(
                 echo(f"{prefix} note: {note}")
             return None
     return LoadFailure(ref.race_id, ref.slug, "no attempts were made (max_attempts < 1)")
+
+
+LapCountSource = Literal["FastF1 session total laps", "FastF1 winner completed laps"]
+
+
+@dataclass(frozen=True)
+class ScheduledLapCount:
+    """One positive lap count and the FastF1 field that supplied it."""
+
+    laps: int
+    source: LapCountSource
+
+
+@dataclass(frozen=True)
+class BackfillFailure:
+    """An eligible cache row that FastF1 could not resolve."""
+
+    race_id: str
+    reason: str
+
+
+@dataclass
+class BackfillReport:
+    """Results of one resumable scheduled-lap cache repair."""
+
+    eligible_count: int = 0
+    updated: list[tuple[str, int, str]] = field(default_factory=list)
+    already_valid: list[str] = field(default_factory=list)
+    failed: list[BackfillFailure] = field(default_factory=list)
+
+    @property
+    def missing_count(self) -> int:
+        """Number of eligible rows still unresolved after the batch."""
+        return len(self.failed)
+
+
+def _positive_lap_count(value: object) -> int | None:
+    """Return a positive whole lap count, rejecting booleans and non-finite values."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    if not math.isfinite(number) or number < 1 or not number.is_integer():
+        return None
+    return int(number)
+
+
+def resolve_session_lap_count(session: Any) -> ScheduledLapCount:
+    """Read `Session.total_laps`, then winner `Session.results['Laps']` if needed."""
+    try:
+        scheduled = _positive_lap_count(session.total_laps)
+    except Exception:
+        scheduled = None
+    if scheduled is not None:
+        return ScheduledLapCount(scheduled, "FastF1 session total laps")
+
+    results = getattr(session, "results", None)
+    if results is None or not hasattr(results, "columns"):
+        raise ValueError("FastF1 did not provide session total laps or race results")
+    if "Position" not in results.columns or "Laps" not in results.columns:
+        raise ValueError("FastF1 race results are missing Position or Laps")
+    winners = results.loc[results["Position"] == 1]
+    if winners.empty:
+        raise ValueError("FastF1 race results do not identify a winner")
+    completed = _positive_lap_count(winners.iloc[0]["Laps"])
+    if completed is None:
+        raise ValueError("FastF1 winner results do not contain a positive lap count")
+    return ScheduledLapCount(completed, "FastF1 winner completed laps")
+
+
+def fetch_fastf1_lap_count(season: int, round_number: int, cache_dir: Path) -> ScheduledLapCount:
+    """Load one FastF1 race session and resolve its total or winner fallback."""
+    import fastf1  # type: ignore[import-untyped]
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    logging.getLogger("fastf1").setLevel(logging.ERROR)
+    fastf1.Cache.configure(cache_dir=str(cache_dir.resolve()))
+    session = fastf1.get_session(season, round_number, "R")
+    load_error: Exception | None = None
+    try:
+        session.load(laps=True, telemetry=False, weather=False, messages=False)
+    except Exception as err:
+        load_error = err
+    try:
+        return resolve_session_lap_count(session)
+    except Exception as err:
+        if load_error is not None:
+            raise ValueError(f"{err}; session load failed: {load_error}") from load_error
+        raise ValueError(
+            f"FastF1 could not resolve a session total or winner lap count: {err}"
+        ) from err
+
+
+LapCountResolver = Callable[[int, int, Path], ScheduledLapCount]
+
+
+def eligible_races(db_path: Path) -> list[dict[str, object]]:
+    """Return complete, in-sample cached races in Phase 6's 2023-2025 window."""
+    from f1si.data import _db  # local import: storage access stays in the loader (CR-01)
+
+    if not db_path.is_file():
+        raise CacheMissingError(db_path)
+    rows = _db.read_df(
+        db_path,
+        "SELECT race_id, season, round, scheduled_laps FROM races "
+        "WHERE load_status = 'complete' AND season BETWEEN 2023 AND 2025 "
+        "AND out_of_sample = FALSE ORDER BY season, round",
+    )
+    return cast(list[dict[str, object]], rows.to_dict(orient="records"))
+
+
+def _out_of_sample_snapshot(db_path: Path) -> list[tuple[object, ...]]:
+    from f1si.data import _db  # local import: storage access stays in the loader (CR-01)
+
+    rows = _db.read_df(
+        db_path,
+        "SELECT race_id, season, round, scheduled_laps, out_of_sample, load_status "
+        "FROM races WHERE out_of_sample = TRUE ORDER BY season, round",
+    )
+    return list(rows.itertuples(index=False, name=None))
+
+
+def _write_lap_count_provenance(path: Path, records: list[tuple[str, int, str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+        writer.writerow(("race_id", "scheduled_laps", "source"))
+        writer.writerows(records)
+
+
+def _read_lap_count_provenance(path: Path) -> dict[str, tuple[int, str]]:
+    """Read prior source evidence so repeated backfills preserve provenance."""
+    if not path.is_file():
+        return {}
+    with path.open(encoding="utf-8", newline="") as file:
+        reader = csv.DictReader(file)
+        return {
+            row["race_id"]: (int(row["scheduled_laps"]), row["source"])
+            for row in reader
+            if row.get("race_id") and row.get("scheduled_laps", "").isdigit() and row.get("source")
+        }
+
+
+def backfill_scheduled_laps(
+    db_path: Path,
+    *,
+    fastf1_cache_dir: Path,
+    provenance_path: Path,
+    resolver: LapCountResolver = fetch_fastf1_lap_count,
+    echo: Callable[[str], None] = print,
+) -> BackfillReport:
+    """Fill missing eligible races and verify that out-of-sample metadata is unchanged."""
+    from f1si.data import _db  # local import: storage access stays in the loader (CR-01)
+
+    rows = eligible_races(db_path)
+    report = BackfillReport(eligible_count=len(rows))
+    oos_before = _out_of_sample_snapshot(db_path)
+    prior_provenance = _read_lap_count_provenance(provenance_path)
+    provenance: list[tuple[str, int, str]] = []
+    for row in rows:
+        race_id = str(row["race_id"])
+        existing = _positive_lap_count(row["scheduled_laps"])
+        if existing is not None:
+            report.already_valid.append(race_id)
+            prior = prior_provenance.get(race_id)
+            source = (
+                prior[1]
+                if prior is not None and prior[0] == existing
+                else "Existing valid cache value"
+            )
+            provenance.append((race_id, existing, source))
+            echo(f"{race_id}: already has {existing} scheduled laps")
+            continue
+        try:
+            count = resolver(cast(int, row["season"]), cast(int, row["round"]), fastf1_cache_dir)
+            if _positive_lap_count(count.laps) is None:
+                raise ValueError("FastF1 returned a non-positive or non-integer lap count")
+            _db.update_scheduled_laps(db_path, race_id, count.laps)
+        except Exception as err:
+            report.failed.append(BackfillFailure(race_id, f"{type(err).__name__}: {err}"))
+            echo(f"{race_id}: failed to resolve scheduled laps: {type(err).__name__}: {err}")
+            continue
+        report.updated.append((race_id, count.laps, count.source))
+        provenance.append((race_id, count.laps, count.source))
+        echo(f"{race_id}: {count.laps} laps from {count.source}")
+
+    _write_lap_count_provenance(provenance_path, provenance)
+    unresolved = [
+        str(row["race_id"])
+        for row in eligible_races(db_path)
+        if _positive_lap_count(row["scheduled_laps"]) is None
+    ]
+    if unresolved:
+        reported = {failure.race_id for failure in report.failed}
+        report.failed.extend(
+            BackfillFailure(race_id, "scheduled-lap count remains missing")
+            for race_id in unresolved
+            if race_id not in reported
+        )
+    oos_after = _out_of_sample_snapshot(db_path)
+    if oos_before != oos_after:
+        raise RuntimeError("Scheduled-lap backfill changed out-of-sample race metadata")
+    echo(
+        f"Checked {report.eligible_count} eligible races: {len(report.updated)} updated, "
+        f"{len(report.already_valid)} already valid, {report.missing_count} unresolved."
+    )
+    return report

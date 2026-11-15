@@ -31,6 +31,37 @@ def test_backtest_report_parser_accepts_report_mode_and_default_output() -> None
     assert parsed.workers == 4
 
 
+def test_scheduled_lap_backfill_cli_passes_cache_and_provenance_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[Path, Path]] = []
+    output = tmp_path / "lap-counts.csv"
+
+    def capture(data_dir: Path, provenance: Path) -> int:
+        calls.append((data_dir, provenance))
+        return 0
+
+    monkeypatch.setattr(
+        cli,
+        "_cmd_backfill_scheduled_laps",
+        capture,
+    )
+
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backfill-scheduled-laps",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    assert calls == [(tmp_path, output)]
+
+
 def test_backtest_report_writes_completed_json_to_output_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

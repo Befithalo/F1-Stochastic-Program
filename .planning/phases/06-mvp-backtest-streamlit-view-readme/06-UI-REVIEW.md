@@ -103,3 +103,40 @@ The D-10 implementation changes and automated contracts are in place:
 Automated evidence: `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py -q` passed (36 tests); the full suite passed (1,095 passed, 25 deselected); Ruff check, Ruff format check, and strict mypy passed.
 
 **Live review status: pending.** This executor session had no connected browser surface, so no 1440×900 or 390×844 visual inspection, changed-selection interaction, forced-state review, screenshot, or rendered-geometry claim was made. Exact-head Ubuntu/Windows GitHub Actions is also pending on the final pushed head. Keep the Phase 06 UI review open until those checks are recorded in `06-VALIDATION.md`.
+
+---
+
+## Owner Rework Audit — 2026-11-15
+
+This audit supersedes the earlier code-only review and the 2026-11-14 live-review-pending paragraph above. It covers the owner's latest Phase 06 changes only. The owner acceptance checkpoint is still open; screenshots and tests do not imply approval.
+
+### Browser evidence
+
+- The refreshed app opens on **Bahrain Grand Prix 2023**, driver **ALO**, **after lap 15**, risk aversion 0.50, with race and driver pickers visible.
+- At lap 15, the live page rendered both charts from 1,000 simulation outputs. The recommendation's mean finish is 18.595 and its worst-10% average is 20.000. The dotplot row has 100 points at the stored midpoint quantiles, and the fan chart uses the same replay's forward position histories.
+- At lap 40, a separate live replay rendered both charts from 1,000 simulation outputs. The recommendation's mean finish is 4.512 and its worst-10% average is 6.160. The browser updated the plotted images and the accompanying lap-40 tire state after the replay settled.
+- Standard screenshots are `06-11-bahrain-lap15-1440.png` (1440×900) and `06-11-bahrain-lap15-390.png` (390×844). The standard captures show the recommendation, reason, and populated dotplot; the phone capture also shows the fan-chart heading. Supplemental `06-11-bahrain-lap15-1440-full-charts.png` (1440×1700) and `06-11-bahrain-lap15-390-full-charts.png` (390×1300) show both uncertainty charts in full.
+- The document and main-content widths equal the viewport at both requested widths. At 390px there is no horizontal overflow; the compact chart images render at 324px wide with readable labels and reduced numeric ticks.
+
+### Findings and fixes
+
+| Rule | Finding during live audit | Resolution | Final status |
+|---|---|---|---|
+| Color | The recommendation used purple; the initial chart also applied purple to its median and dots. The fan chart represents that same recommended strategy. | Kept purple only on the recommended action, its 100-dot distribution, and its fan-chart projection. Alternatives and the selected-cutoff mean marker remain neutral. Tire colors retain the S/M/H/I/W labels. No overall-best lap appears in this view. | Pass |
+| Tabular numbers | A broad control wrapping rule split the risk slider's `0.50` into a tall stack on desktop and phone widths. Initial desktop chart images also shrank their labels at phone width, and the mean legend ran out of room. | Removed the broad slider wrap rule, explicitly applied tabular figures to the slider and results table, and added compact phone chart figures with fewer integer ticks and a fitted legend. Final slider values are single-line, 24px labels with `tabular-nums`; table cells report `tabular-nums`/`tnum`; chart ticks use DejaVu Sans Mono. | Pass |
+| Copy | The displayed explanation exposed the blended-score formula and `CVaR10`; the coverage row said “classified finishers”; the safety-car panel referred to a Markov regime; and the chart caption used “midpoint empirical quantile.” | Replaced those visible phrases with the recommendation's average and worst-10% outcomes, “finishes inside the range,” a one-sentence historical safety-car explanation, and a short percentile caption. Removed middle-dot separators. Each Brier row uses the required three-decimal model/grid wording. Coverage remains `83%` and shows `Target: 85–95%`. | Pass |
+| Empty state | The previous empty-state treatment did not match the owner's two-sentence recovery rule. | The app now uses one sentence for the missing eligible lap counts and one sentence for the refresh/select action. The exact copy is covered by the app tests. | Pass |
+
+### Final copy and responsive checks
+
+- The live DOM contains no middle-dot, `cutoff-safe`, `classified denominator`, `schedule horizon`, `CVaR10`, “Markov regime,” or “race-cluster” text.
+- The live result table shows `Model 0.050 vs grid baseline 0.082 (lower is better)` and `Model 0.145 vs grid baseline 0.191 (lower is better)`; coverage reads `83% race average; 83.4% across all finishes ... Target: 85–95%.`
+- Both charts remain above safety-car/tire details and the ten-race evaluation table. The evaluation is one compact table rather than repeated stat cards.
+- No color, tabular-number, or copy-rule violations remain in the final 1440px and 390px views. The actual running page and screenshot evidence are ready for owner review; acceptance remains pending.
+
+### Verification state
+
+- Focused Phase 06 checks: 83 passed.
+- Full local suite after the loader-boundary fix: 1,117 passed, 25 deselected.
+- Ruff check, Ruff format check, mypy, and lock validation passed.
+- Exact-head Ubuntu/Windows CI remains pending until the final implementation commit is pushed and both jobs complete. See `06-11-SUMMARY.md` for the final head and CI record.

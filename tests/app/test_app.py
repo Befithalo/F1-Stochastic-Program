@@ -32,7 +32,16 @@ def test_page_has_catalog_controls_and_locked_defaults() -> None:
     assert "2023-01" in source or "Bahrain 2023" in source
     assert "ALO" in source
     assert "0.5" in source
+    assert "preferred_cutoff =" in source
+    assert "else 15" in source
     assert "Update replay" in source
+
+
+def test_page_copy_has_no_middle_dot_or_prohibited_phrases() -> None:
+    source = app_source().lower()
+    assert "·" not in source
+    for phrase in ("cutoff-safe", "classified denominator", "schedule horizon"):
+        assert phrase not in source
 
 
 def test_page_calls_shared_cutoff_safe_builder_and_has_no_results_door() -> None:
@@ -53,9 +62,9 @@ def test_page_calls_shared_cutoff_safe_builder_and_has_no_results_door() -> None
     [
         "Brier",
         "coverage",
-        "denominator",
+        "Target: 85",
         "strategy",
-        "Safety-car probability (current proxy)",
+        "Safety-car chance",
         "Uncalibrated",
         "risk",
     ],
@@ -66,39 +75,59 @@ def test_page_exposes_measured_summary_and_required_outputs(
     assert required_text.lower() in app_source().lower()
 
 
-def test_page_shows_fixed_sample_scores_and_denominators() -> None:
+def test_page_shows_plain_language_fixed_sample_scores_and_coverage() -> None:
     app = import_module("f1si.app")
     display = app._report_display_values(app._report_summary())
-    assert display["podium"] == "0.04996 / 0.08174"
-    assert display["top10"] == "0.14533 / 0.19090"
-    assert display["coverage"] == "Equal-race average: 83.0%; pooled: 83.4% (8,004 / 9,602)"
-    assert "Equal-race average" in display["coverage"]
-    assert "pooled" in display["coverage"]
-    assert "388 observed stops" in display["team"]
-    assert "79.0%" in display["team"]
-    assert "1.40 laps" in display["team"]
+    assert display["podium"] == "Model 0.050 vs grid baseline 0.082 (lower is better)"
+    assert display["top10"] == "Model 0.145 vs grid baseline 0.191 (lower is better)"
+    assert display["coverage"].startswith("83% race average; 83.4% across all finishes")
+    assert "8,004 of 9,602 finishes inside the range" in display["coverage"]
+    assert "Target: 85\u201395%" in display["coverage"]
+    assert "388 observed stops" in display["sample"]
+    assert display["team_agreement"].startswith("79.0% (95% confidence range:")
+    assert "1.40 laps" in display["team_timing"]
+    assert "95% confidence range" in display["team_timing"]
 
 
-def test_scorecard_renders_complete_fixed_report_values_together() -> None:
-    app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
-    result = app_test.from_file(APP_PATH).run()
-    assert not result.exception
-    metric_items = {item.label: item for item in result.metric}
-    metrics = {label: item.value for label, item in metric_items.items()}
-    assert metrics["Podium Brier · model / grid baseline"] == "0.04996 / 0.08174"
-    assert metrics["Top-10 Brier · model / grid baseline"] == "0.14533 / 0.19090"
-    assert (
-        metrics["90% finish coverage · classified denominator"]
-        == "Equal-race average: 83.0%; pooled: 83.4% (8,004 / 9,602)"
+def test_recommended_reason_uses_plain_strategist_language() -> None:
+    app = import_module("f1si.app")
+    assert app._strategist_reason("stay out", 18.59, 20.0) == (
+        "Stay out ranks first on the balanced score, averaging 18.59 overall and "
+        "20.00 among its worst 10% of simulated finishes."
     )
-    assert metrics["Team top-action agreement"] == "79.0%"
-    assert metrics["Absolute stop-timing error"] == "1.40 laps"
-    visible_copy = " ".join(item.value for item in result.caption)
-    assert "95% CI 70.4%-87.0%" in visible_copy
-    assert "95% CI 0.96-1.84 laps" in visible_copy
-    assert "10 registered races" in visible_copy
-    assert "10,942 driver/cutoff observations" in visible_copy
-    assert "388 observed stops" in visible_copy
+    assert "CVaR" not in app._strategist_reason("pit now", 4.1, 6.2)
+
+
+def test_evaluation_uses_one_compact_table_instead_of_stat_cards(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = import_module("f1si.app")
+    tables: list[pd.DataFrame] = []
+    headings: list[str] = []
+
+    @contextmanager
+    def capture_container(**_kwargs: object) -> Iterator[None]:
+        yield
+
+    monkeypatch.setattr(app.st, "subheader", headings.append)
+    monkeypatch.setattr(app.st, "container", capture_container)
+    monkeypatch.setattr(app.st, "table", tables.append)
+    monkeypatch.setattr(app.st, "metric", lambda *_args, **_kwargs: pytest.fail("stat card"))
+
+    app._render_report_summary(app._report_summary())
+
+    assert headings == ["Ten-race evaluation"]
+    assert len(tables) == 1
+    assert tables[0]["Measure"].tolist() == [
+        "Podium Brier score",
+        "Top-10 Brier score",
+        "90% finish coverage",
+        "Team top-action agreement",
+        "Observed stop-timing error",
+        "Sample",
+    ]
+    assert tables[0].iloc[0]["Result"] == "Model 0.050 vs grid baseline 0.082 (lower is better)"
+    assert "Target: 85\u201395%" in tables[0].iloc[2]["Result"]
 
 
 def test_page_uses_full_immutable_replay_cache_identity() -> None:
@@ -139,8 +168,8 @@ def test_replay_cache_identity_includes_walk_forward_dependency(
 @pytest.mark.parametrize(
     "state_text",
     [
-        "No verified race schedule available",
-        "Building cutoff-safe replay",
+        "No eligible races are available because their scheduled lap counts are missing.",
+        "Building replay",
         "Replay could not be built for this selection.",
         "Unavailable at this cutoff",
     ],
@@ -154,16 +183,20 @@ def test_empty_loading_error_and_partial_states_are_explicit(
 def test_empty_schedule_body_matches_approved_copy() -> None:
     app = import_module("f1si.app")
     assert app.EMPTY_BODY == (
-        "Choose an event with verified pre-race schedule metadata "
-        "or load the supported local race cache."
+        "No eligible races are available because their scheduled lap counts are missing. "
+        "Refresh the race cache, then choose a supported event."
     )
 
 
-def test_streamlit_harness_can_open_page_for_zero_one_many_and_layout_assertions() -> None:
+def test_streamlit_harness_opens_cleanly_with_an_empty_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("F1SI_DATA_DIR", str(tmp_path))
     app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
     result = app_test.from_file(APP_PATH).run()
     assert not result.exception
-    assert any("Ten-race evaluation" in item.value for item in result.subheader)
+    app = import_module("f1si.app")
+    assert any(item.value == app.EMPTY_BODY for item in result.markdown)
 
 
 def test_empty_local_cache_shows_copy_without_empty_result_components(
@@ -173,15 +206,11 @@ def test_empty_local_cache_shows_copy_without_empty_result_components(
     app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
     result = app_test.from_file(APP_PATH).run()
     assert not result.exception
-    assert any(item.value == "No verified race schedule available" for item in result.subheader)
-    assert any(
-        (
-            "Choose an event with verified pre-race schedule metadata "
-            "or load the supported local race cache."
-        )
-        in item.value
-        for item in result.markdown
-    )
+    app = import_module("f1si.app")
+    assert [item.value for item in result.markdown if item.value == app.EMPTY_BODY] == [
+        app.EMPTY_BODY
+    ]
+    assert len(result.subheader) == 0
     assert len(result.dataframe) == 0
     assert len(result.get("imgs")) == 0
 
@@ -190,8 +219,8 @@ def test_zero_one_many_actions_use_singular_labels_and_count_visible_rows() -> N
     app = import_module("f1si.app")
     assert hasattr(app, "_action_heading")
     assert app._action_heading(0) == "No ranked strategy actions available"
-    assert app._action_heading(1) == "Ranked strategy actions · 1 action"
-    assert app._action_heading(13) == "Ranked strategy actions · 13 actions"
+    assert app._action_heading(1) == "Ranked strategy actions: 1 action"
+    assert app._action_heading(13) == "Ranked strategy actions: 13 actions"
 
 
 def test_replay_error_state_cannot_reuse_stale_selected_output() -> None:
@@ -268,8 +297,12 @@ def test_responsive_layout_stacks_panels_scrolls_table_and_wraps_long_text() -> 
     assert '.stApp [data-testid="stMetricLabel"] {' in source
     assert '.stApp [data-testid="stCaptionContainer"] {' in source
     assert "font-variant-numeric: tabular-nums" in source
+    assert '.st-key-replay-controls [data-testid="stSlider"] {' in source
+    assert '.st-key-replay-controls [data-testid="stSlider"] *,' not in source
     assert ".neutral-note" in source
     assert "st.info(" not in source
+    assert ".st-key-fan-chart-mobile { display: none; }" in source
+    assert ".st-key-fan-chart-desktop { display: none !important; }" in source
 
 
 def test_dark_theme_and_keyed_dashboard_styles_follow_the_ui_contract() -> None:
@@ -354,6 +387,7 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
         {
             "available": True,
             "strategy_available": True,
+            "race_name": "Bahrain Grand Prix",
             "driver": "ALO",
             "cutoff_lap": 8,
             "safety_car_share": 0.1,
@@ -376,7 +410,7 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
         }
     )
 
-    assert len(figures) == 2
+    assert len(figures) == 4
     mean_artist = figures[0].axes[0].get_lines()[0]
     assert mean_artist.get_xdata()[0] == pytest.approx(4.0)
     assert mean_artist.get_xdata()[0] != 8
@@ -417,6 +451,7 @@ def test_selected_replay_renders_both_quantile_and_forward_position_charts(
         {
             "available": True,
             "strategy_available": True,
+            "race_name": "Bahrain Grand Prix",
             "driver": "ALO",
             "cutoff_lap": 8,
             "safety_car_share": 0.1,
@@ -451,8 +486,8 @@ def test_selected_replay_renders_both_quantile_and_forward_position_charts(
         }
     )
 
-    assert len(figures) == 2, "The selected cutoff should render both uncertainty charts."
-    assert len(figures[1].axes[0].collections) >= 3
+    assert len(figures) == 4, "Desktop and phone versions of both charts should render."
+    assert len(figures[2].axes[0].collections) >= 3
 
 
 def test_selected_cutoff_simulates_recommended_plan_and_caches_only_compact_fan_bands(

@@ -215,6 +215,48 @@ def completed_race_ids(db_path: Path) -> set[str]:
     return {str(v) for v in df["race_id"]}
 
 
+def update_scheduled_laps(db_path: Path, race_id: str, laps: int) -> bool:
+    """Update only scheduled-lap metadata for one complete 2023-2025 in-sample race.
+
+    Returns whether a previously missing or invalid value was updated. Out-of-sample rows and
+    races outside the Phase 6 catalog are rejected before any write.
+    """
+    if isinstance(laps, bool) or not isinstance(laps, int) or laps < 1:
+        raise ValueError("scheduled lap count must be a positive integer")
+    with connect_writer(db_path) as con:
+        row = con.execute(
+            "SELECT season, out_of_sample, load_status, scheduled_laps "
+            "FROM races WHERE race_id = ?",
+            [race_id],
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Race {race_id} is not present in the cache")
+        season, out_of_sample, load_status, existing = row
+        if not 2023 <= int(season) <= 2025 or bool(out_of_sample) or load_status != "complete":
+            raise ValueError(f"Race {race_id} is not an eligible complete in-sample race")
+        if existing is not None and int(existing) > 0:
+            return False
+        con.begin()
+        try:
+            con.execute(
+                "UPDATE races SET scheduled_laps = ? "
+                "WHERE race_id = ? AND season BETWEEN 2023 AND 2025 "
+                "AND out_of_sample = FALSE AND load_status = 'complete' "
+                "AND (scheduled_laps IS NULL OR scheduled_laps < 1)",
+                [laps, race_id],
+            )
+            updated = con.execute(
+                "SELECT scheduled_laps FROM races WHERE race_id = ?", [race_id]
+            ).fetchone()
+            if updated is None or int(updated[0]) != laps:
+                raise ValueError(f"Scheduled lap count update did not persist for {race_id}")
+            con.commit()
+        except BaseException:
+            con.rollback()
+            raise
+    return True
+
+
 def sources_in_cache(db_path: Path) -> set[str]:
     """Distinct data sources present in the cache; empty if no cache exists."""
     if not db_path.exists():
