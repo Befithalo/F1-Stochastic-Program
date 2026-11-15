@@ -227,7 +227,8 @@ Plans:
 
 Plans:
 - [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
-- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and rendered-browser acceptance
+- [ ] 06-08-PLAN.md — Same-sample quantile dotplot, selected-driver fan chart, brief-compliant UI, and live desktop/phone audit
+- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and final owner acceptance
 
 **Wave 0**
 - [x] 06-00-PLAN.md — Create the five missing backtest and app test modules before implementation verifies them
@@ -257,10 +258,10 @@ Plans:
 - [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
 
 **Wave 9**
-- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and rendered-browser acceptance
+- [ ] 06-08-PLAN.md — Same-sample quantile dotplot, selected-driver fan chart, brief-compliant UI, and live desktop/phone audit
 
 **Wave 10**
-- [ ] 06-08-PLAN.md — Record accepted D-10/D-11 browser evidence and close the UI review
+- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and final owner acceptance
 
 **UI hint**: yes
 
