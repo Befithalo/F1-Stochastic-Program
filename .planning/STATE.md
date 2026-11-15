@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 10
+current_plan: 11
 status: executing
-stopped_at: Phase 06 whole-page visual redesign context gathered
-last_updated: "2026-11-15T06:01:25.352Z"
-last_activity: 2026-11-14
+stopped_at: Completed 06-08-PLAN.md
+last_updated: "2026-11-15T07:16:46.093Z"
+last_activity: 2026-11-15
 last_activity_desc: Phase 06 execution started
-state_head: 79da67701fe6c7f69f344329036796d21998ecf4
+state_head: c52d981f80ed4305ce39640aeeb80d8f05e21324
 progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 43
-  completed_plans: 41
+  completed_plans: 42
 milestone_name: milestone
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 ## Current Position
 
 Phase: 06 (MVP Backtest, Streamlit View & README) — READY TO EXECUTE
-Current Plan: 10
+Current Plan: 11
 Total Plans in Phase: 11
-Plan: 10 of 11
+Plan: 11 of 11
 Status: Ready to execute
 Last activity: 2026-11-15 — Completed quick task 261115-166: Merge selected Streamlit design brief rules into the Phase 6 UI spec
 
@@ -75,6 +75,7 @@ Progress: [====------] 38%
 | Phase 06 P06 | 12min | 2 tasks | 8 files |
 | Phase 06 P07 | 7min | 2 tasks | 5 files |
 | Phase 06 P09 | 13min | 2 tasks | 5 files |
+| Phase 06 P08 | 42m | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -140,6 +141,8 @@ Progress: [====------] 38%
 - [Phase 06]: Keep published Phase 6 metrics tied to the fixed report, preserving samples, denominators, and interval conventions.
 - [Phase 06]: Describe observed team calls comparatively and wear estimates as retrospective proxy evidence, not proof of superiority or latent ground truth.
 - [Phase 06]: D-11's graphite dashboard was rejected after the owner inspected it; D-12 through D-15 supersede its visual choices with a light, editorial, replay-first page and an ex-ante schedule-horizon requirement. Preserve D-07/D-08 data semantics and the one-page scope.
+- [Phase 06]: Reserve purple for the recommended strategy; label any overall-best lap Best in neutral fog.
+- [Phase 06]: Retain compact same-sample finish quantiles and opt-in selected-driver history; reduce simulation history to percentile bands before UI rendering.
 
 ### Pending Todos
 
@@ -162,6 +165,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-15T05:23:14.297Z
-Stopped at: Phase 06 whole-page visual redesign context gathered
-Resume file: .planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md
+Last session: 2026-11-15T07:16:45.425Z
+Stopped at: Completed 06-08-PLAN.md
+Resume file: None
