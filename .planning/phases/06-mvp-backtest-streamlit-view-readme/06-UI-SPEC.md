@@ -5,6 +5,7 @@ status: approved
 shadcn_initialized: false
 preset: none
 created: "2026-11-13"
+reviewed_at: "2026-11-14"
 ---
 
 # Phase 06 — UI Design Contract
@@ -23,7 +24,13 @@ created: "2026-11-13"
 | Icon library | none — use text labels and native control labels |
 | Font | system UI stack: system-ui, Segoe UI, Arial, sans-serif |
 
-Design basis: the codebase has no existing app, CSS/SCSS tokens, component configuration, or UI design system. Use the manual, light neutral palette below as a researcher default; D-07 and D-08 lock the page content, controls, defaults, read-only behavior, and safety-car proxy label.
+Design basis: the codebase has no existing app, CSS/SCSS tokens, component configuration, or UI design system. Use Streamlit's native theme configuration for global canvas, surface, text, neutral slate `primaryColor` (#AAB5C0), border, and font roles so generic widget highlights stay neutral. Style only the primary submit action in racing red (#D90429) with white text, using scoped styling if the native theme applies its color too broadly. Reserve custom CSS for layout details theme settings do not expose, scoped to keyed containers rather than broad internal selectors. This manual dark graphite/slate contract follows 06-CONTEXT.md D-11 and 06-RESEARCH.md's contrast recommendations. D-07/D-08 continue to lock page content, controls, defaults, read-only behavior, and safety-car proxy meaning. Do not add a package or component library.
+
+### Visual Hierarchy
+
+Use one deliberate, compact page flow in this order: (1) a compact fixed ten-race evaluation scorecard, (2) the four scannable replay controls and primary action, (3) the visually dominant finishing-position distribution beside compact safety-car and tire companion cards, then (4) the full-width ranked strategy table with its reason directly below. Use layered bordered slate surfaces to distinguish these groups from the graphite canvas; preserve breathing room between sections while keeping the first three groups compact and the result flow coherent. The desktop distribution chart is the largest visual element. On narrow screens, stack the chart and companion cards, retain the scorecard values and control labels, and keep the table horizontally scrollable without clipping.
+
+The scorecard keeps all fixed measured quantities: podium and top-10 model/grid-baseline Brier pairings, 90% interval coverage with equal-race and pooled values plus its classified denominator, top-action agreement and stop-timing error with their race-cluster 95% intervals, observed stop count, ten-race count, and observation count. Use short headings and a quiet metadata line for race/observation counts; compactness must not hide, round away, or change the meaning of a value. This presentation is read-only and introduces no new metric.
 
 ---
 
@@ -62,12 +69,18 @@ Use only these four sizes and two weights. (Researcher default; no upstream typo
 
 | Role | Value | Usage |
 |------|-------|-------|
-| Dominant (60%) | #F5F7FA | Page canvas and broad neutral surfaces |
-| Secondary (30%) | #E9EEF3 | Input tray, chart/table panels, and grouped side panels |
-| Accent (10%) | #D90429 | Top-ranked strategy marker, selected cutoff point in the fan chart, and the single active safety-car probability marker |
+| Dominant (60%) | #10151C | Dark graphite page canvas and broad background |
+| Secondary (30%) | #1A222C | Default bordered card surface for scorecard, controls, chart, companion panels, and table |
+| Raised slate surface | #242E39 | Nested/raised groups and control tracks where a second surface layer improves hierarchy |
+| Primary text | #F2F5F8 | Titles, values, table content, and labels on graphite/slate surfaces |
+| Supporting text | #B7C2CE | Captions, explanatory copy, chart ticks, and muted metadata |
+| Neutral chart marks | #AAB5C0 | Finishing-distribution bars and non-semantic chart marks |
+| Accent (reserved) | #D90429 | Primary submit action and the existing top-ranked, selected-cutoff finishing-summary, and safety-car probability signals only |
 | Destructive | none | The page has no destructive actions. Use Streamlit's semantic error treatment for failures. |
 
-Accent reserved for: the top-ranked strategy marker; the selected cutoff point in the fan chart; the active safety-car probability marker. Do not color every control, link, or data series with the accent. Use dark neutral text (#17212B) on light surfaces. (Palette is a researcher default; no upstream color tokens or palette are present.)
+Accent reserved for: the **Update replay** primary action; the actual first-ranked strategy row's marker; the chart's labeled `Mean finish at selected cutoff` line; and the single positioned safety-car probability marker. Do not use red for general links, slider tracks/focus states, all table rows, chart bars, headings, or decorative fills. Pair the row signal with the readable `TOP` text and the chart signal with its legend; keep `TOP` in high-contrast text rather than small red-only text. Use white text on the red primary action. Make the global Streamlit theme use neutral slate for generic widget highlights if its primary color would otherwise spread red to other controls; scope red styling to the submit action and the four named signals. (Exact tokens are the D-11 research recommendation; no prior project palette exists.)
+
+Contrast checks: target at least 4.5:1 for normal text, 3:1 for large text, and 3:1 for meaningful control boundaries/graphical marks against their adjacent surface. The recommended pairs calculate to 16.75:1 for main text on canvas, 14.66:1 for main text on card, 10.14:1 for supporting text on canvas, 6.54:1 for neutral bars on card, 3.06:1 for red marks on card, and 5.25:1 for white on the red CTA. If a surface pairing changes, recheck the ratio; do not rely on color alone to convey ranked or chart meaning. (06-RESEARCH.md D-11 contrast guidance; W3C WCAG 2.2.)
 
 ---
 
@@ -86,15 +99,20 @@ Accent reserved for: the top-ranked strategy marker; the selected cutoff point i
 ## Interaction Contract
 
 - Render one page with a title and a concise scope note. Do not add tabs, a navigation menu, live streaming, deployment controls, or editing actions. (06-CONTEXT.md D-07/D-08; Phase 6 boundary.)
+- Keep the visual flow and emphasis defined in **Visual Hierarchy**: compact ten-race scorecard first; easy-to-scan replay controls; large finishing-distribution chart with compact safety-car and tire cards beside it; full-width ranked strategy table and its reason below. Use bordered containers with layered slate surfaces to group these existing content areas. The hierarchy changes presentation only: no new page, navigation, feature, data, or metric meaning. (06-CONTEXT.md D-11; 06-RESEARCH.md D-11 follow-up.)
+- The fixed scorecard must retain the podium and top-10 model/grid-baseline Brier pairings, interval coverage as equal-race average and pooled coverage with its covered/classified denominator, team top-action agreement and absolute stop-timing error with race-cluster 95% intervals, observed stop count, registered-race count, and Brier observation count. Compact headings and metadata may improve scanning; values and denominators remain visible and unaltered. The page labels these as the fixed read-only measured results.
 - Place the four controls together at the top in one form: race, driver, cutoff lap, and risk aversion. Submitting **Update replay** applies the selected values together.
 - Defaults are Bahrain 2023, driver ALO, the middle eligible cutoff for that race, and risk aversion 0.5. (Locked by 06-CONTEXT.md D-07.)
 - The race selector contains only eligible 2023–2025 catalog races; the driver selector is limited to the selected race; the cutoff control is limited to eligible cutoffs for that race. Changing race updates the driver and cutoff options.
 - Present risk aversion as a 0.0–1.0 slider with endpoints “Mean-focused” and “Tail-risk-focused”; show the selected value. The slider is the required risk dial and uses the locked 0.5 default. (06-CONTEXT.md D-07; existing replay bounds/default in 06-RESEARCH.md.)
 - On submit, show “Building cutoff-safe replay…” while calculating. Do not leave the previous selection's outputs visible as if they corresponded to the new selection. On failure, replace the result area with the Error state copy above.
 - Keep the page read-only and call shared cutoff-safe replay construction. The view must not access final results directly, bypass the as-of data door, or imply that 2026 is eligible. Only f1si.backtest.scoring may use final classifications. (06-CONTEXT.md D-08; 06-RESEARCH.md data-flow contract.)
-- Use a wide page layout with the fan chart as the main visual and regime/tire panels grouped beside it on desktop. Put the ranked strategy table and its reason line in full-width sections below. Stack panels vertically on narrow screens; allow the strategy table to scroll horizontally if needed, and never clip values or labels.
+- Use a wide page layout with the finishing-position chart as the largest visual block and compact regime/tire companion cards grouped beside it on desktop. Put the ranked strategy table in a full-width section below and its one-sentence reason immediately under the table. Stack chart and companion cards vertically on narrow screens; allow the strategy table to scroll horizontally if needed, and never clip values or labels. Use Streamlit theme configuration for global colors/type, and limit custom CSS to scoped layout details; avoid broad selectors against unstable internal DOM where keyed containers provide a stable target. Keep gutters/padding on the declared spacing scale.
 - Label the regime panel “Safety-car probability (current proxy)”; state that this is the existing per-lap safety-car probability, not a Markov regime classification. Mark prior-driven or sparse-fallback outputs as “UNCALIBRATED” adjacent to affected panels. Show unavailable data explicitly instead of implying a value.
 - The fan chart shows the finishing-position distribution for the selected driver and cutoff. The strategy table shows the ranked actions and the required comparison metrics; visually mark the top-ranked action. The tire panel shows the estimate with its uncertainty. Put the one-sentence recommendation reason directly under the table.
+- Keep distribution bars neutral (#AAB5C0) and the selected-cutoff summary marker racing red (#D90429), explicitly labeled `Mean finish at selected cutoff`; the marker summarizes the selected cutoff's simulated finishing positions and is not a lap-coordinate on the finishing-position axis. Give the Figure and axes the dark chart-card background and explicitly style labels, ticks, spines, grid, legend, bars, and marker so no white default patch or low-contrast annotation leaks into the dark surfaces. Keep chart labels/ticks within the declared typography scale and put the full explanatory caption in readable page text or a legible figure note. The red safety-car marker sits on a neutral track and retains its percentage and accessible text label.
+- Preserve high-contrast text and visible focus/control boundaries. Check normal text at 4.5:1, large text at 3:1, and meaningful non-text marks at 3:1 against their adjacent colors. Do not use color as the only carrier of `TOP`, selected-cutoff, safety-car, fallback, or availability meaning.
+- Keep the evaluation scorecard compact without hiding quantities: use concise labels, paired values, and a quiet line for the ten-race and observation counts; bring existing team agreement/timing into the same scorecard group rather than relegating it to a long separate caption. At narrow widths, those same values wrap into readable cards instead of being omitted.
 
 ---
 
@@ -132,6 +150,6 @@ There is no navigation element in the locked one-page scope.
 - [x] Dimension 4 Typography: PASS
 - [x] Dimension 5 Spacing: PASS
 - [x] Dimension 6 Registry Safety: PASS
-- [x] Dimension 7 Inventory Provenance: PASS — not applicable because Tool is none
+- [x] Dimension 7 Inventory Provenance: PASS � not applicable because Tool is none
 
-**Approval:** approved 2026-11-14
+**Approval:** APPROVED � UI checker review of D-11 revision, 2026-11-14

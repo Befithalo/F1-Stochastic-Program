@@ -1,8 +1,8 @@
-# Phase 6 UI Follow-up: Pattern Map
+# Phase 6: MVP Backtest, Streamlit View & README - Pattern Map
 
-**Mapped:** 2026-11-14
-**Files analyzed:** 4
-**Analogs found:** 4 / 4 (each target is an existing implementation or its acceptance test)
+**Mapped:** 2026-11-14 (D-11 visual refresh)
+**Files analyzed:** 4 UI files in the D-10/D-11 follow-up scope
+**Analogs found:** 4 / 4 (all targets already exist and are tracked)
 
 ## File Classification
 
@@ -13,15 +13,15 @@
 | `tests/app/test_app.py` | test | request-response | `tests/app/test_app.py` | exact |
 | `tests/plots/test_simulate_plot.py` | test | transform | `tests/plots/test_simulate_plot.py` | exact |
 
-All four analog paths are git-tracked (`git ls-files` returned each path). Scope is limited to these UI follow-up files; README, backtest, and other modules are out of scope.
+These are the visual-refresh targets. The scorecard and replay panels are both rendered in `app.py`; there is no separate card component or CSS file. Backtest scoring, README evidence, and other phase files are outside this UI mapping. `git ls-files --error-unmatch` verified all four analog paths are tracked.
 
 ## Pattern Assignments
 
 ### `src/f1si/app.py` (Streamlit page, request-response)
 
-**Analog:** `src/f1si/app.py` (same page; the UI review calls out refinements to its existing integration points).
+**Analog:** `src/f1si/app.py` (the existing replay page and scorecard).
 
-**Imports and page boundaries** (lines 11–20):
+**Imports and page/data boundary** (lines 11-20):
 
 ```python
 import numpy as np
@@ -34,63 +34,113 @@ from f1si.data import asof
 from f1si.plots.simulate import build_sim_figure, prepare_sim_plot_data
 ```
 
-The page should continue to consume the shared cutoff-safe replay path. Preserve the no-results-door boundary: do not import `f1si.data.results` or display final results in this view.
+Keep the existing cutoff-safe replay path and do not import `f1si.data.results` into the view. Presentation work should not move data construction into CSS/card helpers or change replay inputs.
 
-**Failure handling** (lines 28–31, 86–92, 445–466):
+**Report metrics and compact scorecard** (lines 263-310):
 
 ```python
-ERROR_COPY = (
-    "Replay could not be built for this selection. Check the local cache and eligible cutoffs, "
-    "then retry or choose another race."
-)
+def _report_display_values(report: dict[str, Any]) -> dict[str, str]:
+    metrics = report["metrics"]
+    podium = metrics["podium_brier"]
+    top10 = metrics["top10_brier"]
+    coverage = metrics["finish_interval_90"]
+    team = metrics["team_strategy_comparison"]
+    ...
 
-def _safe_replay_result(builder: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+def _render_report_summary(report: dict[str, Any]) -> None:
+    display = _report_display_values(report)
+    metrics = report["metrics"]
+    st.subheader("Complete ten-race evaluation · fixed report")
+    st.caption(f"{len(report['race_ids'])} registered races · ...")
+    columns = st.columns(3)
+    columns[0].metric("Podium Brier · model / grid baseline", display["podium"])
+    columns[1].metric("Top-10 Brier · model / grid baseline", display["top10"])
+    columns[2].metric("90% finish interval coverage · ...", display["coverage"])
+    st.caption("Team comparison: " + display["team"])
+```
+
+Reuse the prepared display strings and metric values. D-11 calls for a compact ten-race scorecard; group it in a bordered `st.container` and use a tight multi-column metric row, retaining model/baseline pairing, equal-race and pooled coverage denominator, team comparison/interval, registered race count, and observation count. Do not omit required numbers to gain compactness. Use graphite canvas and layered slate surfaces, high contrast text, and deliberate spacing; D-11 supersedes the former light values in the current CSS. The updated context leaves exact hex tokens to implementation discretion.
+
+**Containers and page hierarchy** (lines 358-416, 419-425):
+
+```python
+left, right = st.columns((2, 1), gap="large")
+with left:
+    st.pyplot(build_sim_figure(chart, include_caption=False), clear_figure=True)
+    st.caption(chart.caption)
+with right:
+    st.subheader("Safety-car probability (current proxy)")
+    ...
+    st.subheader("Tire estimate and uncertainty")
+    ...
+```
+
+Use native `st.container(border=True, key=...)` as the pattern for layered slate scorecard, replay-control, chart, safety-car, and tire panels. Keep the one-page flow: compact scorecard, easy-to-scan controls, dominant finishing chart beside tidy safety-car/tire companion cards, then full-width strategy table and reason. Retain `st.columns((2, 1), gap="large")` as the desktop chart/sidebar proportion and stack at narrow width. Keep the safety-car proxy explanation, fallback/unavailable labels, and current metric content inside their associated cards. Do not nest columns more than once; the approved `06-UI-SPEC.md` requires controls together in a form, responsive stacking, and table/reason overflow handling.
+
+**CSS and native-control sizing** (lines 313-350):
+
+```css
+:root {
+    --space-xs: 4px; --space-sm: 8px; --space-md: 16px;
+    --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px; --space-3xl: 64px;
+}
+.stApp { background: #F5F7FA; color: #17212B; }
+[data-testid="stVerticalBlockBorderWrapper"] { background: #E9EEF3; }
+[data-testid="stDataFrame"] [role="grid"] { overflow-x: auto !important; }
+[data-testid="stSelectbox"] [data-baseweb="select"] { min-height: 44px; }
+@media (max-width: 760px) { ... }
+```
+
+Preserve spacing and type roles from the approved UI spec (4/8/16/24/32/48/64 px; body 16, label 14, heading 20, display 28; 44 px actionable targets where native widgets permit), plus wrapping, horizontal table scrolling, and narrow stacking. Replace the light palette with D-11's graphite canvas, slate layers, crisp high-contrast type; reserve racing red for the primary action and the existing top-ranked, finishing-summary, and safety-car signals. Scope any custom selectors narrowly (prefer keyed containers), since Streamlit's internal `data-testid` structure can change. Do not use CSS to recolor every widget red. Keep visible risk endpoints and selected value near the update action.
+
+**Safety-car gauge and accent placement** (lines 116-126, 380-397, 410-415):
+
+```python
+def _probability_track_markup(probability: float) -> str:
+    value = min(max(float(probability), 0.0), 1.0)
+    return (
+        '<div role="img" aria-label="Safety-car probability: '
+        f'{value:.1%}" ... background: #E9EEF3; ...>'
+        f'<span ... left: {value * 100:.1f}%; ... background: #D90429; ...></span></div>'
+    )
+
+styled_table = strategy_table.style.map(
+    lambda value: "color: #D90429; font-weight: 600;" if value == "TOP" else "",
+    subset=["Rank"],
+)
+```
+
+Keep the track neutral with a single red, positioned marker and accessible probability label; pair with the numeric probability and proxy label. Keep red only on the actual first-ranked `TOP` row marker, the chart summary, and this safety-car marker (plus primary CTA); retain a textual marker so meaning does not depend on color. Avoid red-only small text on slate.
+
+**Ranked table and safe replay state** (lines 78-113, 404-416, 445-466):
+
+```python
+def _ranked_strategy_rows(columns, rows):
+    return ("Rank", *columns), tuple(
+        ("TOP" if index == 0 else "", *row) for index, row in enumerate(rows)
+    )
+
+def _safe_replay_result(builder):
     try:
         return {"status": "ready", "value": builder()}
     except Exception as err:
         return {"status": "error", "value": None, "reason": str(err)}
+
+def _render_replay_failure() -> None:
+    st.info(ERROR_COPY)
 ```
 
-Keep the helper's stale-output behavior (`value: None` on error), but render the exact approved `ERROR_COPY` on both replay error paths. Never put the captured `reason` or raw exception text into visible UI. In particular, replace the current raw interpolations at lines 461–466 with the shared safe copy.
-
-**Ranked action rendering** (lines 78–84, 355–363):
-
-```python
-def _annotate_strategy_options(columns, rows, fallback):
-    label = "UNCALIBRATED" if fallback else "Cutoff inputs"
-    return (*columns, "Basis"), tuple((*row, label) for row in rows)
-
-strategy_table = pd.DataFrame(rows, columns=columns)
-st.dataframe(strategy_table, hide_index=True, width="stretch", height="content")
-```
-
-The current accent callout is a standalone heading and does not identify the first row. Attach the accent/marker to the actual row at index 0 while retaining the `Basis` field adjacent to each action; preserve the fallback annotation behavior and table data. The research contract specifies accent `#D90429` and allows removing/demoting the duplicate standalone banner.
-
-**Existing layout/control integration points** (lines 274–304, 385–440):
-
-```python
-.stApp { background: #F5F7FA; color: #17212B; }
-[data-testid="stVerticalBlockBorderWrapper"] { background: #E9EEF3; }
-@media (max-width: 760px) {
-    [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: 16px; }
-}
-```
-
-Use the UI-SPEC scale: body 16px, labels 14px, headings 20px, display 28px; spacing tokens are 4/8/16/24/32/48/64px. Set actionable controls to at least 44px where native Streamlit widgets permit. Render visible `Mean-focused` and `Tail-risk-focused` slider endpoint labels and keep its numeric value visible before submission. Retain mobile wrapping, table horizontal scrolling, and long-text wrapping; source-level CSS checks do not prove actual widget geometry or responsive behavior.
+Keep `Basis` adjacent to each action and accent the `TOP` value on row zero, not a detached banner. Preserve fresh-error semantics (`value: None`) and render only exact approved `ERROR_COPY`; never expose `reason`/exception text. The reason line stays under the table and wraps without clipping.
 
 ### `src/f1si/plots/simulate.py` (plot utility, transform)
 
-**Analog:** `src/f1si/plots/simulate.py` (the existing pure-data preparation and Figure API renderer).
+**Analog:** `src/f1si/plots/simulate.py` (pure plot-data preparation and direct-Figure renderer).
 
-**Imports and plain-data boundary** (lines 18–27, 34–47):
+**Plain-data and renderer pattern** (lines 23-47, 50-100, 104-131):
 
 ```python
-from dataclasses import dataclass
-from typing import Final
-
 import numpy as np
 from matplotlib.figure import Figure
-from numpy.typing import NDArray
 
 @dataclass(frozen=True, eq=False)
 class SimPlotData:
@@ -98,98 +148,96 @@ class SimPlotData:
     mean: float
     median: float
     interval: tuple[float, float]
-```
 
-Keep preparation a pure transform of the selected cutoff's finish draws and scalar metadata. Do not introduce `pyplot`; the module documents direct `Figure` API use.
-
-**Renderer** (lines 103–117):
-
-```python
-def build_sim_figure(data: SimPlotData) -> Figure:
+def build_sim_figure(data: SimPlotData, *, include_caption: bool = True) -> Figure:
     fig = Figure(figsize=(9, 5), layout="constrained")
     ax = fig.subplots()
     places = np.arange(1, len(data.probabilities) + 1)
     ax.bar(places, data.probabilities, edgecolor=EDGE_COLOR, color=_BAR_COLOR)
-    ax.axvline(data.mean, color=EDGE_COLOR, linestyle="--", linewidth=1.2, label="mean")
-    ax.set_xlabel("Finishing position", fontsize=9)
-    ax.set_ylabel("Share of simulated races", fontsize=9)
-    ax.tick_params(labelsize=8)
-    ax.legend(fontsize=8)
-    fig.supxlabel(data.caption, fontsize=6, wrap=True)
+    ax.axvline(data.mean, color=_SUMMARY_COLOR, linestyle="--", linewidth=2.0,
+               label="Mean finish at selected cutoff")
+    ax.set_xlabel("Finishing position", fontsize=12)
+    ax.set_ylabel("Share of simulated races", fontsize=12)
+    ax.tick_params(labelsize=10.5)
+    ax.legend(fontsize=10.5)
+    fig.suptitle(data.title, fontsize=15, fontweight="semibold")
+    if include_caption:
+        fig.text(0.01, 0.01, data.caption, fontsize=12, wrap=True, va="bottom")
     return fig
 ```
 
-For the follow-up, keep all bars light-neutral and use accent `#D90429` only for a labeled finishing-position summary statistic derived from these same selected-cutoff draws. A selected distribution mean or median is appropriate; label it as finishing position (never as lap coordinate). Raise typography to the contract scale and move long simulation caveats into normal-size Streamlit body copy if they cannot remain legible in the figure. Preserve useful caveats and selected-cutoff versus hindsight distinction.
+Keep the pure array/scalar preparation boundary and direct `Figure` API; do not add `pyplot` or fetch data in the renderer. Give the chart visual priority. For the dark card, explicitly set figure/axes facecolors, title/axis/tick/legend text, spines, grid, and bar edge colors for readable graphite/slate contrast in both embedded Streamlit and saved PNG output. Keep bars neutral and use the accent only for the labeled selected-cutoff finishing summary; the marker is a finish-position value, not a lap coordinate. Keep caption/caveat text legible (move lengthy caveat to page body if necessary) and preserve selected-cutoff versus hindsight semantics. `SimPlotData` already computes probability bins, mean, median, and empirical interval from the same supplied draws.
 
 ### `tests/app/test_app.py` (test, request-response)
 
-**Analog:** `tests/app/test_app.py` (the current Streamlit acceptance suite).
+**Analog:** `tests/app/test_app.py` (AppTest and focused source/helper assertions).
 
-**Imports and AppTest pattern** (lines 5–16, 124–129):
+**AppTest harness and state checks** (lines 126-146, 157-185, 229-285):
 
 ```python
-import ast
-from importlib import import_module
-from pathlib import Path
-
-import pytest
-
 app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
 result = app_test.from_file(APP_PATH).run()
 assert not result.exception
+
+result = app_test.from_file(APP_PATH).run()
+assert any(item.value == "No race data available" for item in result.subheader)
+assert len(result.dataframe) == 0
+assert len(result.get("imgs")) == 0
 ```
 
-Use `AppTest.from_file(APP_PATH).run()` for UI-level error and row-marker coverage. Existing tests check empty state (131–145), helper stale-output behavior (155–161), fallback row labels (163–171), and source hooks for responsive CSS (173–178). Extend with failure injection that asserts the exact visible copy, excludes raw exception text, and confirms stale result components are absent. Assert that the marker is attached to the first table row/action, not merely present in page text; preserve fallback basis adjacency.
+Extend existing error/empty, fallback-basis, top-row, selected-cutoff, CSS responsive-hook, risk-endpoint, and safety-car marker assertions as behavior changes. AppTest/source assertions cover state and semantic hooks; use rendered desktop and narrow-width inspection for hierarchy, actual dark contrast, card dimensions, wrapping, clipping, and compact scorecard readability. Do not treat AppTest as viewport/layout proof.
 
 ### `tests/plots/test_simulate_plot.py` (test, transform)
 
-**Analog:** `tests/plots/test_simulate_plot.py` (the current plot data and renderer tests).
+**Analog:** `tests/plots/test_simulate_plot.py` (Figure artist assertions and pure-data checks).
 
-**Matplotlib Figure pattern** (lines 7–17, 54–60):
+**Figure checks** (lines 56-98):
 
 ```python
-from matplotlib.figure import Figure
-
-def test_figure_has_one_bar_per_position() -> None:
-    fig = build_sim_figure(_data())
-    assert isinstance(fig, Figure)
-    ax = fig.axes[0]
-    assert len(ax.patches) == 20
-    assert ax.get_ylabel() == "Share of simulated races"
-    assert any(ln.get_linestyle() == "--" for ln in ax.get_lines())
+fig = build_sim_figure(data)
+assert isinstance(fig, Figure)
+ax = fig.axes[0]
+assert len(ax.patches) == 20
+assert ax.get_xlabel() == "Finishing position"
+assert [line.get_label() for line in ax.get_lines()] == [
+    "Mean finish at selected cutoff"
+]
+assert cast(str, ax.get_lines()[0].get_color()).lower() == "#d90429"
+assert all(to_rgba("#D90429") != patch.get_facecolor() for patch in ax.patches)
 ```
 
-Extend this inspection style to assert neutral bar face colors, accent summary artist/color and legend semantics, and that its plotted value equals the selected cutoff's supplied draws. Check axis/legend labels and configured typography. Existing pure-data test (39–51) validates mean, median, empirical interval, and hindsight/source caveats; preserve these data semantics. The no-pyplot import guard at lines 85–89 remains applicable.
+Retain plot data and direct-Figure assertions for bar neutrality, selected-cutoff marker value/label, readable typography and no-pyplot import. Add checks for dark facecolors and text/legend/grid contrast if implementing dark theming in the plot helper; maintain the PNG rendering check so export and embedded backgrounds agree.
 
 ## Shared Patterns
 
-### Read-only replay and error UI
+### D-11 visual hierarchy and surfaces
 
-**Source:** `src/f1si/app.py:86–92, 445–466`
-**Apply to:** replay submission and failure rendering.
+**Sources:** `src/f1si/app.py:289-350, 358-397`; `.planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md` D-11.
+**Apply to:** scorecard, controls, chart, safety-car and tire panels.
 
-Keep computation inside the safe replay wrapper, clear stale output on error, and show the approved generic recovery copy without exception details. Preserve cutoff-local replay construction and the import boundary established by `tests/app/test_app.py:29–40`.
+Use native bordered containers for layered slate cards; keep the scorecard dense but complete, controls scannable, chart dominant, and safety-car/tire cards paired. Use a graphite background, high-contrast text, spacing from the approved scale, and a narrow responsive stack. D-11 role colors are locked; exact dark hex values are not. No separate project card/CSS system exists.
 
-### Figure and selected-cutoff data
+### Accent and accessible labels
 
-**Source:** `src/f1si/plots/simulate.py:49–100, 103–117`
-**Apply to:** chart data and rendering.
+**Sources:** `src/f1si/app.py:89-92, 116-126, 410-415`; `src/f1si/plots/simulate.py:31-32, 109-116`.
+**Apply to:** primary CTA and existing top-ranked, finish-summary, and safety-car signals only.
 
-Derive chart data and highlighted summary from the same selected-cutoff finish-position array; the plot utility remains independent from snapshots and uses `matplotlib.figure.Figure` directly.
+Use racing red sparingly, with a `TOP` label, chart legend, or numeric probability as text context. Keep chart bars neutral. Do not infer D-11 red for other metrics, cards, or controls.
 
-### Visual contract and manual inspection
+### Data correctness and error copy
 
-**Source:** `.planning/phases/06-mvp-backtest-streamlit-view-readme/06-UI-SPEC.md`; follow-up constraints summarized in `06-RESEARCH.md:455–477`
-**Apply to:** app and embedded chart.
+**Sources:** `src/f1si/app.py:95-113, 353-416`; `tests/app/test_app.py:157-176, 229-259`.
+**Apply to:** all replay outcomes and their presentation.
 
-Accent: `#D90429`; page/panel/text: `#F5F7FA`, `#E9EEF3`, `#17212B`; all chart bars neutral. Verify desktop and narrow widths in a live browser, including default/populated, error, empty/partial, and long-text states, changed controls, table scrolling, wrapping, spacing, and actual control height. Record screenshots or concise observations as plan evidence; AppTest/source assertions alone cannot verify viewport layout.
+Keep safe cutoff replay construction, remove stale selected output on failure, use exact fixed error copy, and preserve fallback/unavailable labels with affected data. Style changes do not alter read-only behavior, scorecard values, or proxy semantics.
 
 ## No Analog Found
 
-None. The targets are existing files with direct patterns to extend.
+None for the four mapped files. There is no standalone card component or dashboard stylesheet; use the existing Streamlit page's native layout/CSS integration points.
 
 ## Metadata
 
-**Analog search scope:** requested app, chart, and corresponding tests only.
-**Files scanned:** 4 requested tracked files.
+**Analog search scope:** current app, plot helper, and their focused tests; phase UI contract/context.
+**Files scanned:** 4 tracked source/test files.
+**Tracked-source gate:** all four paths verified with `git ls-files --error-unmatch`.
 **Pattern extraction date:** 2026-11-14.
