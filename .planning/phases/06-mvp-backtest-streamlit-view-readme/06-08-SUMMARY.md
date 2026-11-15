@@ -153,8 +153,24 @@ The app is running on port 8501 for Phase 06-10 final acceptance. That plan shou
 *Phase: 06-mvp-backtest-streamlit-view-readme*
 *Completed: 2026-11-15*
 
+## Integration Follow-up: Plan 06-10 Findings
+
+Plan 06-10's strict-mypy and focused-test gates found test fixtures that had not been updated with the new chart interfaces. The initial check reported four mypy errors: a missing `finish_quantiles` value in the `RankedOption` fake, the `NoisySimulator` protocol mismatch in the registry/conformance check, and an unannotated app accessor helper. The focused pytest run had three failures, all caused by the missing quantile value (70 passed).
+
+Added a realistic 100-position quantile tuple to the backtest fake, aligned `NoisySimulator` and its direct conformance type check with the optional `position_history_driver` argument, and annotated the app test accessor. Strict mypy then exposed six inherited signature mismatches across simulator test doubles in `tests/conformance/stubs.py` and `tests/conformance/test_suites.py`; those doubles now accept and forward the optional keyword. No production behavior or validation state was changed.
+
+Files updated: `tests/backtest/test_metrics.py`, `tests/conformance/registry.py`, `tests/conformance/test_protocols.py`, `tests/conformance/stubs.py`, `tests/conformance/test_suites.py`, and `tests/app/test_app.py`.
+
+Verification after the fixes:
+
+- `uv run python -m mypy` — passed, 158 source files checked.
+- `uv run python -m pytest tests/backtest/test_metrics.py tests/conformance/test_protocols.py tests/conformance/test_suites.py tests/app/test_app.py -q` — **103 passed**.
+- `uv run ruff check` on the six files above — passed.
+- `uv run ruff format --check` on the six files above — passed.
+
 ## Self-Check: PASSED
 
 - Summary file exists at the required Phase 06 path.
 - Implementation commit `c52d981` is an ancestor of the current branch head.
 - Streamlit health endpoint returned `ok` after the summary was written.
+- Integration follow-up records the Plan 06-10 failures, test-only fixes, changed files, and passing verification without marking Phase 06 validation complete.

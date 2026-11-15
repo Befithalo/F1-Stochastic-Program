@@ -99,6 +99,7 @@ class NoisySimulator:
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
         n_cars = len(state.cars)
         remaining = state.laps_total - state.lap

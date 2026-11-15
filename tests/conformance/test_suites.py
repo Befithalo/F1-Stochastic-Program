@@ -147,8 +147,15 @@ def test_simulation_result_optional_fields_default_and_pass(long_synthetic_db: P
             n_races: int,
             rng: np.random.Generator,
             plans: Mapping[str, Plan] | None = None,
+            position_history_driver: str | None = None,
         ) -> SimulationResult:
-            res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+            res = super().simulate(
+                state,
+                n_races=n_races,
+                rng=rng,
+                plans=plans,
+                position_history_driver=position_history_driver,
+            )
             n, c = res.finish_positions.shape
             return SimulationResult(
                 res.finish_positions,

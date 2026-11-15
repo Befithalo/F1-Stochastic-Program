@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from f1si.data.asof import AsOf
+
 APP_PATH = Path(__file__).resolve().parents[2] / "src" / "f1si" / "app.py"
 THEME_PATH = APP_PATH.parents[2] / ".streamlit" / "config.toml"
 
@@ -233,7 +235,7 @@ def test_eligible_catalog_excludes_races_without_verified_schedule(
     )
 
     class Accessor:
-        def snapshot(self, request):
+        def snapshot(self, request: AsOf) -> SimpleNamespace:
             scheduled_laps = 0 if request.race_id == "2023-01" else 50
             return SimpleNamespace(race=SimpleNamespace(scheduled_laps=scheduled_laps))
 

@@ -4,7 +4,10 @@ Each `# type: ignore[arg-type]` below is the proof of rejection. Under mypy stri
 ignore is an error, so if mypy ever accepted one of these stubs, `uv run mypy` would fail.
 """
 
+import numpy as np
+
 from f1si.interfaces import PaceModel, SimulatorBackend, StrategyPolicy
+from f1si.state import RaceState
 from tests.conformance.registry import ConstantPace, HoldPolicy, NoisySimulator
 
 
@@ -37,6 +40,17 @@ def _needs_policy(policy: StrategyPolicy) -> None:
 
 def _needs_simulator(sim: SimulatorBackend) -> None:
     return None
+
+
+def _needs_selected_driver_history(
+    sim: NoisySimulator, state: RaceState, rng: np.random.Generator
+) -> None:
+    sim.simulate(
+        state,
+        n_races=1,
+        rng=rng,
+        position_history_driver="ALO",
+    )
 
 
 def test_conformers_accepted_and_wrong_signatures_rejected_by_mypy() -> None:

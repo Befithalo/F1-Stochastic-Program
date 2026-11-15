@@ -493,6 +493,7 @@ def _scoring_fakes(
                         top10_probability=0.7,
                         finish_p05=2,
                         finish_p95=8,
+                        finish_quantiles=(2,) * 12 + (4,) * 82 + (8,) * 6,
                     ),
                 ),
                 reason="test prediction",
