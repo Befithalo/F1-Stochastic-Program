@@ -98,7 +98,7 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
 | The one-page dashboard shows the fixed-sample metrics and is readable as controls update the selected race, driver, cutoff, and risk | UI-01 | Automated app tests verify wiring and defaults but do not replace visual inspection of the rendered page | Run `uv run python -m streamlit run src/f1si/app.py`; confirm the measured ten-race summary, default Bahrain 2023 / ALO view, move the lap and risk controls, and confirm all required panels update without exposing final results. |
-| The UI review fixes render at desktop and narrow widths without clipping, and changed controls map to the shown cutoff | UI-01 | Streamlit's real widget dimensions and responsive browser layout cannot be established by AppTest or source assertions alone | Open the running Streamlit page in a browser at 1440×900 and 390×844. Submit the default selection, then change race, driver, cutoff, and risk. At both widths inspect populated, partial/unavailable, loading, both replay-failure paths, and empty-cache states. Check table scrolling keeps the TOP marker, metrics, and Basis visible; confirm risk endpoints/value, neutral chart bars, finish-summary label, chart caption, wrapping, and no clipping. Record viewport-specific observations or screenshots. |
+| The UI review fixes render at desktop and narrow widths without clipping, and changed controls map to the shown cutoff | UI-01 | Streamlit's real widget dimensions and responsive browser layout cannot be established by AppTest or source assertions alone | Open the running Streamlit page in a browser at 1440×900 and 390×844. Submit the default selection, then change race, driver, cutoff, and risk to another valid selection. At both widths inspect the populated layout, table scrolling, TOP marker and Basis, risk endpoints/value, neutral chart bars, finish-summary label, chart caption, wrapping, and clipping. Do not modify the real cache to manufacture empty/loading/error states; AppTest and source/helper assertions for those contracts are recorded separately. Record viewport-specific observations or screenshots. |
 
 ---
 
@@ -129,3 +129,13 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 - Exact-head GitHub Actions for Ubuntu and Windows has not run; it must run on the final pushed follow-up head.
 - The local Streamlit server is running at `http://127.0.0.1:8501` and its health endpoint returned HTTP 200. The computer-use surface listed no browser or app, so manual-only acceptance remains pending. Source assertions and AppTest are not viewport evidence. No screenshot or geometry claim is recorded.
 - `nyquist_compliant` remains `false`; Phase 6 UI validation cannot be signed off until the live browser inspection and exact-head CI are complete.
+
+## D-11 Visual Redesign Validation (2026-11-14)
+
+- Implementation and exact-head CI target: `41c0ce6f1ab8767c0e8c57e240ab7954300edf5d` (pushed to the Phase 06 branch).
+- Focused app/plot suite on that SHA: 38 passed. Full project suite: 1,097 passed, 25 deselected on parent `7d4a59d`; the only subsequent source-control change before `41c0ce6` is a behavior-neutral test typing correction. Focused tests and strict mypy were rerun after that correction.
+- `uv run ruff check .`, `uv run ruff format --check .`, `uv run python -m mypy`, and `uv lock --check` all pass at `41c0ce6`.
+- Exact-head `ci.yml` run: [43674055392](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43674055392), head SHA `41c0ce6f1ab8767c0e8c57e240ab7954300edf5d`. Both `checks (ubuntu-latest)` and `checks (windows-latest)` completed successfully, including the full pytest step. The `gh` CLI was unavailable, so the workflow run and job conclusions were verified through GitHub's read-only Actions REST API.
+- Streamlit is serving from the checked-out implementation at `http://127.0.0.1:8501`; `/_stcore/health` returned HTTP 200.
+- Human visual acceptance at 1440×900 and 390×844 is pending. No screenshot or rendered-geometry claim is recorded. Browser review is limited to the populated layout and valid-selection transitions; empty-cache behavior is AppTest-rendered, while loading/error/partial contracts have source/helper assertions.
+- `nyquist_compliant` remains `false` until exact-head CI and explicit owner approval of both rendered viewport sizes are evidenced.
