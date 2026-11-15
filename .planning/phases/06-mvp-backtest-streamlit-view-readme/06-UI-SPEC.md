@@ -29,6 +29,31 @@ This addendum is the current acceptance contract for the rejected running page. 
 
 The owner explicitly requires FastF1 `Session.total_laps` as the first scheduled-lap source and the winner's `Session.results["Laps"]` as fallback. Apply the backfill only to the 70 eligible cached races from 2023–2025. Keep the 2026 rows and their out-of-sample lock unchanged. Retain provenance for values supplied by the winner-result fallback. This latest owner correction supersedes D-14's ban on adding a dependency and D-15's rejection of result-lap fallback for this repair only; the existing as-of/results data-door boundary and Phase 6 scope still apply.
 
+## Owner Part 2 Correction — 2026-11-15
+
+This correction supersedes the earlier Streamlit component, chart-library, and control interaction choices above. Keep Phase 6's data semantics and measured evaluation values unchanged.
+
+- Use one font, IBM Plex Sans from Google Fonts, and the brief's dark neutrals in `.streamlit/config.toml`. Set `borderColor` to the page background, provide the team palette in `chartCategoricalColors`, and hide the Deploy toolbar.
+- Remove bordered containers and cards. Use whitespace, alignment, and one heading for each section. Keep the recommendation, its plain-language reason, and strategy charts first; put the ten-race evaluation below.
+- Use Altair with the Streamlit theme for the app's charts. Charts have no internal titles, horizontal gridlines only, direct labels instead of legends, and tabular numeric labels. The fan chart x-axis reads `Lap`. The dotplot caption says each dot is 1% of simulated finishes.
+- Build a gap-to-leader race trace with FastF1 team colors and a dashed line for the second teammate. Build stint bars with Pirelli compound colors and letters. Use purple only for the recommended strategy; all other interface content stays neutral unless color carries timing, team, or tire meaning.
+- Render the recommendation as `Stay out` or `Box this lap` in purple. The strategy table shows finish values to one decimal and chances as whole percentages, and omits the `Basis` column.
+- Render tire uncertainty and safety-car chance as plain text. Remove green arrows and slider-like probability bars.
+- Add the race trace and stint bar above the uncertainty charts. Put race, driver, lap, and risk controls in one unboxed row on desktop and update replay automatically when a control changes; allow a compact wrap at phone width.
+- Verify text contrast of at least 4.5:1 and data-color contrast of at least 3:1 on the actual background. Record measured ratios and inspect 1440px and 390px screenshots for residual template-like styling.
+- Check and document the current FastF1 authentication requirement; this is external service context and does not authorize exposing credentials or changing the data-door policy.
+
+## Owner Live-audit Addendum — 2026-11-15
+
+This addendum records the completed browser review and resolves the remaining responsive and chart-color details. It supersedes any older text that conflicts with the current rendered app.
+
+- The recommended Bahrain lap-15 action is `Box in 1 lap`; the ranked table and dotplot show 13 legal actions. The selected action and its quantile row use recommendation purple. At lap 40, all four charts render and the only legal action for ALO is `Stay out`.
+- Use the selected driver's FastF1 team hue for the fan chart, with the 40th–60th percentile band strongest and the outer percentile bands lighter. Place `P10`, `Median`, and `P90` labels inside the fan so their text remains visible at phone width.
+- At 390px, use a two-column strategy table with `Action` and `Results`. Include mean, spread, worst-decile finish, podium chance, top-10 chance, and finish interval in each results line so the phone layout preserves all model outputs without horizontal scrolling. Identify the first row with the word `Recommended` as well as purple.
+- Browser acceptance: Bahrain 2023 / ALO / after lap 15 renders four Altair SVG charts with real simulation data at 1440px and 390px. Switching to after lap 40 also renders four charts. Both widths have zero document or table horizontal overflow and no browser or console errors. Captures are saved as `06-11-bahrain-lap15-1440.png` (1440×2800) and `06-11-bahrain-lap15-390.png` (390×5200).
+- Measured opaque-color contrast against asphalt `#1C1F23`: primary text `#ECEAE4` 13.75:1; captions `#9BA1A8` 6.35:1; recommendation `#B69BFF` 7.18:1; minimum 2023 team color 3.12:1; minimum tire color 5.96:1; minimum timing color 6.35:1. The Aston Martin fan bands are 11.15:1 (outer), 7.39:1 (middle), and 4.06:1 (center). The minimum meaningful graphical mark is 3.12:1.
+- The audit found no remaining violations of the brief's color, tabular-number, or copy rules. The remaining generic elements are Streamlit's native select controls and the plain semantic evaluation table; result charts and strategy presentation use the project styling.
+
 ---
 
 ## Design System
@@ -191,3 +216,17 @@ There is no navigation element in the locked one-page scope.
 ## Checker Sign-Off
 
 D-11's earlier checker review is historical only; the owner rejected that rendered design. This D-12–D-15 contract is ready to guide implementation, but its actual hierarchy, contrast, responsive behavior, and first-load experience have not been checked against the running site. Plan 06-10 retains the blocking owner browser checkpoint at 1440×900 and 390×844. No prior human acceptance carries forward.
+## Owner Review Update — 2026-11-15
+
+The following approved review corrections supersede conflicting chart and interaction details above:
+
+- Controls update the replay as soon as a value changes. Keep all four controls together in one unboxed row at desktop width; allow them to wrap at phone width.
+- The finish distribution is a probability strip, not a dotplot. Show the five highest-ranked actions, one row per action and one cell per finishing position. Shade each cell by probability, use purple for the recommended row, and use neutral greys for the other rows. The known-distribution test verifies that the strip counts the 100 midpoint quantiles into the correct finishing-position probabilities.
+- The fan chart uses purple bands for the recommended policy. Label the bands “10th–90th”, “25th–75th”, and “40th–60th” at the right edge with enough vertical spacing to avoid collisions. Its horizontal scale ends at the race's final lap.
+- The gap-to-leader chart highlights the selected driver in its FastF1 team color and uses light grey for every other driver. Labels contain driver codes only. The horizontal scale ends at the selected cutoff lap.
+- Rename the stint chart “Stints so far”. Label every driver row and each bar with its tire-compound letter. Add the recommended next stint on the selected driver's row as a compound-colored bar with a purple outline.
+- Write the reason line in strategist language that compares the current tire, the next compound, and the stop loss without repeating the table's forecast statistics or claiming an unmodeled traffic effect.
+- The strategy table has no Recommended or Score column. Give Action enough desktop width to stay on one line. Keep numeric values tabular.
+- Hide chart action toolbars and Streamlit heading anchor links. Keep the strategy recommendation and charts above the ten-race evaluation, with no bordered cards.
+
+The live viewport audit uses Bahrain 2023, ALO, after lap 15. Current screenshots are saved at 1440 px and 390 px. Both show all four charts; the phone view has no horizontal overflow.

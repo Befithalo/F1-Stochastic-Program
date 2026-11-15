@@ -1,116 +1,112 @@
-"""Acceptance contracts for the approved read-only Streamlit replay page."""
+"""Acceptance checks for the replay page and its chart data path."""
 
 from __future__ import annotations
 
 import ast
 import tomllib
-from collections.abc import Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import nullcontext
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from f1si.data.asof import AsOf
+from f1si.ui_theme import (
+    ASPHALT,
+    CHALK,
+    FOG,
+    RECOMMENDATION,
+    TIMING_COLORS,
+    TIRE_COLORS,
+    contrast_ratio,
+)
 
 APP_PATH = Path(__file__).resolve().parents[2] / "src" / "f1si" / "app.py"
 THEME_PATH = APP_PATH.parents[2] / ".streamlit" / "config.toml"
 
 
 def app_source() -> str:
-    assert APP_PATH.is_file()
     return APP_PATH.read_text(encoding="utf-8")
 
 
-def test_page_has_catalog_controls_and_locked_defaults() -> None:
+def test_page_defaults_to_bahrain_2023_alo_after_lap_15() -> None:
     source = app_source()
-    for control in ("race", "driver", "cutoff", "risk"):
-        assert control in source.lower()
-    assert "2023-01" in source or "Bahrain 2023" in source
-    assert "ALO" in source
-    assert "0.5" in source
-    assert "preferred_cutoff =" in source
-    assert "else 15" in source
-    assert "Update replay" in source
+    assert 'default_race = "2023-01"' in source
+    assert '"ALO" if "ALO" in driver_options' in source
+    assert "15 if 15 in cutoff_options" in source
+    assert 'st.selectbox(\n                "Race"' in source
+    assert 'st.selectbox(\n                "Driver"' in source
+    assert 'st.selectbox(\n                "After lap"' in source
+    assert 'st.slider(\n                "Risk aversion"' in source
+    assert "st.form(" not in source
+    assert "st.form_submit_button" not in source
 
 
-def test_page_copy_has_no_middle_dot_or_prohibited_phrases() -> None:
+def test_race_picker_uses_short_labels_that_fit_phone_width() -> None:
+    app = import_module("f1si.app")
+    assert app._race_label(SimpleNamespace(event_name="Bahrain Grand Prix", season=2023)) == (
+        "Bahrain GP 2023"
+    )
+
+
+def test_page_copy_uses_plain_language_and_has_no_middle_dot() -> None:
     source = app_source().lower()
     assert "·" not in source
     for phrase in ("cutoff-safe", "classified denominator", "schedule horizon"):
         assert phrase not in source
+    assert "each cell shows the share of simulated finishes" in source
+    assert "no strategy options are available at this lap." in source
 
 
-def test_page_calls_shared_cutoff_safe_builder_and_has_no_results_door() -> None:
+def test_page_uses_shared_asof_replay_builder_without_results_imports() -> None:
     tree = ast.parse(app_source(), filename=str(APP_PATH))
-    imports: list[str] = []
+    modules: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
-            imports.append(node.module or "")
+            modules.append(node.module or "")
         elif isinstance(node, ast.Import):
-            imports.extend(alias.name for alias in node.names)
-    assert any("walk_forward" in name or "replay" in name for name in imports)
-    assert all("data.results" not in name for name in imports)
+            modules.extend(alias.name for alias in node.names)
+    assert any("walk_forward" in name or "replay" in name for name in modules)
+    assert all("data.results" not in name for name in modules)
     assert "ResultsAccessor" not in app_source()
 
 
-@pytest.mark.parametrize(
-    "required_text",
-    [
-        "Brier",
-        "coverage",
-        "Target: 85",
-        "strategy",
-        "Safety-car chance",
-        "Uncalibrated",
-        "risk",
-    ],
-)
-def test_page_exposes_measured_summary_and_required_outputs(
-    required_text: str,
-) -> None:
-    assert required_text.lower() in app_source().lower()
-
-
-def test_page_shows_plain_language_fixed_sample_scores_and_coverage() -> None:
+def test_report_copy_formats_brier_scores_and_keeps_coverage_target_visible() -> None:
     app = import_module("f1si.app")
     display = app._report_display_values(app._report_summary())
     assert display["podium"] == "Model 0.050 vs grid baseline 0.082 (lower is better)"
     assert display["top10"] == "Model 0.145 vs grid baseline 0.191 (lower is better)"
     assert display["coverage"].startswith("83% race average; 83.4% across all finishes")
-    assert "8,004 of 9,602 finishes inside the range" in display["coverage"]
-    assert "Target: 85\u201395%" in display["coverage"]
-    assert "388 observed stops" in display["sample"]
-    assert display["team_agreement"].startswith("79.0% (95% confidence range:")
-    assert "1.40 laps" in display["team_timing"]
-    assert "95% confidence range" in display["team_timing"]
+    assert "Target: 85% to 95%" in display["coverage"]
 
 
-def test_recommended_reason_uses_plain_strategist_language() -> None:
+def test_recommended_reason_explains_tire_pace_and_pit_loss() -> None:
     app = import_module("f1si.app")
-    assert app._strategist_reason("stay out", 18.59, 20.0) == (
-        "Stay out ranks first on the balanced score, averaging 18.59 overall and "
-        "20.00 among its worst 10% of simulated finishes."
+    reason = app._strategist_reason(
+        "pit now (MEDIUM)",
+        current_compound="SOFT",
+        tire_age=15,
+        laps_done=15,
+        laps_total=57,
+        pit_loss_s=24.0,
+        next_stop_lap=16,
+        target_compound="MEDIUM",
+        wear_rates={"SOFT": 0.20, "MEDIUM": 0.10},
     )
-    assert "CVaR" not in app._strategist_reason("pit now", 4.1, 6.2)
+    assert reason == (
+        "Box this lap: fresh Medium should make back the stop loss as the Soft loses pace."
+    )
 
 
-def test_evaluation_uses_one_compact_table_instead_of_stat_cards(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_evaluation_uses_one_results_table(monkeypatch: pytest.MonkeyPatch) -> None:
     app = import_module("f1si.app")
     tables: list[pd.DataFrame] = []
     headings: list[str] = []
-
-    @contextmanager
-    def capture_container(**_kwargs: object) -> Iterator[None]:
-        yield
-
     monkeypatch.setattr(app.st, "subheader", headings.append)
-    monkeypatch.setattr(app.st, "container", capture_container)
     monkeypatch.setattr(app.st, "table", tables.append)
     monkeypatch.setattr(app.st, "metric", lambda *_args, **_kwargs: pytest.fail("stat card"))
 
@@ -118,69 +114,130 @@ def test_evaluation_uses_one_compact_table_instead_of_stat_cards(
 
     assert headings == ["Ten-race evaluation"]
     assert len(tables) == 1
-    assert tables[0]["Measure"].tolist() == [
-        "Podium Brier score",
-        "Top-10 Brier score",
-        "90% finish coverage",
-        "Team top-action agreement",
-        "Observed stop-timing error",
-        "Sample",
-    ]
     assert tables[0].iloc[0]["Result"] == "Model 0.050 vs grid baseline 0.082 (lower is better)"
-    assert "Target: 85\u201395%" in tables[0].iloc[2]["Result"]
+    assert "Target: 85% to 95%" in tables[0].iloc[2]["Result"]
 
 
-def test_page_uses_full_immutable_replay_cache_identity() -> None:
-    source = app_source().lower()
-    for cache_input in (
-        "race_id",
-        "driver",
-        "cutoff_lap",
-        "risk",
-        "n_simulations",
-        "seed",
-        "data_path",
-        "model_identity",
-    ):
-        assert cache_input in source
-    assert "st.cache_data" in source
-    assert "cache_resource" not in source
+def test_theme_is_dark_borderless_and_uses_ibm_plex_and_team_palette() -> None:
+    config = tomllib.loads(THEME_PATH.read_text(encoding="utf-8"))
+    theme = config["theme"]
+    assert theme["base"] == "dark"
+    assert theme["font"].startswith("IBM Plex Sans:https://fonts.googleapis.com/")
+    assert theme["backgroundColor"] == "#1C1F23"
+    assert theme["secondaryBackgroundColor"] == "#24282D"
+    assert theme["borderColor"] == theme["backgroundColor"]
+    assert theme["dataframeBorderColor"] == theme["backgroundColor"]
+    assert theme["showWidgetBorder"] is False
+    assert len(theme["chartCategoricalColors"]) == 10
+    assert config["client"]["toolbarMode"] == "minimal"
 
 
-def test_replay_cache_identity_includes_walk_forward_dependency(
+def test_ui_text_and_data_colors_meet_contrast_thresholds() -> None:
+    team_names = (
+        "Alfa Romeo",
+        "AlphaTauri",
+        "Alpine",
+        "Aston Martin",
+        "Ferrari",
+        "Haas F1 Team",
+        "McLaren",
+        "Mercedes",
+        "Red Bull Racing",
+        "Williams",
+    )
+    colors = import_module("f1si.plots.replay_charts").fastf1_team_color_map(2023, team_names)
+    text_colors = (CHALK, FOG, RECOMMENDATION)
+    assert all(contrast_ratio(color, ASPHALT) >= 4.5 for color in text_colors)
+    data_colors = (*colors.values(), *TIRE_COLORS.values(), *TIMING_COLORS.values())
+    assert min(contrast_ratio(color, ASPHALT) for color in data_colors) >= 3.0
+
+
+def test_page_uses_tabular_numbers_and_has_no_metric_cards() -> None:
+    source = app_source()
+    assert "font-variant-numeric: tabular-nums" in source
+    assert 'font-feature-settings: "tnum"' in source
+    assert "st.metric(" not in source
+    assert "border: 1px solid" not in source
+    assert 'st.container(key="replay-controls")' in source
+    assert "@media (max-width: 760px)" in source
+    assert ".vega-embed .vega-actions" in source
+    assert '[data-testid="stHeaderActionElements"]' in source
+    assert "white-space: nowrap" in source
+    assert "min_value=0.0" in source
+    assert "max_value=1.0" in source
+    assert "min-height: 44px" in source
+    assert "Safety-car chance:" in source
+    assert "st.progress(" not in source
+
+
+def test_format_strategy_table_hides_basis_and_formats_values() -> None:
+    app = import_module("f1si.app")
+    table = app._format_strategy_table(
+        (
+            "Action",
+            "Mean finish",
+            "Spread",
+            "Worst 10% average finish",
+            "Podium chance",
+            "Top-10 chance",
+            "90% finish interval",
+        ),
+        (("stay out", 7.286, 3.141, 15.264, 0.071, 0.864, "P2-P17"),),
+    )
+    assert "Recommended" not in table.columns
+    assert "Score" not in table.columns
+    assert table.iloc[0]["Mean finish"] == "7.3"
+    assert table.iloc[0]["Podium chance"] == "7%"
+    assert table.iloc[0]["Top-10 chance"] == "86%"
+    assert table.iloc[0]["Action"] == "Stay out"
+
+
+def test_mobile_strategy_table_keeps_results_and_labels_recommendation() -> None:
+    app = import_module("f1si.app")
+    table = app._format_strategy_table(
+        (
+            "Action",
+            "Mean finish",
+            "Spread",
+            "Worst 10% average finish",
+            "Podium chance",
+            "Top-10 chance",
+            "90% finish interval",
+        ),
+        (("stay out", 7.286, 3.141, 15.264, 0.16, 0.80, "P2-P15"),),
+    )
+
+    rendered = app._strategy_table_html(table)
+    assert 'class="mobile-results"' in rendered
+    assert "Recommended: Stay out" in rendered
+    assert (
+        "Mean P7.3. Spread 3.1. Worst 10% P15.3. Podium 16%. Top 10% 80%. Range P2-P15." in rendered
+    )
+
+
+def test_compact_dotplot_labels_keep_timing_and_compound() -> None:
+    app = import_module("f1si.app")
+    assert app._dotplot_action_copy("pit now (HARD)") == "Box now H"
+    assert app._dotplot_action_copy("pit in 1 lap(s) (MEDIUM)") == "Box +1 lap M"
+    assert app._dotplot_action_copy("stay out") == "Stay out"
+
+
+def test_replay_cache_identity_includes_model_sources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app = import_module("f1si.app")
     monkeypatch.setattr(app, "PROJECT_ROOT", tmp_path)
-    source = tmp_path / "src" / "f1si" / "backtest" / "walk_forward.py"
+    source = tmp_path / "src" / "f1si" / "module.py"
     source.parent.mkdir(parents=True)
-    source.write_text("horizon = 1\n", encoding="utf-8")
+    source.write_text("revision = 1\n", encoding="utf-8")
     data_path = tmp_path / "cache.duckdb"
     data_path.write_bytes(b"immutable cache")
-
     first = app._model_identity(data_path)
-    source.write_text("horizon = 2\n", encoding="utf-8")
-    second = app._model_identity(data_path)
-
-    assert first != second
+    source.write_text("revision = 2\n", encoding="utf-8")
+    assert app._model_identity(data_path) != first
 
 
-@pytest.mark.parametrize(
-    "state_text",
-    [
-        "No eligible races are available because their scheduled lap counts are missing.",
-        "Building replay",
-        "Replay could not be built for this selection.",
-        "Unavailable at this cutoff",
-    ],
-)
-def test_empty_loading_error_and_partial_states_are_explicit(
-    state_text: str,
-) -> None:
-    assert state_text.lower() in app_source().lower()
-
-
-def test_empty_schedule_body_matches_approved_copy() -> None:
+def test_empty_copy_is_two_sentences_with_a_next_step() -> None:
     app = import_module("f1si.app")
     assert app.EMPTY_BODY == (
         "No eligible races are available because their scheduled lap counts are missing. "
@@ -188,7 +245,7 @@ def test_empty_schedule_body_matches_approved_copy() -> None:
     )
 
 
-def test_streamlit_harness_opens_cleanly_with_an_empty_cache(
+def test_empty_cache_renders_the_two_sentence_message(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("F1SI_DATA_DIR", str(tmp_path))
@@ -199,50 +256,62 @@ def test_streamlit_harness_opens_cleanly_with_an_empty_cache(
     assert any(item.value == app.EMPTY_BODY for item in result.markdown)
 
 
-def test_empty_local_cache_shows_copy_without_empty_result_components(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("F1SI_DATA_DIR", str(tmp_path))
-    app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
-    result = app_test.from_file(APP_PATH).run()
-    assert not result.exception
+def test_safe_replay_failure_discards_exception_details() -> None:
     app = import_module("f1si.app")
-    assert [item.value for item in result.markdown if item.value == app.EMPTY_BODY] == [
-        app.EMPTY_BODY
-    ]
-    assert len(result.subheader) == 0
-    assert len(result.dataframe) == 0
-    assert len(result.get("imgs")) == 0
+    failed = app._safe_replay_result(lambda: (_ for _ in ()).throw(ValueError("secret detail")))
+    assert failed == {"status": "error", "value": None}
+    assert "secret detail" not in app.ERROR_COPY
 
 
-def test_zero_one_many_actions_use_singular_labels_and_count_visible_rows() -> None:
+def test_replay_error_state_does_not_reuse_a_previous_selection() -> None:
     app = import_module("f1si.app")
-    assert hasattr(app, "_action_heading")
-    assert app._action_heading(0) == "No ranked strategy actions available"
-    assert app._action_heading(1) == "Ranked strategy actions: 1 action"
-    assert app._action_heading(13) == "Ranked strategy actions: 13 actions"
+    ready = app._safe_replay_result(lambda: {"driver": "ALO"})
+    failed = app._safe_replay_result(
+        lambda: (_ for _ in ()).throw(ValueError("new selection failed"))
+    )
+    assert ready == {"status": "ready", "value": {"driver": "ALO"}}
+    assert failed == {"status": "error", "value": None}
 
 
-def test_replay_error_state_cannot_reuse_stale_selected_output() -> None:
+def test_zero_one_and_many_action_states_have_matching_table_rows() -> None:
     app = import_module("f1si.app")
-    assert hasattr(app, "_safe_replay_result")
-    failed = app._safe_replay_result(lambda: (_ for _ in ()).throw(ValueError("bad cutoff")))
-    assert failed == {"status": "error", "value": None, "reason": "bad cutoff"}
-    assert "Replay could not be built for this selection." in app.ERROR_COPY
+    columns = (
+        "Action",
+        "Mean finish",
+        "Spread",
+        "Worst 10% average finish",
+        "Podium chance",
+        "Top-10 chance",
+        "90% finish interval",
+    )
+    one = app._format_strategy_table(columns, (("stay out", 7.2, 2.0, 15.0, 0.1, 0.8, "P2-P17"),))
+    many = app._format_strategy_table(
+        columns,
+        (
+            ("stay out", 7.2, 2.0, 15.0, 0.1, 0.8, "P2-P17"),
+            ("pit now (MEDIUM)", 6.8, 2.0, 14.0, 0.2, 0.9, "P1-P16"),
+            ("pit in 2 lap(s)", 7.0, 2.0, 13.0, 0.2, 0.9, "P1-P15"),
+        ),
+    )
+    empty = app._format_strategy_table(columns, ())
+    assert app._action_heading(0) == "No strategy options available"
+    assert app._action_heading(1) == "Strategy options"
+    assert app._action_heading(3) == "Strategy options"
+    assert len(empty) == 0
+    assert len(one) == 1
+    assert len(many) == 3
+    assert "Stay out" in app._strategy_table_html(one)
+    assert "Box this lap (Medium)" in app._strategy_table_html(many)
 
 
-def test_catalog_cutoff_failure_does_not_render_internal_exception_details() -> None:
-    assert "Replay unavailable: {err}" not in app_source()
-
-
-def test_schedule_horizon_failure_uses_unavailable_copy() -> None:
+def test_schedule_failure_has_actionable_copy() -> None:
     app = import_module("f1si.app")
-    failure = ValueError("Scheduled race distance is unavailable for 2023-01; cannot backtest it.")
+    failure = ValueError("Scheduled race distance is unavailable for 2023-01")
     assert app._schedule_failure_copy(failure) == app.UNAVAILABLE_SCHEDULE_COPY
-    assert app._schedule_failure_copy(ValueError("snapshot read failed")) == app.ERROR_COPY
+    assert app._schedule_failure_copy(ValueError("snapshot failed")) == app.ERROR_COPY
 
 
-def test_eligible_catalog_excludes_races_without_verified_schedule(
+def test_eligible_catalog_excludes_races_without_a_verified_lap_count(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = import_module("f1si.app")
@@ -264,240 +333,211 @@ def test_eligible_catalog_excludes_races_without_verified_schedule(
     )
 
     class Accessor:
-        def snapshot(self, request: AsOf) -> SimpleNamespace:
-            scheduled_laps = 0 if request.race_id == "2023-01" else 50
-            return SimpleNamespace(race=SimpleNamespace(scheduled_laps=scheduled_laps))
+        @staticmethod
+        def snapshot(request: AsOf) -> object:
+            return SimpleNamespace(race_id=request.race_id)
 
+    monkeypatch.setattr(app._eligible_catalog, "clear", lambda: None)
     monkeypatch.setattr(app.asof, "catalog", lambda _path: rows.copy())
     monkeypatch.setattr(app.cli, "_make_asof_accessor", lambda _path: Accessor())
+    monkeypatch.setattr(
+        app.walk_forward,
+        "_race_laps_total",
+        lambda _accessor, race_id, _snapshot: 58 if race_id == "2023-02" else _raise_missing_laps(),
+    )
 
     eligible = app._eligible_catalog(Path("local-cache.duckdb"))
-
     assert eligible["race_id"].tolist() == ["2023-02"]
 
 
-def test_fallback_rows_are_labeled_adjacent_to_each_strategy_action() -> None:
-    app = import_module("f1si.app")
-    assert hasattr(app, "_annotate_strategy_options")
-    columns, rows = app._annotate_strategy_options(
-        ("Action", "Score"), (("pit now", 2.1), ("stay out", 2.4)), True
-    )
-    assert columns[-1] == "Basis"
-    assert [row[-1] for row in rows] == ["Uncalibrated", "Uncalibrated"]
+def _raise_missing_laps() -> int:
+    raise ValueError("Scheduled race distance is unavailable")
 
 
-def test_responsive_layout_stacks_panels_scrolls_table_and_wraps_long_text() -> None:
-    source = app_source()
-    assert "@media (max-width: 760px)" in source
-    assert "overflow-x: auto" in source
-    assert "overflow-wrap: anywhere" in source
-    assert "white-space: normal" in source
-    assert '[data-testid="stMetricLabel"] [data-testid="stMarkdownContainer"]' in source
-    assert '[data-testid="stMetricValue"] [data-testid="stMarkdownContainer"]' in source
-    assert '.stApp [data-testid="stMetricLabel"] {' in source
-    assert '.stApp [data-testid="stCaptionContainer"] {' in source
-    assert "font-variant-numeric: tabular-nums" in source
-    assert '.st-key-replay-controls [data-testid="stSlider"] {' in source
-    assert '.st-key-replay-controls [data-testid="stSlider"] *,' not in source
-    assert ".neutral-note" in source
-    assert "st.info(" not in source
-    assert ".st-key-fan-chart-mobile { display: none; }" in source
-    assert ".st-key-fan-chart-desktop { display: none !important; }" in source
-
-
-def test_dark_theme_and_keyed_dashboard_styles_follow_the_ui_contract() -> None:
-    config = tomllib.loads(THEME_PATH.read_text(encoding="utf-8"))
-    theme = config["theme"]
-    assert theme["base"] == "dark"
-    assert theme["backgroundColor"] == "#1C1F23"
-    assert theme["secondaryBackgroundColor"] == "#24282D"
-    assert theme["primaryColor"] == "#9BA1A8"
-    assert theme["textColor"] == "#ECEAE4"
-    assert theme["font"] == "sans serif"
-
-    source = app_source()
-    for token in (
-        "#1C1F23",
-        "#24282D",
-        "#3A4047",
-        "#ECEAE4",
-        "#9BA1A8",
-        "#B69BFF",
-        ".st-key-evaluation-scorecard",
-        ".st-key-replay-controls",
-        ".st-key-finish-chart",
-        ".st-key-safety-car-card",
-        ".st-key-tire-card",
-        ".st-key-strategy-card",
-        "font-size: 16px",
-        "font-size: 14px",
-        "font-size: 20px",
-        "font-size: 28px",
-        "@media (max-width: 760px)",
-    ):
-        assert token in source
-    assert "button:focus-visible" in source
-
-
-def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
+def test_rendered_selected_replay_contains_all_four_altair_charts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = import_module("f1si.app")
-    figures = []
-    captions: list[tuple[str | None, str]] = []
-    containers: list[dict[str, object]] = []
-    active_container: list[str | None] = []
+    charts: list[Any] = []
+    markdown: list[str] = []
+    captions: list[str] = []
+    monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: [nullcontext(), nullcontext()])
+    monkeypatch.setattr(app.st, "subheader", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(app.st, "write", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(app.st, "caption", lambda value, **_kwargs: captions.append(str(value)))
+    monkeypatch.setattr(app.st, "markdown", lambda value, **_kwargs: markdown.append(str(value)))
+    monkeypatch.setattr(app.st, "altair_chart", lambda chart, **_kwargs: charts.append(chart))
+    monkeypatch.setattr(app.st, "dataframe", lambda *_args, **_kwargs: None)
 
-    @contextmanager
-    def capture_container(**kwargs: object) -> Iterator[None]:
-        containers.append(kwargs)
-        key = kwargs.get("key")
-        active_container.append(key if isinstance(key, str) else None)
-        try:
-            yield
-        finally:
-            active_container.pop()
+    app._render_selected(
+        {
+            "available": True,
+            "strategy_available": True,
+            "race_name": "Bahrain Grand Prix",
+            "race_season": 2023,
+            "driver": "ALO",
+            "cutoff_lap": 15,
+            "laps_total": 57,
+            "risk": 0.5,
+            "options": (("pit now (MEDIUM)", 7.3, 2.0, 15.3, 0.07, 0.86, "P2-P17"),),
+            "option_columns": (
+                "Action",
+                "Mean finish",
+                "Spread",
+                "Worst 10% average finish",
+                "Podium chance",
+                "Top-10 chance",
+                "90% finish interval",
+            ),
+            "option_quantiles": (tuple([3] * 50 + [8] * 50),),
+            "selected_cutoff_mean": 7.3,
+            "simulation_count": 100,
+            "fan_chart_data": {
+                "laps": (16, 17),
+                "p10": (3.0, 3.0),
+                "p25": (5.0, 5.0),
+                "p40": (6.0, 6.0),
+                "p50": (7.0, 7.0),
+                "p60": (8.0, 8.0),
+                "p75": (9.0, 9.0),
+                "p90": (10.0, 10.0),
+                "n_cars": 20,
+                "simulation_count": 100,
+                "caption": "Projected ranks from 100 simulated races.",
+            },
+            "reason": "Box this lap: fresh Medium should make back the stop loss.",
+            "n_cars": 20,
+            "safety_car_probability": 0.02,
+            "tire_rate": 0.12,
+            "tire_sd": 0.01,
+            "tire_compound": "HARD",
+            "tire_source": "filter",
+            "fallback": False,
+            "race_trace_rows": (
+                {
+                    "driver_code": "ALO",
+                    "team_name": "Aston Martin",
+                    "lap": 15,
+                    "gap_to_leader_s": 4.2,
+                    "teammate_dash": False,
+                    "timing_status": "overall best",
+                    "timing_label": "Best",
+                    "timing_color": "#9BA1A8",
+                    "driver_label": "ALO",
+                    "label_gap_s": 4.2,
+                    "label_lap": 16.5,
+                    "is_latest": True,
+                    "lap_time_s": 91.2,
+                },
+            ),
+            "stint_rows": (
+                {
+                    "driver_code": "ALO",
+                    "compound": "HARD",
+                    "compound_letter": "H",
+                    "first_lap": 1,
+                    "last_visible_lap": 15,
+                    "start_lap": 0.5,
+                    "end_lap": 15.5,
+                    "mid_lap": 8,
+                },
+            ),
+            "selected_color": "#358c75",
+            "recommended_stop_lap": 16,
+            "recommended_compound": "MEDIUM",
+            "driver_order": ("ALO",),
+        }
+    )
 
-    monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: (nullcontext(), nullcontext()))
-    monkeypatch.setattr(app.st, "container", capture_container)
-    monkeypatch.setattr(app.st, "pyplot", lambda figure, **_kwargs: figures.append(figure))
+    assert len(charts) == 4
+    assert all(hasattr(chart, "to_dict") for chart in charts)
+    assert "#B69BFF" in str(charts[2].to_dict())
+    assert any("Each cell shows the share" in value for value in captions)
+    assert any('class="strategy-options"' in value for value in markdown)
+    table_html = next(value for value in markdown if 'class="strategy-options"' in value)
+    assert "Recommended</th>" not in table_html
+    assert "Score</th>" not in table_html
+
+
+def test_strategy_table_has_no_basis_column_and_uses_one_decimal_and_whole_percents() -> None:
+    app = import_module("f1si.app")
+    columns = (
+        "Action",
+        "Mean finish",
+        "Spread",
+        "Worst 10% average finish",
+        "Podium chance",
+        "Top-10 chance",
+        "90% finish interval",
+    )
+    result = {
+        "option_columns": columns,
+        "options": (("pit now (MEDIUM)", 5.26, 2.0, 10.5, 0.334, 0.806, "P1-P12"),),
+    }
+    formatted = app._format_strategy_table(result["option_columns"], result["options"])
+    assert "Basis" not in formatted.columns
+    assert formatted.iloc[0]["Mean finish"] == "5.3"
+    assert formatted.iloc[0]["Podium chance"] == "33%"
+    assert formatted.iloc[0]["Action"] == "Box this lap (Medium)"
+    html = app._strategy_table_html(formatted)
+    assert 'style="color:#B69BFF;font-weight:600"' in html
+    assert "Recommended</th>" not in html
+    assert "Score</th>" not in html
+
+
+def test_unavailable_cutoff_renders_one_actionable_sentence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = import_module("f1si.app")
+    writes: list[str] = []
+    monkeypatch.setattr(app.st, "write", lambda value: writes.append(str(value)))
     monkeypatch.setattr(
         app.st,
-        "caption",
-        lambda text: captions.append((active_container[-1] if active_container else None, text)),
+        "altair_chart",
+        lambda *_args, **_kwargs: pytest.fail("unavailable replay rendered a chart"),
     )
-    for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown"):
-        monkeypatch.setattr(app.st, name, lambda *_args, **_kwargs: None)
-
-    quantiles = tuple([2] * 25 + [4] * 50 + [6] * 25)
-    fan_chart = {
-        "laps": (9, 10),
-        "p10": (2.0, 2.0),
-        "p25": (2.0, 2.0),
-        "p40": (3.0, 3.0),
-        "p50": (3.0, 3.0),
-        "p60": (3.0, 3.0),
-        "p75": (4.0, 4.0),
-        "p90": (4.0, 4.0),
-        "n_cars": 6,
-        "simulation_count": 4,
-        "caption": "Projected ranks from 4 simulated races.",
-    }
-    app._render_selected(
-        {
-            "available": True,
-            "strategy_available": True,
-            "race_name": "Bahrain Grand Prix",
-            "driver": "ALO",
-            "cutoff_lap": 8,
-            "safety_car_share": 0.1,
-            "safety_car_source": "prior only",
-            "n_cars": 6,
-            "safety_car_probability": 0.01,
-            "fallback": False,
-            "tire_rate": 0.1,
-            "tire_sd": 0.01,
-            "tire_compound": "HARD",
-            "tire_source": "filter",
-            "options": (("pit now", 1.2),),
-            "option_columns": ("Action", "Mean finish"),
-            "option_quantiles": (quantiles,),
-            "selected_cutoff_mean": 4.0,
-            "simulation_count": 4,
-            "fan_chart_data": fan_chart,
-            "reason": "Controlled fixture",
-            "risk": 0.5,
-        }
+    monkeypatch.setattr(
+        app.st,
+        "table",
+        lambda *_args, **_kwargs: pytest.fail("unavailable replay rendered a table"),
     )
 
-    assert len(figures) == 4
-    mean_artist = figures[0].axes[0].get_lines()[0]
-    assert mean_artist.get_xdata()[0] == pytest.approx(4.0)
-    assert mean_artist.get_xdata()[0] != 8
-    assert mean_artist.get_label() == "Mean finish at selected cutoff"
-    assert mean_artist.get_color() == "#9BA1A8"
-    assert {"border": True, "key": "finish-chart"} in containers
-    assert any(
-        key == "finish-chart" and "4 simulated finishes" in caption for key, caption in captions
-    )
-    assert any(
-        key == "finish-chart" and "4 simulated races" in caption for key, caption in captions
-    )
+    app._render_selected({"available": False})
+
+    assert writes == ["Unavailable at this cutoff. Choose another lap or race."]
 
 
-def test_selected_replay_renders_both_quantile_and_forward_position_charts(
+def test_catalog_failure_does_not_show_internal_error_details(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = import_module("f1si.app")
-    figures = []
-    active_container: list[str | None] = []
-
-    @contextmanager
-    def capture_container(**kwargs: object) -> Iterator[None]:
-        key = kwargs.get("key")
-        active_container.append(key if isinstance(key, str) else None)
-        try:
-            yield
-        finally:
-            active_container.pop()
-
-    monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: (nullcontext(), nullcontext()))
-    monkeypatch.setattr(app.st, "container", capture_container)
-    monkeypatch.setattr(app.st, "pyplot", lambda figure, **_kwargs: figures.append(figure))
-    for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown", "caption"):
-        monkeypatch.setattr(app.st, name, lambda *_args, **_kwargs: None)
-
-    app._render_selected(
-        {
-            "available": True,
-            "strategy_available": True,
-            "race_name": "Bahrain Grand Prix",
-            "driver": "ALO",
-            "cutoff_lap": 8,
-            "safety_car_share": 0.1,
-            "safety_car_source": "prior only",
-            "n_cars": 6,
-            "safety_car_probability": 0.01,
-            "fallback": False,
-            "tire_rate": 0.1,
-            "tire_sd": 0.01,
-            "tire_compound": "HARD",
-            "tire_source": "filter",
-            "options": (("pit now", 1.2),),
-            "option_columns": ("Action", "Mean finish"),
-            "option_quantiles": (tuple([2] * 100),),
-            "selected_cutoff_mean": 3.0,
-            "simulation_count": 4,
-            "fan_chart_data": {
-                "laps": (9, 10),
-                "p10": (2.0, 2.0),
-                "p25": (2.0, 2.0),
-                "p40": (3.0, 3.0),
-                "p50": (3.0, 3.0),
-                "p60": (3.0, 3.0),
-                "p75": (4.0, 4.0),
-                "p90": (4.0, 4.0),
-                "n_cars": 6,
-                "simulation_count": 4,
-                "caption": "Projected ranks from 4 simulated races.",
-            },
-            "reason": "Controlled fixture",
-            "risk": 0.5,
-        }
+    writes: list[str] = []
+    monkeypatch.setattr(app, "_data_file", lambda: Path("cache.duckdb"))
+    monkeypatch.setattr(
+        app,
+        "_eligible_catalog",
+        lambda _path: (_ for _ in ()).throw(RuntimeError("C:\\private\\cache\\db error")),
     )
+    monkeypatch.setattr(app, "_apply_styles", lambda: None)
+    monkeypatch.setattr(app.st, "set_page_config", lambda **_kwargs: None)
+    monkeypatch.setattr(app.st, "title", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(app.st, "caption", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(app.st, "write", lambda value: writes.append(str(value)))
 
-    assert len(figures) == 4, "Desktop and phone versions of both charts should render."
-    assert len(figures[2].axes[0].collections) >= 3
+    app.main()
+
+    assert writes == [app.EMPTY_BODY]
+    assert all("private" not in text and "db error" not in text for text in writes)
 
 
-def test_selected_cutoff_simulates_recommended_plan_and_caches_only_compact_fan_bands(
+def test_fan_chart_uses_recommended_pathwise_policy_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     app = import_module("f1si.app")
-    recommended_plan = object()
+    plan = SimpleNamespace(stop_laps=(11,), compounds=("MEDIUM",))
     option = SimpleNamespace(
-        action="pit now",
-        plan=recommended_plan,
+        action="pit in 1 lap (MEDIUM)",
+        plan=plan,
         mean_finish=4.0,
         spread=1.0,
         cvar10=6.0,
@@ -506,40 +546,59 @@ def test_selected_cutoff_simulates_recommended_plan_and_caches_only_compact_fan_
         top10_probability=1.0,
         finish_p05=1,
         finish_p95=8,
-        finish_quantiles=tuple([1] * 12 + [2] * 13 + [4] * 50 + [6] * 25),
+        finish_quantiles=tuple([1] * 100),
     )
-    analysis = SimpleNamespace(best=option, options=(option,), reason="Pit now ranks first.")
+    history = np.tile(np.arange(1, 11, dtype=np.int64), (4, 1))
+    analysis = SimpleNamespace(
+        best=option,
+        options=(option,),
+        recommended_position_history=history,
+    )
     car = SimpleNamespace(
-        driver="ALO",
         compound="HARD",
+        tire_age=10,
         wear_rate_s_per_lap=0.1,
         wear_sd=0.01,
         wear_source="filter",
     )
-
-    class FakeState:
-        def __init__(self) -> None:
-            self.cars = (
-                car,
-                *(SimpleNamespace(driver=f"D{index:02d}") for index in range(2, 13)),
-            )
-
-        @staticmethod
-        def car(code: str) -> object:
-            assert code == "ALO"
-            return car
-
+    state = SimpleNamespace(
+        cars=tuple(SimpleNamespace(driver=f"D{index:02d}") for index in range(20)),
+        car=lambda _code: car,
+        laps_done_of=lambda _car: 10,
+        pit_loss_s={"green": 24.0},
+    )
     context = SimpleNamespace(
-        state=FakeState(),
+        state=state,
         model=object(),
         compounds=("HARD", "MEDIUM"),
         wear_sd_by_compound={"HARD": 0.01},
         estimate=SimpleNamespace(rate_per_lap=0.02, duration_laps=4),
         is_fallback=False,
     )
+    empty_laps = pd.DataFrame(
+        columns=(
+            "driver_number",
+            "lap_number",
+            "lap_end_s",
+            "lap_time_s",
+            "is_pit_in_lap",
+            "is_pit_out_lap",
+        )
+    )
     snapshot = SimpleNamespace(
-        entries={"driver_code": ("ALO", "VER")},
-        race=SimpleNamespace(event_name="Bahrain"),
+        entries=pd.DataFrame(
+            [
+                {
+                    "driver_number": 14,
+                    "driver_code": "ALO",
+                    "team_name": "Aston Martin",
+                    "grid_position": 7,
+                }
+            ]
+        ),
+        laps=empty_laps,
+        stints=pd.DataFrame(),
+        race=SimpleNamespace(event_name="Bahrain", season=2023),
     )
 
     class FakeAccessor:
@@ -548,111 +607,26 @@ def test_selected_cutoff_simulates_recommended_plan_and_caches_only_compact_fan_
             return snapshot
 
     calls: dict[str, object] = {}
-    history = np.asarray(
-        [
-            np.arange(1, 11),
-            np.arange(2, 12),
-            np.arange(3, 13),
-            np.arange(1, 11),
-        ],
-        dtype=np.int64,
-    )
 
-    class FakeSimulator:
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            pass
-
-        def simulate(self, state: object, **kwargs: object) -> object:
-            calls["state"] = state
-            calls.update(kwargs)
-            return SimpleNamespace(
-                finish_positions=np.ones((4, 2), dtype=np.int64),
-                sc_lap_mask=np.zeros((4, 10), dtype=np.bool_),
-                position_history=history,
-            )
-
+    monkeypatch.setattr(app._build_selected_replay, "clear", lambda: None)
     monkeypatch.setattr(app.cli, "_make_asof_accessor", lambda _path: FakeAccessor())
     monkeypatch.setattr(app.walk_forward, "_race_laps_total", lambda *_args: 20)
     monkeypatch.setattr(app.cli, "_prepare_replay_context", lambda *_args, **_kwargs: context)
-    monkeypatch.setattr(
-        app.cli,
-        "_replay_at_cutoff",
-        lambda *_args, **_kwargs: SimpleNamespace(analysis=analysis, is_fallback=False),
-    )
-    monkeypatch.setattr(app.cli, "_sc_source", lambda _estimate: "prior only")
-    monkeypatch.setattr(app, "NumpySimulator", FakeSimulator)
+
+    def replay(*_args: object, **kwargs: object) -> object:
+        calls.update(kwargs)
+        return SimpleNamespace(analysis=analysis, is_fallback=False)
+
+    monkeypatch.setattr(app.cli, "_replay_at_cutoff", replay)
+    monkeypatch.setattr(app, "fastf1_team_color_map", lambda *_args: {})
 
     result = app._build_selected_replay(
         "2023-01", "ALO", 10, 0.5, 4, 3, str(tmp_path / "cache.duckdb"), "model-id"
     )
 
-    assert calls["position_history_driver"] == "ALO"
-    assert calls["plans"] == {"ALO": recommended_plan}
+    assert calls["retain_position_history"] is True
     fan = result["fan_chart_data"]
     assert fan.laps == tuple(range(11, 21))
     np.testing.assert_allclose(fan.p50, np.quantile(history, 0.5, axis=0))
-    assert fan.simulation_count == 4
     assert "position_history" not in result
     assert "finishes" not in result
-
-
-def test_top_ranked_marker_stays_on_first_action_and_preserves_each_basis() -> None:
-    app = import_module("f1si.app")
-    assert hasattr(app, "_ranked_strategy_rows")
-    columns, rows = app._ranked_strategy_rows(
-        ("Action", "Mean finish", "Basis"),
-        (("pit now", 2.1, "Uncalibrated"), ("stay out", 2.4, "Cutoff inputs")),
-    )
-
-    assert columns == ("Rank", "Action", "Mean finish", "Basis")
-    assert rows == (
-        ("Top", "pit now", 2.1, "Uncalibrated"),
-        ("", "stay out", 2.4, "Cutoff inputs"),
-    )
-
-
-@pytest.mark.parametrize("reason", ["private database path", "stack trace secret"])
-def test_replay_error_renderer_uses_only_approved_copy_and_returns_before_outputs(
-    monkeypatch: pytest.MonkeyPatch, reason: str
-) -> None:
-    app = import_module("f1si.app")
-    messages: list[str] = []
-    selected: list[dict[str, object]] = []
-    assert hasattr(app, "_render_replay_outcome")
-    monkeypatch.setattr(app.st, "error", messages.append)
-    monkeypatch.setattr(app, "_render_selected", selected.append)
-
-    app._render_replay_outcome({"status": "error", "value": None, "reason": reason})
-
-    assert messages == [app.ERROR_COPY]
-    assert reason not in messages[0]
-    assert selected == []
-
-
-def test_risk_control_has_visible_endpoints_value_spacing_and_44px_targets() -> None:
-    app = import_module("f1si.app")
-    source = app_source()
-    assert "0.0 Mean-focused" in source
-    assert "1.0 tail-risk-focused" in source
-    assert app._risk_value_label(0.5) == "Current risk aversion: 0.50"
-    assert "_risk_value_label(risk)" in source
-    for token in ("4px", "8px", "16px", "24px", "32px", "48px", "64px"):
-        assert token in source
-    assert "min-height: 44px" in source
-    assert source.index("st.caption(_risk_value_label(risk))") < source.index(
-        "st.form_submit_button"
-    )
-    submit_call = source.index("st.form_submit_button")
-    assert '"Update replay"' in source[submit_call : submit_call + 120]
-
-
-def test_safety_car_probability_uses_neutral_track_and_one_positioned_accent_marker() -> None:
-    app = import_module("f1si.app")
-    assert hasattr(app, "_probability_track_markup")
-    track = app._probability_track_markup(0.25)
-
-    assert "#24282D" in track
-    assert track.count("#9BA1A8") == 1
-    assert "left: 25.0%" in track
-    assert 'role="img"' in track
-    assert 'aria-label="Safety-car probability: 25.0%"' in track

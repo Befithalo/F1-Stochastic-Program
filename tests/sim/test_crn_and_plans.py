@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from f1si.interfaces import Plan
 from f1si.pace.linear import LinearPaceFit
 from f1si.rng import make_rng
-from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
+from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel, _PathCheckpoint
 from f1si.state import RaceState
 
 from .conftest import ZeroNoisePace, hand_state
@@ -47,6 +47,30 @@ def test_forced_two_stop_plan_is_followed_exactly(
     sources = {s.driver: s.source for s in result.plan_sources}
     assert sources[code] == "forced"
     assert all(v in ("optimizer", "fallback") for k, v in sources.items() if k != code)
+
+
+def test_future_pit_is_simulated_and_tire_age_resets_after_stop() -> None:
+    state = hand_state(n_cars=2, lap=2, laps_total=12, spacing_s=60.0, tire_age=6)
+    simulator = NumpySimulator(
+        ZeroNoisePace(), sc=SafetyCarModel(0.0, 4), compounds=("HARD", "MEDIUM")
+    )
+    checkpoint = _PathCheckpoint(state=state, lap=state.lap)
+    branches = simulator._branch_paths(
+        checkpoint,
+        actions={"planned pit": {"AAA": Plan((4,), ("MEDIUM",), 0.0)}},
+        n_races=8,
+        rng=make_rng(22),
+        checkpoint_laps=(4, 5),
+        capture_actions=("planned pit",),
+    )
+
+    branch = branches["planned pit"]
+    assert branch.result.stop_laps is not None
+    assert (branch.result.stop_laps[:, 0, 0] == 4).all()
+    assert branch.checkpoints[4].tire_age is not None
+    assert (branch.checkpoints[4].tire_age[:, 0] == 0).all()
+    assert branch.checkpoints[5].tire_age is not None
+    assert (branch.checkpoints[5].tire_age[:, 0] == 1).all()
 
 
 def test_common_random_numbers_across_forced_plans() -> None:

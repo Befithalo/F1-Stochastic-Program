@@ -5,7 +5,8 @@ import unittest
 from contextlib import redirect_stderr
 from io import StringIO
 from pathlib import Path
-from typing import cast
+from types import SimpleNamespace
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -89,6 +90,36 @@ def test_sparse_fallback_replay_returns_ranked_options_at_lap_zero_and_fallback_
         assert "[ASSUMED] 1.0 s" in output
         assert "uncalibrated" in output
         assert "unavailable" not in output
+
+
+def test_identified_one_compound_fit_uses_cutoff_local_strategy_fallback(
+    long_synthetic_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    accessor = AsOfAccessor(long_synthetic_db)
+    snapshot = accessor.snapshot(AsOf(LONG_RACE_ID, 15))
+    dynamic_cli = cast(Any, cli)
+    original_fit = dynamic_cli.fit_linear_pace(snapshot)
+    pit = dynamic_cli.measure_pit_loss(snapshot, original_fit)
+    state = dynamic_cli.build_race_state(
+        snapshot, original_fit, laps_total=57, pit_loss_s=pit.median_s
+    )
+
+    one_compound_fit = SimpleNamespace(is_identified=True, fitted_compounds=("SOFT",))
+    monkeypatch.setattr(cli, "fit_linear_pace", lambda _snapshot: one_compound_fit)
+    monkeypatch.setattr(
+        cli, "measure_pit_loss", lambda *_args: SimpleNamespace(median_s=pit.median_s)
+    )
+    monkeypatch.setattr(cli, "filter_stints", lambda *_args: ())
+    monkeypatch.setattr(cli, "current_stint_snapshots", lambda _stints: ())
+    monkeypatch.setattr(cli, "build_race_state", lambda *_args, **_kwargs: state)
+
+    context = cli._prepare_replay_context(accessor, LONG_RACE_ID, 57, 15, snapshot=snapshot)
+
+    assert context.is_fallback
+    assert isinstance(context.model, SparsePaceFallback)
+    assert set(context.compounds) == {"HARD", "MEDIUM", "SOFT"}
+    assert context.fallback is not None
 
 
 def test_sparse_fallback_noise_floor_is_generic_at_lap_zero(

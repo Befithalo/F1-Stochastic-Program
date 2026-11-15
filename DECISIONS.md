@@ -1146,3 +1146,69 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Matching a stop to the closest or latest recommendation even if it is after the stop; counting every preceding cutoff as a separate event; treating the leave-stint-out fit as true wear; adjusting the filter to maximize proxy coverage; claiming superiority from a retrospective comparison.
 **Consequences:** Agreement and timing results are descriptive comparisons with observed team behavior. Proxy coverage and bias are diagnostic evidence with their reported denominators; two races without an estimable leave-stint-out reference remain explicitly unavailable.
 **Refs:** D-05, D-06, BKT-04, `src/f1si/backtest/strategy.py`, `src/f1si/backtest/wear_diagnostic.py`, `reports/backtest/phase-06.json`
+
+## DEC-105 — Record pre-start race-distance reductions in lap-count provenance
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The FastF1 winner-laps fallback records laps completed by the winner. Some events start over a shortened distance after an aborted start or extra formation laps, so that value can be lower than the original event timetable without indicating a mid-race shortening.
+**Decision:** Preserve the three Phase 6 cases with both the original timetable distance and the distance used at the race start: 2023 Italian GP (53 advertised, reduced to 51 after start-procedure delays before the lights); 2024 Sao Paulo GP (71 advertised, stewards reduced it to 69 before the start after an aborted start); and 2025 Australian GP (58 advertised, reduced to 57 after an aborted formation-lap start). All three reductions were decided before the eventual race start. A fallback count of 51, 69, or 57 is therefore the correct race-start horizon for those event records.
+**Why:** The replay must know the race horizon before simulation, and provenance must distinguish pre-start distance changes from a race that ended early after starting.
+**Alternatives rejected:** Treating the original timetable as the simulation horizon after the race director or stewards have reduced it; inferring race length from the number of laps in the cache.
+**Consequences:** The winner-laps fallback is an ex-post source for an event-level race-start distance, but the user-facing horizon is race metadata and is not inferred from live telemetry. Future caches should retain whether a count came from `Session.total_laps` or winner results.
+**Refs:** [F1 Italian timetable](https://www.formula1.com/en/latest/article/formula-1-pirelli-gran-premio-ditalia-2023-timetable.3KDv0T9Nh7tRPhgy0esA2w); [F1 Italian start report](https://www.formula1.com/en/latest/article/verstappen-charges-to-monza-victory-for-record-breaking-10th-successive-f1.6jCUOTZ4lZB3kxfIiwsiHK); [FIA Italian classification](https://www.fia.com/sites/default/files/decision-document/2023%20Italian%20Grand%20Prix%20-%20Final%20Race%20Classification.pdf); [FIA Sao Paulo timetable](https://www.fia.com/sites/default/files/decision-document/2024%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Change%20to%20Timetable.pdf); [FIA Sao Paulo distance decision](https://www.fia.com/sites/default/files/decision-document/2024%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Decision%20-%20Race%20Distance.pdf); [F1 Australian timetable](https://www.formula1.com/en/latest/article/formula-1-louis-vuitton-australian-grand-prix-2025.41bqABavUOOfgZY9SeGUFc); [F1 Australian start report](https://www.formula1.com/en/latest/article/norris-beats-verstappen-to-victory-in-dramatic-australian-gp-opener-amid.5rKGxQHJoDl1P8stMSHlIN.html); [FIA Australian classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf)
+
+## DEC-106 — Record Bahrain lap-15 convergence and forecast limits
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** ALO's Bahrain 2023 replay after lap 15 is a real-data check for the strategy ranking and Monte Carlo stability.
+**Decision:** After correcting the stopping rule for simulated future-noise lookahead (DEC-110), record the 0.5-risk recommendation and convergence under the same seed and cutoff: 1,000 simulations produced mean finish 8.477, CVaR10 16.680, and `pit in 1 lap (HARD)` in 2.069 s; 10,000 produced 8.484, 16.730, and `pit in 4 laps (MEDIUM)` in 4.399 s; 50,000 produced 8.482, 16.693, and the same action in 14.600 s. The mean and tail estimates are stable, but the selected action differs at 1,000 simulations. The 50,000-simulation result is the reference convergence check. It underestimates ALO's actual P3 by 5.482 places because lap-15 data cannot see Aston Martin's full race pace; retirements are not modeled yet.
+**Why:** Increasing the simulation count stabilizes the forecast mean and tail, while the action can still change when close policy values are resolved with fewer simulations.
+**Alternatives rejected:** Treating Monte Carlo convergence as proof of calibration; adjusting the lap-15 model with the actual result; presenting a DNF outcome as a simulated retirement.
+**Consequences:** Report the forecast miss and retirement limitation beside the convergence figures. Actual classification remains restricted to tests, scoring, and post-run comparison; it is not a replay input. The corrected forecast misses the previously requested five-place bound for ALO by 0.482 places, so do not conceal this limitation or tune the model to the race result.
+**Refs:** `reports/backtest/phase-06.json`; `src/f1si/cli.py`; `tests/real/test_bahrain_2023.py`; DEC-003, DEC-101, DEC-102
+
+## DEC-107 — FastF1 timing archive access requires F1 TV
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The 70-race lap-count backfill used FastF1 winner results. FastF1 reports that Formula 1 added authentication to its timing archive endpoints in October 2026.
+**Decision:** Treat fresh FastF1 timing-archive downloads as requiring an active F1 TV Access, Pro, or Premium subscription. Existing cache files and non-timing result sources remain separate; do not describe fresh timing downloads as anonymous.
+**Why:** FastF1 v3.9.0 added F1 TV authentication support after unauthenticated archive access stopped working; a no-credentials request in this workspace returned no session data.
+**Alternatives rejected:** Assuming historical public access still applies to current archive downloads; treating FastF1, Jolpica, and OpenF1 as having identical access requirements.
+**Consequences:** A new FastF1 backfill without account credentials may fail and must report unresolved race rows. Current verified cached counts remain usable.
+**Refs:** [FastF1 v3.9.0 release notes](https://github.com/theOehrly/Fast-F1/releases/tag/v3.9.0); [FastF1 account authentication docs](https://docs.fastf1.dev/api_reference/accounts_auth.html); [FastF1 maintainer's access update](https://github.com/theOehrly/Fast-F1/issues/978)
+
+## DEC-108 — Set the replay backtest simulation count and M5 runtime target
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The ten-race Phase 6 backtest and the Bahrain lap-15 replay need a fixed simulation count and a recorded convergence check.
+**Decision:** Use 1,000 simulations per backtest prediction. After the corrected stopping rule, Bahrain 2023 ALO's after-lap-15 mean finish moved from 8.477 at 1,000 simulations to 8.482 at 50,000; the recommendation changed from `pit in 1 lap (HARD)` to `pit in 4 laps (MEDIUM)`. The 50,000-simulation run took 14.600 seconds, above the 10-second target.
+**Why:** One thousand simulations keeps the backtest practical. This convergence check shows a stable mean, while the selected action needs more simulations to settle; it is not a calibration claim.
+**Alternatives rejected:** Raising every backtest prediction to 50,000 simulations; treating this one convergence check as proof of model calibration.
+**Consequences:** Keep 1,000 as the backtest default. Treat close action rankings cautiously at that count. Reduce the 50,000-simulation runtime below 10 seconds as M5 work.
+**Refs:** DEC-106; \`reports/backtest/phase-06.json\`; \`tests/real/test_bahrain_2023.py\`; M5 roadmap.
+
+## DEC-109 — Use cached timing data first and OpenF1 when FastF1 access is unavailable
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** Recent FastF1 timing archive downloads require F1 TV account access, while existing local race data must remain usable without another download.
+**Decision:** Reuse verified cached race data first. A fresh FastF1 timing archive download requires F1 TV Access or a higher subscription tier. When a new race is not in the local cache and FastF1 access is unavailable, use OpenF1 as the fallback data source.
+**Why:** This keeps the replay usable with the verified cache and provides a route to load new races without depending on an authenticated FastF1 archive request.
+**Alternatives rejected:** Assuming fresh FastF1 timing downloads are anonymous; discarding cached data when account access is unavailable.
+**Consequences:** Backfills must identify unresolved races and use OpenF1 for available new-race data; FastF1 remains useful when the required F1 TV account is available.
+**Refs:** DEC-107; \`src/f1si/data/loader.py\`; \`src/f1si/data/sources/openf1.py\`; [FastF1 account authentication docs](https://docs.fastf1.dev/api_reference/accounts_auth.html)
+
+## DEC-110 — Compare conditional expected outcomes when choosing a simulated stop
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** A Longstaff–Schwartz stopping policy compares simulated outcomes from a stop branch with the option to continue. Using each path's realized future finishing place to choose whether that path stops gives the decision information from future race noise.
+**Decision:** At each candidate stop time, regress each stop action's simulated finish on the cutoff-safe path features and compare its conditional expected finish with the fitted continuation finish. Choose the stop or continuation using those conditional expectations; use realized branch results only to assemble the distribution after the decision rule has been selected.
+**Why:** The pit decision cannot know future lap noise. Comparing expectations avoids selecting stops with hindsight while retaining simulated outcomes for uncertainty estimates.
+**Alternatives rejected:** Choosing an action from pathwise realized future finishes; tuning the policy against the actual Bahrain result.
+**Consequences:** The Bahrain ALO lap-15 1,000-simulation mean moves from P7.291 to P8.477, and the 50,000-simulation recommendation differs from the 1,000-simulation recommendation. The real P3 remains a 5.482-place forecast miss; the model must not be fitted to that result. Retirements remain unmodeled.
+**Refs:** \`src/f1si/strategy/longstaff.py\`; \`tests/strategy/test_longstaff.py::test_delayed_option_does_not_use_future_finish_noise_to_choose_a_stop\`; \`tests/real/test_bahrain_2023.py\`; DEC-106, DEC-108

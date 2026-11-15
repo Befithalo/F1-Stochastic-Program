@@ -17,8 +17,10 @@ from f1si.strategy import longstaff
 from f1si.strategy.longstaff import (
     LongstaffSchwartzPolicy,
     _backward_stop,
+    _backward_stop_options_with_choices,
     _cvar10,
     _fit_continuation,
+    _midpoint_finish_quantiles,
     _score_option,
 )
 
@@ -73,6 +75,21 @@ def test_pathwise_stopping_uses_different_cutoff_states() -> None:
     stopped, decisions = _backward_stop({4: features}, {4: np.full(4, 4.0)}, later_policy_values)
     np.testing.assert_allclose(stopped, [1.0, 3.0, 4.0, 4.0])
     assert decisions[4].tolist() == [False, False, True, True]
+
+
+def test_delayed_option_does_not_use_future_finish_noise_to_choose_a_stop() -> None:
+    features = {16: np.zeros((2, 1), dtype=np.float64)}
+    stop_values = {16: {"medium": np.array([5.0, 15.0])}}
+    terminal = np.array([9.0, 9.0])
+
+    _, _, action_values, action_choices = _backward_stop_options_with_choices(
+        features, stop_values, terminal
+    )
+
+    # Both paths have identical decision-time features. The conditional mean stop finish
+    # is worse than continuation, so future realized noise must not select the lucky path.
+    np.testing.assert_array_equal(action_values[16]["medium"], np.array([9.0, 9.0]))
+    np.testing.assert_array_equal(action_choices[16]["medium"], np.array(["stay out", "stay out"]))
 
 
 def test_branch_paths_share_indexed_draws_and_default_result_shape() -> None:
@@ -130,6 +147,20 @@ def test_policy_returns_deterministic_decision_without_mutating_state() -> None:
     assert first.lap == race.lap
     assert first.best_plan == first.ranked_plans[0]
     assert len(policy.analyze(race, driver="AAA").options) >= 1
+
+
+def test_recommended_history_matches_the_pathwise_policy_finish_distribution() -> None:
+    race = state(lap=10, laps_total=16)
+    report = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM", "SOFT"), n_simulations=32, seed=9
+    ).analyze(race, driver="AAA", retain_position_history=True)
+
+    history = report.recommended_position_history
+    assert history is not None
+    assert history.shape == (32, race.laps_total - race.lap)
+    finishes = history[:, -1].astype(np.float64)
+    assert float(finishes.mean()) == pytest.approx(report.best.mean_finish)
+    assert _midpoint_finish_quantiles(finishes) == report.best.finish_quantiles
 
 
 def test_policy_ranks_stay_out_when_no_second_compound_is_available() -> None:
@@ -221,6 +252,7 @@ def test_tied_options_have_stable_action_order(monkeypatch: pytest.MonkeyPatch) 
             rng: np.random.Generator,
             checkpoint_laps: Sequence[int],
             capture_actions: Sequence[str],
+            position_history_driver: str | None = None,
         ) -> dict[str, Any]:
             from types import SimpleNamespace
 
@@ -287,6 +319,7 @@ def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.Mon
             rng: np.random.Generator,
             checkpoint_laps: Sequence[int],
             capture_actions: Sequence[str],
+            position_history_driver: str | None = None,
         ) -> dict[str, Any]:
             outcomes: dict[str, Any] = {}
             for name in actions:
@@ -365,6 +398,7 @@ def test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution(
             rng: np.random.Generator,
             checkpoint_laps: Sequence[int],
             capture_actions: Sequence[str],
+            position_history_driver: str | None = None,
         ) -> dict[str, Any]:
             assert set(actions) == {"stay out"}
             outcomes = np.column_stack((sample, np.full(n_races, 11, dtype=np.int64)))

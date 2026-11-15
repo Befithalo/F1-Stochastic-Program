@@ -140,3 +140,13 @@ This audit supersedes the earlier code-only review and the 2026-11-14 live-revie
 - Full local suite after the loader-boundary fix: 1,117 passed, 25 deselected.
 - Ruff check, Ruff format check, mypy, and lock validation passed.
 - Exact-head Ubuntu/Windows CI passed for `afa2aeee9fd888bba452a0c7103fe9062531a0bb`: run [43702390713](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713), Ubuntu job [132776132845](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713/job/132776132845), and Windows job [132776133125](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43702390713/job/132776133125). Full gates and exact results are recorded in `06-11-SUMMARY.md`.
+
+## Latest owner-review findings — 2026-11-15
+
+This section supersedes the earlier lap-15 forecast and screenshot details above, which were captured before the Longstaff look-ahead fix and before the final phone chart-height adjustment.
+
+- **Strategy engine:** The P10.4-to-P7.3 advantage for a one-lap delay and the P7.4-to-P9.9 jump between laps 4 and 5 came from using realized future finishing noise when choosing a stop. The engine now compares conditional expected finishes. Direct fixed plans at pit-now, lap 16, lap 19, and lap 20 score P10.400, P10.233, P9.941, and P9.878, respectively, so the questioned discontinuities are not produced by traffic, pit loss, or the tire reset. Delayed option rows also include later conditional stop decisions and are not forced fixed-plan scores.
+- **Future stops:** All legal stop opportunities remain ranked. The simulator records the future pit at lap 16, and a test confirms tire age resets to zero after a stop. The fan history matches the selected strategy's finish distribution.
+- **Final forecast:** After the stopping-rule fix, Bahrain 2023 ALO at lap 15 predicts P8.477 at 1,000 simulations and P8.482 at 50,000; the actual result was P3. The gap reflects information unavailable at lap 15 about Aston Martin's pace and retirements that are not modeled. The earlier P18.595/P20.000 screenshot and forecast values are superseded.
+- **Final screenshots:** `06-11-bahrain-lap15-1440.png` is 1440×2800 and `06-11-bahrain-lap15-390.png` is 390×4800. Both are populated with lap-15 Bahrain outputs. The five-row probability strip fits on phone; fan labels do not overlap or clip; x-axes stop at lap 57 and cutoff lap 15; chart toolbars and heading-anchor icons are hidden; both widths have no horizontal overflow.
+- **Current local verification:** 1,113 passed, 27 network tests deselected; the two relevant live Bahrain tests passed separately. Final pushed-head CI is pending and should be recorded in `06-VALIDATION.md` after the exact commit passes on Ubuntu and Windows.

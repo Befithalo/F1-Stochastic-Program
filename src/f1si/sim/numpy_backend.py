@@ -198,6 +198,7 @@ class NumpySimulator:
         rng: np.random.Generator,
         checkpoint_laps: Sequence[int] = (),
         capture_actions: Sequence[str] = (),
+        position_history_driver: str | None = None,
     ) -> dict[str, _BranchRun]:
         """Replay candidate actions from one checkpoint with identical scenario-indexed draws."""
         if not actions:
@@ -211,6 +212,7 @@ class NumpySimulator:
                 rng=copy.deepcopy(initial),
                 plans=plans,
                 checkpoint_laps=checkpoint_laps if name in capture_actions else (),
+                position_history_driver=position_history_driver,
             )
             outputs[name] = _BranchRun(result, states)
         return outputs

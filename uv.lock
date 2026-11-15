@@ -340,6 +340,7 @@ name = "f1si"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "altair" },
     { name = "duckdb" },
     { name = "fastf1" },
     { name = "matplotlib" },
@@ -367,6 +368,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "altair", specifier = ">=6,<7" },
     { name = "duckdb", specifier = ">=1.5.6,<2" },
     { name = "fastf1", specifier = ">=3.8.3,<4" },
     { name = "matplotlib", specifier = ">=3.11,<4" },

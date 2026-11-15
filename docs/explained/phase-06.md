@@ -59,6 +59,9 @@ Paths are relative to the repository root. Package marker `__init__.py` files ar
 - `src/f1si/backtest/strategy.py` pairs each observed pit stop with one strictly earlier recommendation and measures agreement and timing error.
 - `src/f1si/backtest/wear_diagnostic.py` compares cutoff wear estimates with a leave-current-stint-out retrospective proxy without changing the filter.
 - `src/f1si/app.py` presents the read-only single-page view using the shared cutoff-safe replay builder and selected-input controls.
+- `src/f1si/ui_theme.py` defines the dark neutral palette, meaningful team/tire/timing colors, typography, and contrast checks used by the view.
+- `src/f1si/plots/altair_charts.py` builds the lap-by-lap race trace, tire-stint bars, simulated finish dotplot, and finishing-position fan chart with Altair.
+- `src/f1si/plots/replay_charts.py` prepares replay chart data and resolves team colors, including a local palette fallback when FastF1 colors are unavailable.
 - `src/f1si/cli.py` exposes the report-building command and the same replay construction used by the view.
 - `reports/backtest/phase-06.json` stores the measured ten-race results, denominators, seeds, and uncertainty metadata.
 
@@ -68,7 +71,7 @@ Paths are relative to the repository root. Package marker `__init__.py` files ar
 - `tests/app/test_app.py` checks the read-only view's controls, defaults, rendering, and required output states.
 - `tests/guards/consumers.py`, `tests/guards/test_future_scramble.py`, and `tests/guards/test_import_ban.py` protect the as-of boundary and result-access boundary.
 - `tests/test_docs.py` guards report-linked public claims, assumptions, source credits, and this file tour. `tests/test_decisions_log.py` checks the logged method choices.
-- `DECISIONS.md` records DEC-102 through DEC-104, including the fixed sample, scoring semantics, and interpretation of observed calls and the retrospective proxy.
+- `DECISIONS.md` records DEC-102 through DEC-107, including the fixed sample, scoring semantics, observed-call interpretation, race-distance provenance, replay convergence, and FastF1 access requirements.
 
 ## Interview questions
 

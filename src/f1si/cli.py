@@ -1037,7 +1037,11 @@ def _prepare_replay_context(
         snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
     )
     estimate = estimate_sc_rate(history)
-    is_fallback = not fit.is_identified or not fit.fitted_compounds
+    # A legal dry strategy must use two different compounds. A one-compound fit cannot price a
+    # legal stop candidate, so Longstaff could misleadingly rank "stay out" as the only action.
+    # Use the cutoff-local generic fallback to price all dry compounds until the fit supports a
+    # strategy.
+    is_fallback = not fit.is_identified or len(fit.fitted_compounds) < 2
     model: PaceModel = fit
     compounds = fit.fitted_compounds
     wear_sd_by_compound: dict[str, float | None] | None = None
@@ -1080,6 +1084,7 @@ def _replay_at_cutoff(
     risk: float,
     seed: int,
     prepared_context: _PreparedReplayContext | None = None,
+    retain_position_history: bool = False,
 ) -> _ReplayCutoff:
     """Rebuild every input from one cutoff and fall back without leaving its as-of snapshot."""
 
@@ -1098,7 +1103,11 @@ def _replay_at_cutoff(
         wear_sd_by_compound=prepared_context.wear_sd_by_compound,
     )
     try:
-        analysis = policy.analyze(prepared_context.state, driver=code)
+        analysis = policy.analyze(
+            prepared_context.state,
+            driver=code,
+            retain_position_history=retain_position_history,
+        )
     except ValueError as err:
         return _ReplayCutoff(lap, None, str(err))
     if prepared_context.is_fallback:
