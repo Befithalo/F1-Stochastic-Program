@@ -252,12 +252,14 @@ Plans:
 
 **Wave 7**
 - [x] 06-07-PLAN.md — Measured README results, explainer, decisions, and docs checks
-- [ ] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
 
 **Wave 8**
-- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and rendered-browser acceptance
+- [ ] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
 
 **Wave 9**
+- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and rendered-browser acceptance
+
+**Wave 10**
 - [ ] 06-08-PLAN.md — Record accepted D-10/D-11 browser evidence and close the UI review
 
 **UI hint**: yes
