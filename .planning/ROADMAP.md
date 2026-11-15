@@ -254,7 +254,7 @@ Plans:
 - [x] 06-07-PLAN.md — Measured README results, explainer, decisions, and docs checks
 
 **Wave 8**
-- [ ] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
+- [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
 
 **Wave 9**
 - [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and rendered-browser acceptance
