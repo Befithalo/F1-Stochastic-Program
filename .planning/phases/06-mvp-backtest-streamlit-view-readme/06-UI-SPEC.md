@@ -10,9 +10,23 @@ reviewed_at: "2026-11-15"
 
 # Phase 06 — UI Design Contract
 
-> Visual and interaction contract for the Phase 6 read-only Streamlit page. D-12 through D-15 supersede the rejected D-11 visual direction. Owner browser acceptance remains pending in Plan 06-10.
+> Visual and interaction contract for the Phase 6 read-only Streamlit page. The owner's 2026-11-15 rework decisions below supersede earlier conflicting Phase 6 decisions and copy. Final browser approval remains pending in Plan 06-10.
 
 > The owner's selected Streamlit subset of `DESIGN_BRIEF.md` adds the color, numeric, sentence-case, copy, and uncertainty-chart rules below. It supersedes earlier conflicting color tokens in this UI spec while preserving Phase 6 layout, data semantics, and scope.
+
+## Owner Rework Addendum — 2026-11-15
+
+This addendum is the current acceptance contract for the rejected running page. It overrides conflicting hierarchy, copy, default-cutoff, and replay-horizon instructions elsewhere in this historical UI spec. It keeps the approved Streamlit color tokens, sentence case, tabular numerals, tire and timing meanings, and uncertainty-chart design.
+
+- Lead with the recommended strategy, its one-sentence reason, then the uncertainty charts. Put the ten-race evaluation after the selected replay. Keep the summary compact and use a simple results table instead of repeated bordered stat cards.
+- Open on the working 2023 Bahrain Grand Prix replay. Keep visible race and driver pickers; select Alonso by default when present. Use after lap 15 as the initial cutoff so the default view and requested screenshots show a populated chart.
+- Render the quantile dotplot and position fan chart from the selected replay's simulation outputs. Verify Bahrain 2023 after laps 15 and 40. Each dotplot row has 100 dots at the option's 100 midpoint quantiles; keep the known-distribution unit test from Plan 06-08 as a required regression.
+- Use purple `#B69BFF` only for the recommended strategy. Keep the selected-cutoff marker and alternatives neutral. If an overall-best lap is already shown, label it `Best` in fog; do not color it purple. Pair tire colors with S/M/H/I/W, apply timing colors only to timing data already present, and keep all changing or comparable figures tabular.
+- Remove visible middle-dot separators. Use sentence case and plain strategist language. Do not show the phrases `cutoff-safe`, `classified denominator`, or `schedule horizon` in the app. Each Brier result follows `Model 0.050 vs grid baseline 0.082 (lower is better)`, with each score rounded to three decimals. Keep the measured coverage visible as `83%` and add `Target: 85–95%`.
+- Replace the old empty-state copy with exactly two sentences: `No eligible races are available because their scheduled lap counts are missing. Refresh the race cache, then choose a supported event.` The first sentence states the problem; the second states the action.
+- After corrections, run the app with Bahrain 2023 after lap 15 loaded, inspect the actual render at 1440px and 390px, and capture screenshots as `06-11-bahrain-lap15-1440.png` and `06-11-bahrain-lap15-390.png` in this phase directory. Record and fix any color, tabular-number, or copy violations before requesting approval.
+
+The owner explicitly requires FastF1 `Session.total_laps` as the first scheduled-lap source and the winner's `Session.results["Laps"]` as fallback. Apply the backfill only to the 70 eligible cached races from 2023–2025. Keep the 2026 rows and their out-of-sample lock unchanged. Retain provenance for values supplied by the winner-result fallback. This latest owner correction supersedes D-14's ban on adding a dependency and D-15's rejection of result-lap fallback for this repair only; the existing as-of/results data-door boundary and Phase 6 scope still apply.
 
 ---
 
@@ -114,9 +128,9 @@ Keep all labels in sentence case, including `Top` and `Best`; driver codes, tire
 | Element | Copy |
 |---------|------|
 | Primary CTA | Update replay |
-| Empty state heading | No verified race schedule available |
-| Empty state body | Choose an event with verified pre-race schedule metadata or load the supported local race cache. |
-| Unavailable schedule | This event has no verified pre-race schedule horizon and cannot be replayed. Choose an event with verified schedule metadata. |
+| Empty state heading | None; show only the two-sentence empty-state body |
+| Empty state body | No eligible races are available because their scheduled lap counts are missing. Refresh the race cache, then choose a supported event. |
+| Unavailable schedule | This race cannot be replayed because its scheduled lap count is missing. Refresh the race cache or choose another race. |
 | Error state | Replay could not be built for this selection. Check the local cache and eligible cutoffs, then retry or choose another race. |
 | Destructive confirmation | None — this read-only page has no destructive actions; confirmation is not applicable. |
 

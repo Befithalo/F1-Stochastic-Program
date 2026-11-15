@@ -223,7 +223,7 @@ Plans:
 
 **Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
 
-**Plans:** 10/11 plans executed
+**Plans:** 10/12 plans executed
 
 Plans:
 - [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
@@ -264,6 +264,12 @@ Plans:
 - [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and final owner acceptance
 
 **UI hint**: yes
+
+**Phase 06 rejection rework order (2026-11-15):** Existing Plan 06-08 chart and UI implementation remains complete and unchanged; its finished summary and tests are preserved. Plan 06-11 closes the owner's new data, replay, layout, copy, and real-render gaps in Wave 10. The original Plan 06-10 local/CI gate task completed at commit `4997c1e`; Plan 06-11 reruns all gates after the new implementation. Plan 06-10 then runs in Wave 11 with only its blocking owner approval checkpoint pending.
+
+Rework plans:
+- [ ] 06-11-PLAN.md - FastF1 scheduled-lap backfill, Bahrain replay, corrected UI, real chart/screenshots, and post-rework gates
+- [ ] 06-10-PLAN.md - Final owner approval at desktop and phone widths after Plan 06-11
 
 ### Phase 7: Bayesian Pace Model
 

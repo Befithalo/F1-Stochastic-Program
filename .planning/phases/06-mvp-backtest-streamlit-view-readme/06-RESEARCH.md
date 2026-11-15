@@ -129,11 +129,18 @@ The official-source package review and user authorization are recorded in [Orche
 | Package | Registry | Age | Downloads | Source Repo | Verdict | Disposition |
 |---------|----------|-----|-----------|-------------|---------|-------------|
 | `streamlit` | PyPI | 8 days since latest upload observed | Unknown from gate | Official metadata links homepage `streamlit.io`, official GitHub source/release and Apache-2.0 license verified | Cleared by official-source review (initial `SUS` was a metadata-heuristic false positive) | Roadmap-required and user-authorized `streamlit>=1.67,<2`; no separate human checkpoint. |
+| `fastf1` | PyPI | Stable 3.8.3 released 2026-04-29; Python `>=3.10` | Unknown from this review | Official `theOehrly/Fast-F1` repository and MIT license verified | Verified by official PyPI and source review | Required by the owner's 2026-11-15 Phase 06 correction; plan `fastf1>=3.8.3,<4` and update `uv.lock`. [`https://pypi.org/project/fastf1/`; `https://github.com/theOehrly/Fast-F1`] |
 
 **Packages removed due to [SLOP] verdict:** none  
 **Initial automated [SUS] flag:** `streamlit` — resolved by the official-source review recorded in [Orchestrator Follow-up](#orchestrator-follow-up); no separate checkpoint is required.
 
 The package-legitimacy seam initially returned `SUS` based on release age and unavailable download statistics. Official PyPI, repository, Apache-2.0 license, and matching release evidence resolves the warning as a metadata-heuristic false positive. The user authorized the recommended choice and the roadmap locks Streamlit, so install the bounded dependency without a separate checkpoint. See [Orchestrator Follow-up](#orchestrator-follow-up). [CITED: https://docs.streamlit.io/; https://pypi.org/project/streamlit/; https://github.com/streamlit/streamlit; https://github.com/streamlit/streamlit/releases/tag/1.67.0]
+
+### Owner correction — FastF1 scheduled-lap backfill (2026-11-15)
+
+The latest owner request requires FastF1 in Phase 06, superseding D-14's no-new-dependency restriction for this repair. Its official `Session.total_laps` property is documented as the originally scheduled number of laps for race-like sessions and is available after `Session.load(laps=True)`. Use it first. If it is unavailable, use the winner's `Session.results["Laps"]` as the explicitly requested fallback and record which source supplied each cached value. The dependency is the official `fastf1` PyPI distribution from the matching `theOehrly/Fast-F1` source repository (MIT; stable 3.8.3 supports the project's Python 3.12 target). Use the project's FastF1 disk cache and bound the stable dependency as `fastf1>=3.8.3,<4`. [CITED: https://github.com/theOehrly/Fast-F1/blob/main/fastf1/core.py; https://github.com/theOehrly/Fast-F1; https://pypi.org/project/fastf1/]
+
+Limit the cache update to eligible complete races in 2023–2025. Keep the 2026 out-of-sample rows, eligibility policy, and data-access boundaries unchanged. Unit tests should mock FastF1 and cover both the scheduled-count path and winner-result fallback; a batch test should establish that all 70 eligible cached races receive a positive count while 2026 rows stay outside the update. Do not use this fallback value as a feature from race outcomes; it only fills the race-distance metadata required for replay. [CITED: current owner correction, 2026-11-15; .planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md D-15]
 
 ## Architecture Patterns
 
