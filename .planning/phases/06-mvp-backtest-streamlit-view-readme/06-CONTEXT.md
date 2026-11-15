@@ -2,7 +2,7 @@
 
 **Gathered:** 2026-11-13
 **Status:** Ready for planning
-**Follow-up decisions added:** 2026-11-14, based on the approved UI review
+**Follow-up decisions added:** 2026-11-14, based on the approved UI review and owner's visual feedback
 
 > **How these decisions were made.** The user had already selected all four discussion areas and authorized the agent to choose the recommended option. The choices below use those recommended defaults; the discussion log records the alternatives.
 
@@ -36,10 +36,12 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 - **D-07:** Build one read-only page with the required strategy table, finishing-position fan chart, regime gauge, tire estimate and uncertainty panel, reason line, and risk dial. Provide race, driver, cutoff-lap, and risk controls. Default to Bahrain 2023, ALO, a middle eligible cutoff, and risk aversion 0.5.
 - **D-08:** Reuse cutoff-safe replay inputs and show the existing safety-car probability as the regime view; do not imply that Phase 8's Markov regime model exists. Clearly label prior-driven or sparse-fallback output as uncalibrated. Add Streamlit as a project dependency as required by the roadmap, without adding deployment or live streaming.
 - **D-10:** Resolve the Phase 6 UI review findings against the approved `06-UI-SPEC.md`: use its exact replay error copy without showing raw exception text; mark the actual first-ranked table action with the accent; keep fan-chart bars neutral and use the accent for a clearly labeled summary marker from the selected cutoff's simulation; bring chart text, spacing, and control sizing into the declared design scale where native widgets permit. Show the risk slider endpoints visibly. Validate the rendered page at desktop and narrow widths.
+- **D-11:** Replace the current flat Streamlit presentation with a polished motorsport race-engineering dashboard. Use a dark graphite canvas, layered slate surfaces, crisp high-contrast type, and deliberate spacing; use racing red only for the primary action and the existing top-ranked, finishing-summary, and safety-car signals. Make the fixed ten-race scorecard compact, make the replay controls easy to scan, give the finishing-position chart visual priority, and present safety-car and tire estimates as tidy companion cards. Keep the page one-screen-flow, read-only, cutoff-safe, and free of new features or dependencies. This owner feedback supersedes the prior light visual palette and flat component treatment; it does not change D-07/D-08 data, copy, or scope requirements.
 
 ### the agent's Discretion
 - The exact ten race IDs within the pre-registered season/round rule, with Bahrain 2023 fixed and the full list recorded before scoring.
 - The smoothing details for the past-only grid baseline, the bootstrap implementation, app module layout, caching, and chart styling, provided the decisions above and existing data-access boundaries remain intact.
+- The exact spacing, card shape, heading treatment, and chart grid/annotation details for D-11, provided contrast, accessibility, responsive behavior, and the locked data semantics remain intact.
 
 </decisions>
 

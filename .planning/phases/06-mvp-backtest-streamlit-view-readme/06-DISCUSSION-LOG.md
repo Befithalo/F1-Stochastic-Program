@@ -81,3 +81,31 @@
 
 **Selection:** Agent-selected recommended options, authorized by the user's standing instruction to choose the recommendation.
 **Deferred ideas:** None; this follow-up stays within Phase 6's approved one-page view.
+
+---
+
+## Follow-up: visual redesign (2026-11-14)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Dark motorsport dashboard | Graphite canvas, layered slate cards, high-contrast type, compact scorecard, clear controls/results hierarchy, chart-led visual, restrained red indicators. | ✓ Recommended |
+| Refined light editorial dashboard | White canvas, subtle borders, compact scorecard and chart-led hierarchy while keeping light surfaces. | |
+| Preserve the current appearance | Adjust only individual spacing or chart details in the existing light Streamlit layout. | |
+
+**Owner's feedback:** The owner viewed the running site and said its graphics and appearance looked poor, asking for a visual fix.
+**Selected approach:** The agent-selected recommended direction, authorized by the owner's standing instruction to choose recommendations. Preserve Phase 6's one-page read-only scope, data boundaries, chart semantics, and existing content.
+**Decisions captured:** D-11 in `06-CONTEXT.md`; the prior light palette and flat component treatment are superseded for the visual redesign.
+
+---
+
+## Follow-up: visual redesign (2026-11-14)
+
+| Option | Description | Selected |
+|--------|-------------|----------|
+| Dark motorsport dashboard | Graphite canvas, layered slate cards, high-contrast type, compact scorecard, clear controls/results hierarchy, chart-led visual, restrained red indicators. | ✓ Recommended |
+| Refined light editorial dashboard | White canvas, subtle borders, compact scorecard and chart-led hierarchy while keeping light surfaces. | |
+| Preserve the current appearance | Adjust only individual spacing or chart details in the existing light Streamlit layout. | |
+
+**Owner's feedback:** The owner viewed the running site and said its graphics and appearance looked poor, asking for a visual fix.
+**Selected approach:** The agent-selected recommended direction, authorized by the owner's standing instruction to choose recommendations. Preserve Phase 6's one-page read-only scope, data boundaries, chart semantics, and existing content.
+**Decisions captured:** D-11 in `06-CONTEXT.md`; the prior light palette and flat component treatment are superseded for the visual redesign.
