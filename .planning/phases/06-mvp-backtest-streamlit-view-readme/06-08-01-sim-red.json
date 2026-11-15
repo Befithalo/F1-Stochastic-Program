@@ -1,0 +1,13 @@
+{
+  "command": "uv run python -m pytest tests/sim/test_simulate_state.py -k selected_driver_position_history -q --junitxml=.planning/phases/06-mvp-backtest-streamlit-view-readme/06-08-01-sim-red.xml",
+  "exitCode": 1,
+  "output": "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuites name=\"pytest tests\"><testsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"1\" time=\"1.728\" timestamp=\"2026-11-15T01:34:04.657556-05:00\" hostname=\"LAPTOP-OAMU4RG3\"><testcase classname=\"tests.sim.test_simulate_state\" name=\"test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results\" time=\"0.509\"><failure message=\"AssertionError: The simulator should expose opt-in selected-driver history.&#10;assert None is not None\">def test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results() -&gt; None:\r\n        state = hand_state(3, lap=2, laps_total=8, spacing_s=40.0)\r\n        simulator = _zero_sim()\r\n        plan = {\"AAA\": Plan((), (), 0.0)}\r\n        baseline = simulator.simulate(state, n_races=8, rng=make_rng(19), plans=plan)\r\n        assert getattr(baseline, \"position_history\", None) is None\r\n    \r\n        try:\r\n            projected = simulator.simulate(\r\n                state,\r\n                n_races=8,\r\n                rng=make_rng(19),\r\n                plans=plan,\r\n                position_history_driver=\"AAA\",\r\n            )\r\n        except TypeError:\r\n            projected = None\r\n&gt;       assert projected is not None, \"The simulator should expose opt-in selected-driver history.\"\r\nE       AssertionError: The simulator should expose opt-in selected-driver history.\r\nE       assert None is not None\r\n\r\ntests\\sim\\test_simulate_state.py:140: AssertionError</failure></testcase></testsuite></testsuites>",
+  "targetTest": "test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results",
+  "targetFile": "tests/sim/test_simulate_state.py",
+  "expected": "Opt-in selected-driver history has one integer rank per simulated future lap and leaves seeded final outcomes unchanged.",
+  "actual": "The simulator does not accept the selected-driver position history argument.",
+  "reportPath": ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-08-01-sim-red.xml",
+  "runStartedAt": "2026-11-15T01:34:04.657556-05:00",
+  "reportModifiedAt": "2026-11-15T06:35:01.893Z",
+  "semanticAssessment": "The named simulator behavior test executed and failed on the planned opt-in history assertion after catching the missing keyword TypeError; it did not fail during collection, import, syntax, or fixture setup."
+}

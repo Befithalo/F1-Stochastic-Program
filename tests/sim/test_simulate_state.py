@@ -120,6 +120,49 @@ def test_diagnostics_shapes(long_lap0: tuple[RaceState, LinearPaceFit]) -> None:
     assert np.array_equal(clocks.clock_s[:, -1, :], clocks.total_time_s)
 
 
+def test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results() -> None:
+    state = hand_state(3, lap=2, laps_total=8, spacing_s=40.0)
+    simulator = _zero_sim()
+    plan = {"AAA": Plan((), (), 0.0)}
+    baseline = simulator.simulate(state, n_races=8, rng=make_rng(19), plans=plan)
+    assert getattr(baseline, "position_history", None) is None
+
+    try:
+        projected = simulator.simulate(
+            state,
+            n_races=8,
+            rng=make_rng(19),
+            plans=plan,
+            position_history_driver="AAA",
+        )
+    except TypeError:
+        projected = None
+    assert projected is not None, "The simulator should expose opt-in selected-driver history."
+    history = projected.position_history
+    assert history is not None
+    assert history.shape == (8, state.laps_total - state.lap)
+    assert np.issubdtype(history.dtype, np.integer)
+    assert (history >= 1).all()
+    assert (history <= len(state.cars)).all()
+    column = next(index for index, car in enumerate(state.cars) if car.driver == "AAA")
+    np.testing.assert_array_equal(history[:, -1], projected.finish_positions[:, column])
+    np.testing.assert_array_equal(projected.finish_positions, baseline.finish_positions)
+    np.testing.assert_array_equal(projected.total_time_s, baseline.total_time_s)
+
+
+def test_position_history_rejects_unknown_driver() -> None:
+    state = hand_state(3, lap=2, laps_total=8)
+    try:
+        _zero_sim().simulate(
+            state,
+            n_races=4,
+            rng=make_rng(4),
+            position_history_driver="ZZZ",
+        )
+    except TypeError:
+        pytest.fail("The simulator should accept and validate a selected history driver.")
+
+
 def test_borrowed_pace_is_listed() -> None:
     state = hand_state(3, lap=0, laps_total=20, compound="SOFT", numbers=[1, 2, 81])
     sim = NumpySimulator(
