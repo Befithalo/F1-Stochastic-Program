@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import tomllib
+from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
 from importlib import import_module
 from pathlib import Path
@@ -252,9 +253,10 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
     active_container: list[str | None] = []
 
     @contextmanager
-    def capture_container(**kwargs: object):
+    def capture_container(**kwargs: object) -> Iterator[None]:
         containers.append(kwargs)
-        active_container.append(kwargs.get("key") if isinstance(kwargs.get("key"), str) else None)
+        key = kwargs.get("key")
+        active_container.append(key if isinstance(key, str) else None)
         try:
             yield
         finally:
