@@ -24,11 +24,14 @@ import numpy as np
 from matplotlib.figure import Figure
 from numpy.typing import NDArray
 
-from f1si.plots.stints import EDGE_COLOR
-
 _SLUG = re.compile(r"[a-z0-9-]+")
 _DRIVER = re.compile(r"[A-Z]{3}")
-_BAR_COLOR: Final = "#E9EEF3"
+_FIGURE_COLOR: Final = "#1A222C"
+_AXES_COLOR: Final = "#242E39"
+_TEXT_COLOR: Final = "#F2F5F8"
+_SUPPORTING_COLOR: Final = "#B7C2CE"
+_GRID_COLOR: Final = "#536171"
+_BAR_COLOR: Final = "#AAB5C0"
 _SUMMARY_COLOR: Final = "#D90429"
 
 
@@ -104,9 +107,11 @@ def prepare_sim_plot_data(
 def build_sim_figure(data: SimPlotData, *, include_caption: bool = True) -> Figure:
     """Draw a finishing-position distribution and its cutoff-local mean summary."""
     fig = Figure(figsize=(9, 5), layout="constrained")
+    fig.set_facecolor(_FIGURE_COLOR)
     ax = fig.subplots()
+    ax.set_facecolor(_AXES_COLOR)
     places = np.arange(1, len(data.probabilities) + 1)
-    ax.bar(places, data.probabilities, edgecolor=EDGE_COLOR, color=_BAR_COLOR)
+    ax.bar(places, data.probabilities, edgecolor=_AXES_COLOR, color=_BAR_COLOR)
     ax.axvline(
         data.mean,
         color=_SUMMARY_COLOR,
@@ -115,13 +120,33 @@ def build_sim_figure(data: SimPlotData, *, include_caption: bool = True) -> Figu
         label="Mean finish at selected cutoff",
     )
     ax.set_xticks(places)
-    ax.set_xlabel("Finishing position", fontsize=12)
-    ax.set_ylabel("Share of simulated races", fontsize=12)
-    ax.tick_params(labelsize=10.5)
-    ax.legend(fontsize=10.5)
-    fig.suptitle(data.title, fontsize=15, fontweight="semibold")
+    ax.set_xlabel("Finishing position", fontsize=12, color=_TEXT_COLOR)
+    ax.set_ylabel("Share of simulated races", fontsize=12, color=_TEXT_COLOR)
+    ax.tick_params(labelsize=10.5, colors=_SUPPORTING_COLOR, color=_GRID_COLOR)
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", color=_GRID_COLOR, linewidth=0.8, alpha=0.7)
+    ax.grid(axis="x", visible=False)
+    for spine in ax.spines.values():
+        spine.set_color(_GRID_COLOR)
+        spine.set_linewidth(0.8)
+    legend = ax.legend(fontsize=10.5, frameon=True)
+    legend.get_frame().set_facecolor(_FIGURE_COLOR)
+    legend.get_frame().set_edgecolor(_GRID_COLOR)
+    legend.get_frame().set_linewidth(0.8)
+    legend.get_frame().set_alpha(1.0)
+    for label in legend.get_texts():
+        label.set_color(_TEXT_COLOR)
+    fig.suptitle(data.title, fontsize=15, fontweight="semibold", color=_TEXT_COLOR)
     if include_caption:
-        fig.text(0.01, 0.01, data.caption, fontsize=12, wrap=True, va="bottom")
+        fig.text(
+            0.01,
+            0.01,
+            data.caption,
+            fontsize=12,
+            color=_SUPPORTING_COLOR,
+            wrap=True,
+            va="bottom",
+        )
     return fig
 
 

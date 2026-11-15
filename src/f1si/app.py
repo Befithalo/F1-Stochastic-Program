@@ -370,8 +370,9 @@ def _render_selected(result: dict[str, Any]) -> None:
                 hindsight=False,
                 n_cars=int(result["n_cars"]),
             )
-            st.pyplot(build_sim_figure(chart, include_caption=False), clear_figure=True)
-            st.caption(chart.caption)
+            with st.container(border=True, key="finish-chart"):
+                st.pyplot(build_sim_figure(chart, include_caption=False), clear_figure=True)
+                st.caption(chart.caption)
         else:
             st.info(
                 "Unavailable at this cutoff: " + str(result.get("reason") or "No strategy data.")
