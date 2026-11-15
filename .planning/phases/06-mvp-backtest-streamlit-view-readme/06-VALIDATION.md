@@ -139,3 +139,44 @@ Plan 06-00 creates the five initial test files. `tests/guards/consumers.py` is u
 - Streamlit is serving from the checked-out implementation at `http://127.0.0.1:8501`; `/_stcore/health` returned HTTP 200.
 - Human visual acceptance at 1440×900 and 390×844 is pending. No screenshot or rendered-geometry claim is recorded. Browser review is limited to the populated layout and valid-selection transitions; empty-cache behavior is AppTest-rendered, while loading/error/partial contracts have source/helper assertions.
 - `nyquist_compliant` remains `false` until exact-head CI and explicit owner approval of both rendered viewport sizes are evidenced.
+
+## Phase 06 Final UI Gates (2026-11-15)
+
+**Implementation SHA:** `9e39878b330faba04d6ca17efffc20e900e7d8e1` (`fix(06-08): align test fakes with chart interfaces`). This exact implementation head was pushed to `gsd/phase-06-mvp-backtest-streamlit-view-readme` before CI.
+
+### Local gates
+
+| Command | Result |
+|---|---|
+| `uv run python -m pytest tests/app/test_app.py tests/plots/test_simulate_plot.py tests/strategy/test_longstaff.py tests/sim/test_simulate_state.py -q` | **73 passed** in 7.67s |
+| `uv run python -m pytest` | **1,106 passed, 25 deselected** in 577.86s |
+| `uv run ruff check .` | Passed: all checks passed |
+| `uv run ruff format --check .` | Passed: 167 files already formatted |
+| `uv run python -m mypy` | Passed: no issues in 158 source files |
+| `uv lock --check` | Passed: 81 packages resolved, lock is current |
+
+### Exact-head Ubuntu and Windows CI
+
+- `ci.yml` run [43691265704](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43691265704) completed successfully for the exact implementation SHA above (`head_sha` verified through GitHub Actions REST API; `gh` CLI unavailable).
+- Ubuntu job [132742235359](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43691265704/job/132742235359): **success**.
+- Windows job [132742235046](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43691265704/job/132742235046): **success**.
+
+### Rendered viewport audit and fixes
+
+The actual Streamlit page was rendered through local Edge/CDP at both sizes. The local cache has 70 eligible races, all with `scheduled_laps=None`, so a chart-bearing replay could not be submitted. The rendered schedule-unavailable state was inspected; chart geometry and quantile coordinates are covered by automated tests.
+
+| Viewport | Final observation |
+|---|---|
+| 1440x900 | Report content and unavailable-state copy fit. The pooled-coverage denominator wraps fully; visible state colors are neutral, and copy uses sentence case. |
+| 390x844 | Coverage labels and values wrap, vertical scrolling works, and `documentElement.scrollWidth` is 390 with no horizontal overflow. The scorecard stacks and unavailable-state copy remains readable. |
+
+**Color, tabular-number, and copy violations found and corrected:**
+
+- **Color:** Streamlit's default blue information panel was replaced with an escaped neutral pitwall note.
+- **Color:** brown confidence-interval delta chips were replaced with neutral fog captions.
+- **Tabular numbers and wrapping:** the desktop coverage denominator and mobile coverage label clipped; metric labels and values now wrap, and tabular numerals cover metrics, labels, captions, and risk endpoints.
+- **Copy:** the range caption's en dash was replaced with the sentence-case wording `10th to 90th`.
+
+No remaining color, tabular-number, or copy violation was visible in either rendered state. No overall-best lap appears on the page; if added later, it must use neutral fog and the `Best` label. The live app remains on `http://127.0.0.1:8501`; `/_stcore/health` returned HTTP 200 (`ok`).
+
+**Owner acceptance:** pending. These automated gates and the empty-state viewport audit do not substitute for owner approval of the actual rendered page. A live chart-bearing viewport review remains unavailable until schedule horizons exist in the local cache.
