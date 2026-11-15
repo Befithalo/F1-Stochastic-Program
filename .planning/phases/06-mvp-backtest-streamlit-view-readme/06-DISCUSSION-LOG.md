@@ -98,6 +98,37 @@
 
 ---
 
+## Follow-up: whole-page redesign after owner rejection (2026-11-15)
+
+**Observed state:** The 1440×900 capture showed a dark page dominated by nested bordered scorecard panels. The coverage denominator is cut off, then the replay controls show only the race selector and a generic error. The screen has no populated replay/chart, so the primary job of the page is missing.
+
+**Research comparison:**
+
+| Reference | Finding relevant to this page |
+|---|---|
+| Apple Human Interface Guidelines | Establish hierarchy, keep the interface simple and familiar, prioritize accessibility and craft, and avoid decoration that competes with the task. |
+| Linear's 2026 interface refresh | In a dense product, quiet secondary elements; remove unnecessary icons and borders so the working content carries attention. |
+| GOV.UK Design System | Use a tested, responsive type scale and coherent spacing rhythm for readability and scanability. |
+| USWDS data-visualization guidance | Use familiar charts, one main idea per visualization, careful color, and accessible explanatory context. |
+| Streamlit best-practice/API docs | Forms have a border by default; border grouping should be intentional, which explains how the current outer and inner forms create visual noise. |
+
+**Schedule-data finding:** The current replay error is not a CSS issue. The default race's cached `scheduled_laps` is null, and `walk_forward._race_laps_total` correctly refuses to continue without a planned horizon. OpenF1 describes `number_of_laps` as the number completed during a session, while the FIA defines scheduled race distance as the original lap distance set for the event. The fix must source pre-race schedule facts and cannot substitute final results or observed laps.
+
+| Decision area | Recommended option selected | Rationale |
+|---|---|---|
+| Visual language | Warm, light editorial race-strategy desk with ink text and restrained red. | It rejects the dark dashboard the owner just saw, while using hierarchy, alignment, and contrast to make the real replay content feel intentional. |
+| Page order | Replay controls and populated selected-race result first; fixed ten-race benchmark second. | The page's main job is race strategy. Benchmark evidence remains complete but should not dominate the first screen. |
+| Graphics | Lead with the existing finishing-distribution chart and real measured evidence; use only a small original, non-data-implying vector accent if needed. | It adds a visual identity without inventing telemetry, copying F1 branding, or distracting from chart meaning. |
+| Whole-page scope | Refresh identity, states, controls, result panels, chart/table/reason, benchmark and explanatory notes as one coherent page. | Local spacing tweaks cannot fix the broken hierarchy and empty first impression visible in the capture. |
+| Default first view | Populate the locked default replay on first usable load when its runtime is acceptable, cache the result, and retain explicit submit behavior for changes. | A strategy product should show its main artifact immediately; the first impression should not be an empty prompt. |
+| Race horizon | Require an authoritative ex-ante schedule fact; clearly disable/error when missing. | The user-facing error must be resolved without leaking outcome information into the cutoff-safe path. |
+
+**Selection:** The owner previously authorized choosing the agent's recommendation and asked for autonomous progress. These recommendations were selected under that standing instruction.
+**Decisions captured:** D-12–D-15 in `06-CONTEXT.md`. D-11's visual choices are superseded; D-07/D-08's data contract and feature boundary remain in force.
+**Sources:** Apple HIG, Linear's interface refresh, GOV.UK type/spacing, USWDS chart guidance, Streamlit forms/best practices, OpenF1 docs, and FIA 2026 General Provisions are linked in `06-CONTEXT.md`.
+
+---
+
 ## Follow-up: visual redesign (2026-11-14)
 
 | Option | Description | Selected |

@@ -125,3 +125,37 @@ Requirements: BKT-01, BKT-02, BKT-04, UI-01, UI-02.
 
 *Phase: 06-mvp-backtest-streamlit-view-readme*
 *Context gathered: 2026-11-13; UI follow-up decisions added: 2026-11-14*
+
+## Follow-up Decisions: D-12 Whole-page Visual Reset (2026-11-15)
+
+The owner inspected the running page after D-11 and said the graphics and overall appearance still looked terrible. The D-11 dark graphite/dashboard treatment is therefore rejected and superseded by this follow-up. The prior D-11 implementation is not evidence of owner acceptance.
+
+### D-12: Use a light editorial race-strategy workspace
+- Rebuild the page as a light, warm editorial **race strategy desk** with ink-dark typography, generous alignment, a measured type/spacing scale, restrained racing red, and only the borders needed to clarify grouping.
+- Remove the heavy graphite canvas, proliferated outlines, and nested card-in-card surfaces from D-11. Let spacing, typography, and alignment provide most of the hierarchy.
+- Use the actual finishing-distribution chart and other existing report data as the principal graphics. A small original vector accent may support the racing identity, but it must not imply measured data, copy Formula 1 marks, or compete with the replay.
+
+### D-13: Make the replay the first and clearest task
+- Present the app identity and one-sentence purpose briefly, then lead with the race/driver/cutoff/risk controls and the selected replay result. The results chart is the main graphic; safety-car probability, tire estimate, and strategy table are organized around it.
+- Move the fixed ten-race evidence below the selected replay as a concise, quieter section. Preserve every reported value, interval, denominator, count, and its existing meaning; ensure long values wrap instead of clipping.
+- Populate the default Bahrain 2023 / ALO / middle-cutoff / 0.5 replay on the first usable view if the measured load time is acceptable and the result is cached by the existing inputs/cache identity. Keep the submit action for later selection changes and suppress stale results.
+
+### D-14: Redesign the entire one-page experience
+- Apply the redesign consistently to the masthead and scope note, first-load/empty/error states, replay controls, results panels, chart, strategy table/reason, fixed benchmark, and explanatory/source notes.
+- Retain the one-page, read-only, cutoff-safe scope and current controls/defaults. No tabs, live mode, deployment, new metrics, copied F1 imagery/marks, or new dependencies.
+- Ensure the desktop layout has a strong content grid and the narrow layout stacks naturally with no clipped labels/values; keep the full table reachable by scrolling when needed.
+
+### D-15: Only use a pre-race race-distance horizon
+- Repair the current default replay failure by supplying a race horizon from an authoritative schedule fact available independently of completed-race outcomes. Keep provenance beside any bundled or transformed schedule metadata.
+- If an eligible event has no trustworthy pre-race horizon, make that event unavailable with clear recovery guidance; never infer scheduled laps from OpenF1 completed-lap counts, result laps, the last observed lap, or another post-race field.
+- Preserve the existing cutoff accessor, outcome separation, and 2026 out-of-sample boundary.
+
+### Research informing D-12 through D-15
+- Apple's design principles recommend useful hierarchy, simplicity, familiarity, accessibility, and craft, while warning against decorative delight that competes with the task: https://developer.apple.com/design/human-interface-guidelines/design-principles/.
+- Linear's March 2026 refresh describes lowering the visual weight of navigation, reducing unnecessary icons, and softening/removing borders so dense product content can stay in focus: https://linear.app/now/behind-the-latest-design-refresh.
+- GOV.UK publishes tested responsive type and spacing scales to improve scanability and readability across devices: https://design-system.service.gov.uk/styles/type-scale/ and https://design-system.service.gov.uk/styles/spacing/.
+- USWDS data-visualization guidance recommends familiar chart types, one central idea, careful color use, and accessible context: https://designsystem.digital.gov/components/data-visualizations/.
+- The FIA defines scheduled race distance as the original lap distance specified on the event's Competition visa; OpenF1 documents `number_of_laps` as laps completed during the session. These are different facts, so the completed count is not an acceptable schedule fallback: https://api.fia.com/system/files/documents/fia_2026_f1_regulations_-_section_a_general_provisions_-_iss_02_-_2026-02-27.pdf and https://openf1.org/docs/.
+- Streamlit's forms have a border by default and its guidance recommends using borders only when they help group content: https://docs.streamlit.io/develop/api-reference/execution-flow/st.form and https://docs.streamlit.io/develop/concepts/design/best-practices.
+
+*Follow-up discussion: 2026-11-15. D-12 through D-15 supersede D-11's visual choices while preserving D-07/D-08's scope and data semantics.*
