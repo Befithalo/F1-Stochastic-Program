@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import tomllib
 from contextlib import contextmanager, nullcontext
 from importlib import import_module
 from pathlib import Path
@@ -11,6 +12,7 @@ import numpy as np
 import pytest
 
 APP_PATH = Path(__file__).resolve().parents[2] / "src" / "f1si" / "app.py"
+THEME_PATH = APP_PATH.parents[2] / ".streamlit" / "config.toml"
 
 
 def app_source() -> str:
@@ -70,6 +72,24 @@ def test_page_shows_fixed_sample_scores_and_denominators() -> None:
     assert "388 observed stops" in display["team"]
     assert "79.0%" in display["team"]
     assert "1.40 laps" in display["team"]
+
+
+def test_scorecard_renders_complete_fixed_report_values_together() -> None:
+    app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
+    result = app_test.from_file(APP_PATH).run()
+    assert not result.exception
+    metrics = {item.label: item.value for item in result.metric}
+    assert metrics["Podium Brier · model / grid baseline"] == "0.04996 / 0.08174"
+    assert metrics["Top-10 Brier · model / grid baseline"] == "0.14533 / 0.19090"
+    assert (
+        metrics["90% finish coverage"] == "Equal-race average: 83.0%; pooled: 83.4% (8,004 / 9,602)"
+    )
+    assert metrics["Team top-action agreement"] == "79.0%"
+    assert metrics["Absolute stop-timing error"] == "1.40 laps"
+    visible_copy = " ".join(item.value for item in result.caption)
+    assert "10 registered races" in visible_copy
+    assert "9,602 driver/cutoff observations" in visible_copy
+    assert "388 observed stops" in visible_copy
 
 
 def test_page_uses_full_immutable_replay_cache_identity() -> None:
@@ -182,6 +202,41 @@ def test_responsive_layout_stacks_panels_scrolls_table_and_wraps_long_text() -> 
     assert "overflow-x: auto" in source
     assert "overflow-wrap: anywhere" in source
     assert "white-space: normal" in source
+
+
+def test_dark_theme_and_keyed_dashboard_styles_follow_the_ui_contract() -> None:
+    config = tomllib.loads(THEME_PATH.read_text(encoding="utf-8"))
+    theme = config["theme"]
+    assert theme["base"] == "dark"
+    assert theme["backgroundColor"] == "#10151C"
+    assert theme["secondaryBackgroundColor"] == "#1A222C"
+    assert theme["primaryColor"] == "#AAB5C0"
+    assert theme["textColor"] == "#F2F5F8"
+    assert theme["font"] == "sans serif"
+
+    source = app_source()
+    for token in (
+        "#10151C",
+        "#1A222C",
+        "#242E39",
+        "#F2F5F8",
+        "#B7C2CE",
+        "#AAB5C0",
+        "#D90429",
+        ".st-key-evaluation-scorecard",
+        ".st-key-replay-controls",
+        ".st-key-finish-chart",
+        ".st-key-safety-car-card",
+        ".st-key-tire-card",
+        ".st-key-strategy-card",
+        "font-size: 16px",
+        "font-size: 14px",
+        "font-size: 20px",
+        "font-size: 28px",
+        "@media (max-width: 760px)",
+    ):
+        assert token in source
+    assert "button:focus-visible" in source
 
 
 def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
@@ -297,7 +352,8 @@ def test_safety_car_probability_uses_neutral_track_and_one_positioned_accent_mar
     assert hasattr(app, "_probability_track_markup")
     track = app._probability_track_markup(0.25)
 
-    assert "#E9EEF3" in track
+    assert "#10151C" in track
     assert track.count("#D90429") == 1
     assert "left: 25.0%" in track
     assert 'role="img"' in track
+    assert 'aria-label="Safety-car probability: 25.0%"' in track
