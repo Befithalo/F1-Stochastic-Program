@@ -119,7 +119,7 @@ def _probability_track_markup(probability: float) -> str:
     return (
         '<div role="img" aria-label="Safety-car probability: '
         f'{value:.1%}" style="height: 12px; position: relative; margin: 8px 0 16px; '
-        'background: #E9EEF3; border-radius: 6px;">'
+        'background: #10151C; border: 1px solid #536171; border-radius: 6px;">'
         f'<span style="position: absolute; left: {value * 100:.1f}%; top: -4px; '
         "width: 4px; height: 20px; background: #D90429; border-radius: 2px; "
         'transform: translateX(-50%);"></span></div>'
@@ -268,6 +268,8 @@ def _report_display_values(report: dict[str, Any]) -> dict[str, str]:
     team = metrics["team_strategy_comparison"]
     agreement = team["top_action_agreement"]
     timing = team["stop_timing_error_laps"]["absolute"]
+    agreement_interval = agreement["race_cluster_95"]
+    timing_interval = timing["race_cluster_95"]
     return {
         "podium": f"{podium['model']['mean']:.5f} / {podium['baseline']['mean']:.5f}",
         "top10": f"{top10['model']['mean']:.5f} / {top10['baseline']['mean']:.5f}",
@@ -283,6 +285,14 @@ def _report_display_values(report: dict[str, Any]) -> dict[str, str]:
             f"{timing['mean']:.2f} laps (95% interval {timing['race_cluster_95']['low']:.2f}-"
             f"{timing['race_cluster_95']['high']:.2f}); {team['event_count']} observed stops."
         ),
+        "team_agreement": f"{agreement['mean']:.1%}",
+        "team_agreement_interval": (
+            f"95% CI {agreement_interval['low']:.1%}-{agreement_interval['high']:.1%}"
+        ),
+        "team_timing": f"{timing['mean']:.2f} laps",
+        "team_timing_interval": (
+            f"95% CI {timing_interval['low']:.2f}-{timing_interval['high']:.2f} laps"
+        ),
     }
 
 
@@ -290,24 +300,30 @@ def _render_report_summary(report: dict[str, Any]) -> None:
     display = _report_display_values(report)
     metrics = report["metrics"]
     st.subheader("Complete ten-race evaluation · fixed report")
-    st.caption(
-        f"{len(report['race_ids'])} registered races · {metrics['brier_observation_count']:,} "
-        "driver/cutoff observations · read-only measured results"
-    )
-    columns = st.columns(3)
-    columns[0].metric(
-        "Podium Brier · model / grid baseline",
-        display["podium"],
-    )
-    columns[1].metric(
-        "Top-10 Brier · model / grid baseline",
-        display["top10"],
-    )
-    columns[2].metric(
-        "90% finish interval coverage · equal-race average and pooled classified denominator",
-        display["coverage"],
-    )
-    st.caption("Team comparison: " + display["team"])
+    with st.container(border=True, key="evaluation-scorecard"):
+        st.caption("Fixed, report-backed results · model / grid baseline")
+        columns = st.columns(3)
+        columns[0].metric("Podium Brier · model / grid baseline", display["podium"])
+        columns[1].metric("Top-10 Brier · model / grid baseline", display["top10"])
+        columns[2].metric("90% finish coverage · classified denominator", display["coverage"])
+        team_columns = st.columns(2)
+        team_columns[0].metric(
+            "Team top-action agreement",
+            display["team_agreement"],
+            delta=display["team_agreement_interval"],
+            delta_color="off",
+        )
+        team_columns[1].metric(
+            "Absolute stop-timing error",
+            display["team_timing"],
+            delta=display["team_timing_interval"],
+            delta_color="off",
+        )
+        st.caption(
+            f"{len(report['race_ids'])} registered races · "
+            f"{metrics['brier_observation_count']:,} driver/cutoff observations · "
+            f"{report['metrics']['team_strategy_comparison']['event_count']} observed stops"
+        )
 
 
 def _apply_styles() -> None:
@@ -318,29 +334,83 @@ def _apply_styles() -> None:
             --space-xs: 4px; --space-sm: 8px; --space-md: 16px;
             --space-lg: 24px; --space-xl: 32px; --space-2xl: 48px; --space-3xl: 64px;
         }
-        .stApp { background: #F5F7FA; color: #17212B; }
+        .stApp { background: #10151C; color: #F2F5F8; }
         .stApp p, .stApp li { font-size: 16px; line-height: 1.5; }
         .stApp h1 { font-size: 28px; font-weight: 600; line-height: 1.2; }
         .stApp h2, .stApp h3 { font-size: 20px; font-weight: 600; line-height: 1.2; }
         .stApp [data-testid="stVerticalBlock"] { gap: var(--space-md); }
-        .stApp [data-testid="stForm"] { padding: var(--space-lg); }
-        [data-testid="stWidgetLabel"] p { font-size: 14px; font-weight: 600; line-height: 1.4; }
-        [data-testid="stVerticalBlockBorderWrapper"] { background: #E9EEF3; }
-        [data-testid="stCaptionContainer"], [data-testid="stMarkdownContainer"] {
-            overflow-wrap: anywhere; white-space: normal;
+        .stApp [data-testid="stMetricValue"] { color: #F2F5F8; font-size: 20px; }
+        .stApp [data-testid="stMetricLabel"] { color: #B7C2CE; font-size: 14px; }
+        .stApp [data-testid="stCaptionContainer"] { color: #B7C2CE; font-size: 14px; }
+        .stApp [data-testid="stWidgetLabel"] p {
+            font-size: 14px; font-weight: 600; line-height: 1.4;
         }
-        [data-testid="stWidgetLabel"], [data-testid="stSelectbox"] *,
-        [data-testid="stSlider"] *, [data-testid="stButton"] p {
-            overflow-wrap: anywhere; white-space: normal;
+        .st-key-evaluation-scorecard [data-testid="stMetric"] {
+            background-color: #242E39;
+            border: 1px solid #35404C;
+            border-radius: 8px;
+            padding: var(--space-md);
         }
-        [data-testid="stDataFrame"] [role="grid"] { overflow-x: auto !important; }
-        [data-testid="stMetricValue"] { color: #17212B; }
-        [data-testid="stSelectbox"] [data-baseweb="select"] { min-height: 44px; }
-        [data-testid="stButton"] button { min-height: 44px; }
-        [data-testid="stSlider"] [data-baseweb="slider"] { min-height: 44px; }
+        .st-key-evaluation-scorecard,
+        .st-key-replay-controls,
+        .st-key-safety-car-card,
+        .st-key-tire-card,
+        .st-key-strategy-card {
+            background-color: #1A222C;
+            border: 1px solid #35404C;
+            border-radius: 12px;
+            padding: var(--space-lg);
+        }
+        .st-key-finish-chart {
+            background-color: #1A222C;
+            border: 1px solid #35404C;
+            border-radius: 12px;
+            padding: var(--space-md);
+        }
+        .st-key-replay-controls [data-testid="stForm"] { padding: var(--space-md) 0 0; }
+        .st-key-evaluation-scorecard [data-testid="stHorizontalBlock"],
+        .st-key-replay-controls [data-testid="stHorizontalBlock"] { gap: var(--space-md); }
+        .st-key-replay-controls [data-testid="stSelectbox"] [data-baseweb="select"],
+        .st-key-replay-controls [data-testid="stSlider"] [data-baseweb="slider"] {
+            min-height: 44px;
+        }
+        .st-key-replay-controls [data-testid="stFormSubmitButton"] button {
+            min-height: 44px;
+            background: #D90429;
+            border: 1px solid #D90429;
+            border-radius: 8px;
+            color: #F2F5F8;
+            font-weight: 600;
+        }
+        .st-key-replay-controls [data-testid="stFormSubmitButton"] button:hover {
+            filter: brightness(0.92);
+        }
+        .st-key-replay-controls [data-testid="stFormSubmitButton"] button:focus-visible {
+            outline: 3px solid #F2F5F8;
+            outline-offset: 2px;
+        }
+        .st-key-strategy-card [data-testid="stDataFrame"] { overflow-x: auto !important; }
+        .st-key-strategy-card [data-testid="stMarkdownContainer"],
+        .st-key-strategy-card [data-testid="stCaptionContainer"],
+        .st-key-replay-controls [data-testid="stWidgetLabel"],
+        .st-key-replay-controls [data-testid="stSelectbox"] *,
+        .st-key-replay-controls [data-testid="stSlider"] *,
+        .st-key-replay-controls [data-testid="stFormSubmitButton"] p {
+            overflow-wrap: anywhere;
+            white-space: normal;
+        }
         @media (max-width: 760px) {
-            [data-testid="stHorizontalBlock"] { flex-wrap: wrap; gap: 16px; }
-            [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            .st-key-evaluation-scorecard [data-testid="stHorizontalBlock"],
+            .st-key-replay-controls [data-testid="stHorizontalBlock"],
+            .st-key-replay-result-layout [data-testid="stHorizontalBlock"] {
+                flex-wrap: wrap;
+                gap: var(--space-md);
+            }
+            .st-key-evaluation-scorecard [data-testid="stHorizontalBlock"]
+                > [data-testid="stColumn"],
+            .st-key-replay-controls [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+            .st-key-replay-result-layout [data-testid="stHorizontalBlock"]
+                > [data-testid="stColumn"] {
                 flex: 1 1 100% !important; min-width: 100% !important;
             }
         }
@@ -355,76 +425,91 @@ def _render_selected(result: dict[str, Any]) -> None:
         st.info("Unavailable at this cutoff: " + str(result.get("reason") or "No eligible data."))
         return
     is_fallback = bool(result["fallback"])
-    left, right = st.columns((2, 1), gap="large")
-    with left:
-        if result["strategy_available"]:
-            finishes = np.asarray(result["finishes"], dtype=np.int64)
-            chart = prepare_sim_plot_data(
-                finishes,
-                slug="selected-replay",
-                driver=result["driver"],
-                lap=result["cutoff_lap"],
-                n_races=len(finishes),
-                sc_share=float(result["safety_car_share"]),
-                sc_source=str(result["safety_car_source"]),
-                hindsight=False,
-                n_cars=int(result["n_cars"]),
-            )
-            with st.container(border=True, key="finish-chart"):
-                st.pyplot(build_sim_figure(chart, include_caption=False), clear_figure=True)
-                st.caption(chart.caption)
-        else:
-            st.info(
-                "Unavailable at this cutoff: " + str(result.get("reason") or "No strategy data.")
-            )
-    with right:
-        st.subheader("Safety-car probability (current proxy)")
-        st.caption("Existing per-lap probability; this is not a Markov regime classification.")
-        st.markdown(
-            _probability_track_markup(float(result["safety_car_probability"])),
-            unsafe_allow_html=True,
-        )
-        st.metric("Probability", f"{result['safety_car_probability']:.2%}")
-        if is_fallback:
-            st.caption("UNCALIBRATED · sparse cutoff fallback")
-        st.subheader("Tire estimate and uncertainty")
-        rate = result["tire_rate"]
-        sd = result["tire_sd"]
-        if rate is None or sd is None:
-            st.info("Unavailable at this cutoff")
-        else:
-            st.metric("Wear rate", f"{rate:.3f} s/lap", delta=f"± {sd:.3f} s/lap")
-            if is_fallback or result["tire_source"] != "filter":
-                st.caption("UNCALIBRATED · prior or sparse fallback")
+    with st.container(key="replay-result-layout"):
+        left, right = st.columns((2, 1), gap="large")
+        with left:
+            if result["strategy_available"]:
+                finishes = np.asarray(result["finishes"], dtype=np.int64)
+                chart = prepare_sim_plot_data(
+                    finishes,
+                    slug="selected-replay",
+                    driver=result["driver"],
+                    lap=result["cutoff_lap"],
+                    n_races=len(finishes),
+                    sc_share=float(result["safety_car_share"]),
+                    sc_source=str(result["safety_car_source"]),
+                    hindsight=False,
+                    n_cars=int(result["n_cars"]),
+                )
+                with st.container(border=True, key="finish-chart"):
+                    st.subheader("Finishing distribution")
+                    st.pyplot(build_sim_figure(chart, include_caption=False), clear_figure=True)
+                    st.caption(chart.caption)
+            else:
+                st.info(
+                    "Unavailable at this cutoff: "
+                    + str(result.get("reason") or "No strategy data.")
+                )
+        with right:
+            with st.container(border=True, key="safety-car-card"):
+                st.subheader("Safety-car probability (current proxy)")
+                st.caption(
+                    "Existing per-lap probability; this is not a Markov regime classification."
+                )
+                st.markdown(
+                    _probability_track_markup(float(result["safety_car_probability"])),
+                    unsafe_allow_html=True,
+                )
+                st.metric("Probability", f"{result['safety_car_probability']:.2%}")
+                if is_fallback:
+                    st.caption("UNCALIBRATED · sparse cutoff fallback")
+            with st.container(border=True, key="tire-card"):
+                st.subheader("Tire estimate and uncertainty")
+                rate = result["tire_rate"]
+                sd = result["tire_sd"]
+                if rate is None or sd is None:
+                    st.info("Unavailable at this cutoff")
+                else:
+                    st.metric("Wear rate", f"{rate:.3f} s/lap", delta=f"± {sd:.3f} s/lap")
+                    if is_fallback or result["tire_source"] != "filter":
+                        st.caption("UNCALIBRATED · prior or sparse fallback")
     options = tuple(result["options"])
     if not result["strategy_available"] or not options:
-        st.info("Unavailable at this cutoff: no ranked strategy actions were produced.")
-        st.markdown(f"**Reason:** {result.get('reason') or 'No strategy output is available.'}")
-        st.caption(f"Selected risk aversion: {result['risk']:.2f}")
+        with st.container(border=True, key="strategy-card"):
+            st.info("Unavailable at this cutoff: no ranked strategy actions were produced.")
+            st.markdown(f"**Reason:** {result.get('reason') or 'No strategy output is available.'}")
+            st.caption(f"Selected risk aversion: {result['risk']:.2f}")
         return
     columns, rows = _annotate_strategy_options(
         tuple(result["option_columns"]), options, is_fallback
     )
-    st.subheader(_action_heading(len(rows)))
-    marked_columns, marked_rows = _ranked_strategy_rows(columns, rows)
-    strategy_table = pd.DataFrame(marked_rows, columns=marked_columns)
-    styled_table = strategy_table.style.map(
-        lambda value: "color: #D90429; font-weight: 600;" if value == "TOP" else "",
-        subset=["Rank"],
-    )
-    st.dataframe(styled_table, hide_index=True, width="stretch", height="content")
-    st.markdown(f"**Reason:** {result['reason']}")
-    st.caption(f"Selected risk aversion: {result['risk']:.2f}")
+    with st.container(border=True, key="strategy-card"):
+        st.subheader(_action_heading(len(rows)))
+        marked_columns, marked_rows = _ranked_strategy_rows(columns, rows)
+        strategy_table = pd.DataFrame(marked_rows, columns=marked_columns)
+        styled_table = strategy_table.style.map(
+            lambda value: (
+                (
+                    "color: #F2F5F8; font-weight: 600; "
+                    "border-left: 4px solid #D90429; padding-left: 8px;"
+                )
+                if value == "TOP"
+                else ""
+            ),
+            subset=["Rank"],
+        )
+        st.dataframe(styled_table, hide_index=True, width="stretch", height="content")
+        st.markdown(f"**Reason:** {result['reason']}")
+        st.caption(f"Selected risk aversion: {result['risk']:.2f}")
 
 
 def main() -> None:
     st.set_page_config(page_title="F1 strategy replay", page_icon="🏁", layout="wide")
     _apply_styles()
     st.title("F1 strategy replay")
-    st.caption("One read-only cutoff replay · no live data or final race results")
+    st.caption("A read-only, cutoff-safe strategy view · no live data or final race results")
     report = _report_summary()
     _render_report_summary(report)
-    st.divider()
 
     data_path = _data_file()
     try:
@@ -432,8 +517,9 @@ def main() -> None:
     except Exception:
         catalog = None
     if catalog is None or catalog.empty:
-        st.subheader(EMPTY_TITLE)
-        st.write(EMPTY_BODY)
+        with st.container(border=True, key="empty-cache-card"):
+            st.subheader(EMPTY_TITLE)
+            st.write(EMPTY_BODY)
         return
 
     rows = list(catalog.itertuples(index=False))
@@ -442,61 +528,66 @@ def main() -> None:
         (index for index, race_id in enumerate(race_ids) if race_id == "2023-01"), 0
     )
     labels = {_race_label(row): str(row.race_id) for row in rows}
-    with st.form("replay-selection"):
-        col_race, col_driver, col_cutoff, col_risk = st.columns(4, gap="medium")
-        with col_race:
-            race_label = st.selectbox(
-                f"Race · {_count_label(len(labels), 'eligible race', 'eligible races')}",
-                list(labels),
-                index=default_race,
+    with st.container(border=True, key="replay-controls"):
+        st.subheader("Replay controls")
+        with st.form("replay-selection"):
+            col_race, col_driver, col_cutoff, col_risk = st.columns(4, gap="medium")
+            with col_race:
+                race_label = st.selectbox(
+                    f"Race · {_count_label(len(labels), 'eligible race', 'eligible races')}",
+                    list(labels),
+                    index=default_race,
+                )
+            race_id = labels[race_label]
+            try:
+                accessor = cli._make_asof_accessor(data_path)
+                first = accessor.snapshot(asof.AsOf(race_id, 0))
+                laps_total = walk_forward._race_laps_total(accessor, race_id, first)
+            except Exception:
+                _render_replay_failure()
+                return
+            cutoff_options = list(range(max(0, laps_total - 1)))
+            driver_options = sorted({str(code).upper() for code in first.entries["driver_code"]})
+            if not driver_options or not cutoff_options:
+                with st.container(border=True, key="empty-cache-card"):
+                    st.subheader(EMPTY_TITLE)
+                    st.write(EMPTY_BODY)
+                return
+            selected_driver = (
+                "ALO" if race_id == "2023-01" and "ALO" in driver_options else driver_options[0]
             )
-        race_id = labels[race_label]
-        try:
-            accessor = cli._make_asof_accessor(data_path)
-            first = accessor.snapshot(asof.AsOf(race_id, 0))
-            laps_total = walk_forward._race_laps_total(accessor, race_id, first)
-        except Exception:
-            _render_replay_failure()
-            return
-        cutoff_options = list(range(max(0, laps_total - 1)))
-        driver_options = sorted({str(code).upper() for code in first.entries["driver_code"]})
-        if not driver_options or not cutoff_options:
-            st.subheader(EMPTY_TITLE)
-            st.write(EMPTY_BODY)
-            return
-        selected_driver = (
-            "ALO" if race_id == "2023-01" and "ALO" in driver_options else driver_options[0]
-        )
-        selected_cutoff = cutoff_options[len(cutoff_options) // 2]
-        with col_driver:
-            driver = st.selectbox(
-                f"Driver · {_count_label(len(driver_options), 'option')}",
-                driver_options,
-                index=driver_options.index(selected_driver),
+            selected_cutoff = cutoff_options[len(cutoff_options) // 2]
+            with col_driver:
+                driver = st.selectbox(
+                    f"Driver · {_count_label(len(driver_options), 'option')}",
+                    driver_options,
+                    index=driver_options.index(selected_driver),
+                )
+            with col_cutoff:
+                cutoff_lap = st.selectbox(
+                    f"Eligible cutoff · {_count_label(len(cutoff_options), 'lap')}",
+                    cutoff_options,
+                    index=cutoff_options.index(selected_cutoff),
+                    format_func=lambda lap: f"After lap {lap}",
+                )
+            with col_risk:
+                risk = st.slider(
+                    "Risk aversion · Mean-focused to Tail-risk-focused",
+                    0.0,
+                    1.0,
+                    0.5,
+                    0.05,
+                    help="0.0 = Mean-focused · 1.0 = Tail-risk-focused",
+                )
+                st.markdown(
+                    '<div style="display:flex;justify-content:space-between;gap:8px;">'
+                    "<span>0.0 Mean-focused</span><span>1.0 Tail-risk-focused</span></div>",
+                    unsafe_allow_html=True,
+                )
+                st.caption(_risk_value_label(risk))
+            submitted = st.form_submit_button(
+                "Update replay", type="primary", use_container_width=True
             )
-        with col_cutoff:
-            cutoff_lap = st.selectbox(
-                f"Eligible cutoff · {_count_label(len(cutoff_options), 'lap')}",
-                cutoff_options,
-                index=cutoff_options.index(selected_cutoff),
-                format_func=lambda lap: f"After lap {lap}",
-            )
-        with col_risk:
-            risk = st.slider(
-                "Risk aversion · Mean-focused to Tail-risk-focused",
-                0.0,
-                1.0,
-                0.5,
-                0.05,
-                help="0.0 = Mean-focused · 1.0 = Tail-risk-focused",
-            )
-            st.markdown(
-                '<div style="display:flex;justify-content:space-between;gap:8px;">'
-                "<span>0.0 Mean-focused</span><span>1.0 Tail-risk-focused</span></div>",
-                unsafe_allow_html=True,
-            )
-            st.caption(_risk_value_label(risk))
-        submitted = st.form_submit_button("Update replay", type="primary", use_container_width=True)
 
     if not submitted:
         st.info("Choose the race, driver, cutoff, and risk, then select Update replay.")

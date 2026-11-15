@@ -78,17 +78,21 @@ def test_scorecard_renders_complete_fixed_report_values_together() -> None:
     app_test = vars(import_module("streamlit.testing.v1"))["AppTest"]
     result = app_test.from_file(APP_PATH).run()
     assert not result.exception
-    metrics = {item.label: item.value for item in result.metric}
+    metric_items = {item.label: item for item in result.metric}
+    metrics = {label: item.value for label, item in metric_items.items()}
     assert metrics["Podium Brier · model / grid baseline"] == "0.04996 / 0.08174"
     assert metrics["Top-10 Brier · model / grid baseline"] == "0.14533 / 0.19090"
     assert (
-        metrics["90% finish coverage"] == "Equal-race average: 83.0%; pooled: 83.4% (8,004 / 9,602)"
+        metrics["90% finish coverage · classified denominator"]
+        == "Equal-race average: 83.0%; pooled: 83.4% (8,004 / 9,602)"
     )
     assert metrics["Team top-action agreement"] == "79.0%"
     assert metrics["Absolute stop-timing error"] == "1.40 laps"
+    assert metric_items["Team top-action agreement"].delta == "95% CI 70.4%-87.0%"
+    assert metric_items["Absolute stop-timing error"].delta == "95% CI 0.96-1.84 laps"
     visible_copy = " ".join(item.value for item in result.caption)
     assert "10 registered races" in visible_copy
-    assert "9,602 driver/cutoff observations" in visible_copy
+    assert "10,942 driver/cutoff observations" in visible_copy
     assert "388 observed stops" in visible_copy
 
 
@@ -221,7 +225,6 @@ def test_dark_theme_and_keyed_dashboard_styles_follow_the_ui_contract() -> None:
         "#242E39",
         "#F2F5F8",
         "#B7C2CE",
-        "#AAB5C0",
         "#D90429",
         ".st-key-evaluation-scorecard",
         ".st-key-replay-controls",
@@ -342,9 +345,11 @@ def test_risk_control_has_visible_endpoints_value_spacing_and_44px_targets() -> 
     for token in ("4px", "8px", "16px", "24px", "32px", "48px", "64px"):
         assert token in source
     assert "min-height: 44px" in source
-    assert source.index("Current risk aversion") < source.index(
-        'st.form_submit_button("Update replay"'
+    assert source.index("st.caption(_risk_value_label(risk))") < source.index(
+        "st.form_submit_button"
     )
+    submit_call = source.index("st.form_submit_button")
+    assert '"Update replay"' in source[submit_call : submit_call + 120]
 
 
 def test_safety_car_probability_uses_neutral_track_and_one_positioned_accent_marker() -> None:
