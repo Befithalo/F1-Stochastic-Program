@@ -304,6 +304,67 @@ def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
     assert any(key == "finish-chart" and "90% interval" in caption for key, caption in captions)
 
 
+def test_selected_replay_renders_both_quantile_and_forward_position_charts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = import_module("f1si.app")
+    figures = []
+    active_container: list[str | None] = []
+
+    @contextmanager
+    def capture_container(**kwargs: object) -> Iterator[None]:
+        key = kwargs.get("key")
+        active_container.append(key if isinstance(key, str) else None)
+        try:
+            yield
+        finally:
+            active_container.pop()
+
+    monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: (nullcontext(), nullcontext()))
+    monkeypatch.setattr(app.st, "container", capture_container)
+    monkeypatch.setattr(app.st, "pyplot", lambda figure, **_kwargs: figures.append(figure))
+    for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown", "caption"):
+        monkeypatch.setattr(app.st, name, lambda *_args, **_kwargs: None)
+
+    app._render_selected(
+        {
+            "available": True,
+            "strategy_available": True,
+            "finishes": (2, 4, 4, 6),
+            "driver": "ALO",
+            "cutoff_lap": 8,
+            "safety_car_share": 0.1,
+            "safety_car_source": "prior only",
+            "n_cars": 6,
+            "safety_car_probability": 0.01,
+            "fallback": False,
+            "tire_rate": 0.1,
+            "tire_sd": 0.01,
+            "tire_source": "filter",
+            "options": (("pit now", 1.2),),
+            "option_columns": ("Action", "Mean finish"),
+            "option_quantiles": (tuple([2] * 100),),
+            "selected_cutoff_mean": 3.0,
+            "fan_chart_data": {
+                "laps": (9, 10),
+                "p10": (2.0, 2.0),
+                "p25": (2.0, 2.0),
+                "p40": (3.0, 3.0),
+                "p60": (3.0, 3.0),
+                "p75": (4.0, 4.0),
+                "p90": (4.0, 4.0),
+                "simulation_count": 4,
+                "caption": "Forward projection from 4 simulated races.",
+            },
+            "reason": "Controlled fixture",
+            "risk": 0.5,
+        }
+    )
+
+    assert len(figures) == 2, "The selected cutoff should render both uncertainty charts."
+    assert len(figures[1].axes[0].collections) >= 3
+
+
 def test_top_ranked_marker_stays_on_first_action_and_preserves_each_basis() -> None:
     app = import_module("f1si.app")
     assert hasattr(app, "_ranked_strategy_rows")

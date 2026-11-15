@@ -1,23 +1,32 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="2.020" timestamp="2026-11-14T15:37:05.977440-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.app.test_app" name="test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation" time="1.355"><failure message="assert False&#10; +  where False = any(&lt;generator object test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation.&lt;locals&gt;.&lt;genexpr&gt; at 0x000001B47DFFFD30&gt;)">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x000001B44D112FC0&gt;
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="3.303" timestamp="2026-11-15T01:32:06.843488-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.app.test_app" name="test_selected_replay_renders_both_quantile_and_forward_position_charts" time="2.925"><failure message="AssertionError: The selected cutoff should render both uncertainty charts.&#10;assert 1 == 2&#10; +  where 1 = len([&lt;Figure size 900x500 with 1 Axes&gt;])">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x00000260A635D6A0&gt;
 
-    def test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation(
+    def test_selected_replay_renders_both_quantile_and_forward_position_charts(
         monkeypatch: pytest.MonkeyPatch,
     ) -&gt; None:
         app = import_module("f1si.app")
         figures = []
-        captions: list[str] = []
+        active_container: list[str | None] = []
+    
+        @contextmanager
+        def capture_container(**kwargs: object) -&gt; Iterator[None]:
+            key = kwargs.get("key")
+            active_container.append(key if isinstance(key, str) else None)
+            try:
+                yield
+            finally:
+                active_container.pop()
+    
         monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: (nullcontext(), nullcontext()))
+        monkeypatch.setattr(app.st, "container", capture_container)
         monkeypatch.setattr(app.st, "pyplot", lambda figure, **_kwargs: figures.append(figure))
-        monkeypatch.setattr(app.st, "caption", captions.append)
-        for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown"):
+        for name in ("subheader", "progress", "metric", "info", "dataframe", "markdown", "caption"):
             monkeypatch.setattr(app.st, name, lambda *_args, **_kwargs: None)
     
-        finishes = (2, 4, 4, 6)
         app._render_selected(
             {
                 "available": True,
                 "strategy_available": True,
-                "finishes": finishes,
+                "finishes": (2, 4, 4, 6),
                 "driver": "ALO",
                 "cutoff_lap": 8,
                 "safety_car_share": 0.1,
@@ -30,40 +39,27 @@
                 "tire_source": "filter",
                 "options": (("pit now", 1.2),),
                 "option_columns": ("Action", "Mean finish"),
+                "option_quantiles": (tuple([2] * 100),),
+                "selected_cutoff_mean": 3.0,
+                "fan_chart_data": {
+                    "laps": (9, 10),
+                    "p10": (2.0, 2.0),
+                    "p25": (2.0, 2.0),
+                    "p40": (3.0, 3.0),
+                    "p60": (3.0, 3.0),
+                    "p75": (4.0, 4.0),
+                    "p90": (4.0, 4.0),
+                    "simulation_count": 4,
+                    "caption": "Forward projection from 4 simulated races.",
+                },
                 "reason": "Controlled fixture",
                 "risk": 0.5,
             }
         )
     
-        assert len(figures) == 1
-        mean_artist = figures[0].axes[0].get_lines()[0]
-        assert mean_artist.get_xdata()[0] == pytest.approx(float(np.mean(finishes)))
-        assert mean_artist.get_xdata()[0] != 8
-&gt;       assert any("90% interval" in caption for caption in captions)
-E       assert False
-E        +  where False = any(&lt;generator object test_selected_replay_chart_uses_its_finish_draws_and_shows_full_explanation.&lt;locals&gt;.&lt;genexpr&gt; at 0x000001B47DFFFD30&gt;)
+&gt;       assert len(figures) == 2, "The selected cutoff should render both uncertainty charts."
+E       AssertionError: The selected cutoff should render both uncertainty charts.
+E       assert 1 == 2
+E        +  where 1 = len([&lt;Figure size 900x500 with 1 Axes&gt;])
 
-tests\app\test_app.py:222: AssertionError</failure></testcase><testcase classname="tests.plots.test_simulate_plot" name="test_selected_finish_summary_uses_neutral_bars_accent_marker_and_readable_roles" time="0.010"><failure message="AssertionError: assert ['mean'] == ['Mean finish...ected cutoff']&#10;  &#10;  At index 0 diff: 'mean' != 'Mean finish at selected cutoff'&#10;  Use -v to get more diff">def test_selected_finish_summary_uses_neutral_bars_accent_marker_and_readable_roles() -&gt; None:
-        data = prepare_sim_plot_data(
-            np.array([2, 4, 4, 6], dtype=np.int64),
-            slug="selected-replay",
-            driver="ALO",
-            lap=8,
-            n_races=4,
-            sc_share=0.1,
-            sc_source="prior only",
-            hindsight=False,
-            n_cars=6,
-        )
-    
-        fig = build_sim_figure(data)
-        ax = fig.axes[0]
-    
-        assert ax.get_xlabel() == "Finishing position"
-&gt;       assert [line.get_label() for line in ax.get_lines()] == ["Mean finish at selected cutoff"]
-E       AssertionError: assert ['mean'] == ['Mean finish...ected cutoff']
-E         
-E         At index 0 diff: 'mean' != 'Mean finish at selected cutoff'
-E         Use -v to get more diff
-
-tests\plots\test_simulate_plot.py:80: AssertionError</failure></testcase></testsuite></testsuites>
+tests\app\test_app.py:364: AssertionError</failure></testcase></testsuite></testsuites>
