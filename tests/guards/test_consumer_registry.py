@@ -74,6 +74,7 @@ def test_only_the_drivers_name_the_accessor_in_src() -> None:
                 users.add(module)
     allowed = {
         "f1si.backtest.scoring",
+        "f1si.backtest.pace_evaluation",
         "f1si.backtest.walk_forward",
         "f1si.backtest.wear_diagnostic",
         "f1si.cli",
