@@ -31,12 +31,12 @@
     {
       "number": "6",
       "name": "MVP Backtest, Streamlit View & README",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "7",
       "name": "Bayesian Pace Model",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "8",
@@ -47,7 +47,7 @@
   "next": {
     "command": "/gsd-progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 6 of 8 · executing"
+    "reason": "Phase 8 of 8 · executing"
   },
-  "updated_at": "2026-11-15T07:16:32.032Z"
+  "updated_at": "2026-11-16T19:23:19.765Z"
 }

@@ -1,21 +1,21 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 06
+current_phase: 8
+current_phase_name: Markov Regimes & Full Backtest
 current_plan: 10
-status: ready_to_plan
+status: executing
 stopped_at: Phase 8 context gathered
-last_updated: "2026-11-16T12:11:52.837Z"
+last_updated: "2026-11-16T19:23:19.714Z"
 last_activity: 2026-11-16
-state_head: 84bb8d53846780db8f43ba7d005572054f0cb807
+last_activity_desc: Phase 8 planning complete
+state_head: 2fdb8b80717f04c034c22e447e6dc3f73ec70018
 progress:
   total_phases: 8
   completed_phases: 5
-  total_plans: 49
+  total_plans: 55
   completed_plans: 49
 milestone_name: milestone
-current_phase_name: MVP Backtest, Streamlit View & README
-last_activity_desc: Completed Plan 06-11 and exact-head Ubuntu/Windows CI; owner approval is pending
 ---
 
 # Project State
@@ -29,12 +29,12 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 
 ## Current Position
 
-Phase: 7
+Phase: 8 (Markov Regimes & Full Backtest) — READY TO EXECUTE
 Current Plan: Not started
-Total Plans in Phase: 12
+Total Plans in Phase: 6
 Plan: 10 of 12
-Status: Ready to plan
-Last activity: 2026-11-16
+Status: Ready to execute
+Last activity: 2026-11-16 — Phase 8 planning complete
 
 Progress: [====------] 38%
 
