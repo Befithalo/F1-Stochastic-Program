@@ -1,0 +1,14 @@
+[theme]
+base = "dark"
+primaryColor = "#9BA1A8"
+backgroundColor = "#1C1F23"
+secondaryBackgroundColor = "#24282D"
+textColor = "#ECEAE4"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+borderColor = "#1C1F23"
+dataframeBorderColor = "#1C1F23"
+showWidgetBorder = false
+chartCategoricalColors = ["#c92d4b", "#5e8faa", "#2293d1", "#358c75", "#f91536", "#b6babd", "#f58020", "#6cd3bf", "#3671c6", "#37bedd"]
+
+[client]
+toolbarMode = "minimal"

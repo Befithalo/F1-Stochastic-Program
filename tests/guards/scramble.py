@@ -159,7 +159,11 @@ def _junk_new_key_rows(table: str, current: pd.DataFrame, rng: np.random.Generat
     for k in range(_JUNK_ROWS_PER_TABLE):
         if table == "laps":
             tmpl = current.drop_duplicates("driver_number").copy()
-            tmpl["lap_number"] = pd.array([900 + k] * len(tmpl), dtype="Int64")
+            driver_offset = int(current["driver_number"].max()) + 900 + k
+            tmpl["driver_number"] = pd.array(
+                [driver_offset + i for i in range(len(tmpl))], dtype="Int64"
+            )
+            tmpl["lap_number"] = pd.array([1] * len(tmpl), dtype="Int64")
         elif table == "lap_cutoffs":
             tmpl = current.iloc[[0]].copy()
             tmpl["lap"] = pd.array([900 + k], dtype="Int64")
@@ -214,7 +218,15 @@ def scramble_future(
         keep = df[~future]
         fut = df[future]
         if name != "races":
-            fut = _drop_some(fut, rng)
+            # D-21 treats the race's max lap number as public distance metadata. Keep one
+            # current-race key carrying that distance, while still scrambling its observations.
+            distance_row = fut.iloc[0:0]
+            if name == "laps" and cutoff_s is not None and bool(is_current.any()):
+                max_lap = df.loc[is_current, "lap_number"].max()
+                at_distance = fut[is_current.loc[fut.index] & (fut["lap_number"] == max_lap)]
+                distance_row = at_distance.iloc[:1]
+                fut = fut.drop(index=distance_row.index)
+            fut = _concat([distance_row, _drop_some(fut, rng)])
 
         extra: list[pd.DataFrame] = []
         if spec.visibility == "time" and cutoff_s is not None:

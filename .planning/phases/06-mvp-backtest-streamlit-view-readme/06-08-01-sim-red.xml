@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.728" timestamp="2026-11-15T01:34:04.657556-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.sim.test_simulate_state" name="test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results" time="0.509"><failure message="AssertionError: The simulator should expose opt-in selected-driver history.&#10;assert None is not None">def test_selected_driver_position_history_is_opt_in_and_preserves_seeded_results() -&gt; None:
+        state = hand_state(3, lap=2, laps_total=8, spacing_s=40.0)
+        simulator = _zero_sim()
+        plan = {"AAA": Plan((), (), 0.0)}
+        baseline = simulator.simulate(state, n_races=8, rng=make_rng(19), plans=plan)
+        assert getattr(baseline, "position_history", None) is None
+    
+        try:
+            projected = simulator.simulate(
+                state,
+                n_races=8,
+                rng=make_rng(19),
+                plans=plan,
+                position_history_driver="AAA",
+            )
+        except TypeError:
+            projected = None
+&gt;       assert projected is not None, "The simulator should expose opt-in selected-driver history."
+E       AssertionError: The simulator should expose opt-in selected-driver history.
+E       assert None is not None
+
+tests\sim\test_simulate_state.py:140: AssertionError</failure></testcase></testsuite></testsuites>

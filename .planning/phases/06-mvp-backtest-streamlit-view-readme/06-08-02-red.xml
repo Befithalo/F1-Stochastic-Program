@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.277" timestamp="2026-11-15T01:43:37.380650-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.strategy.test_longstaff" name="test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution" time="0.002"><failure message="AssertionError: The ranked option should retain all 100 midpoint inverted-CDF quantiles from its known finish distribution.&#10;assert None == (1, 1, 1, 1, 1, 1, ...)&#10; +  where None = getattr(RankedOption(action='stay out', plan=Plan(stop_laps=(), compounds=(), total_time_s=0.0), mean_finish=5.5, spread=2.8722813232690143, cvar10=10.0, score=7.75, podium_probability=0.3, top10_probability=1.0, finish_p05=1, finish_p95=10), 'finish_quantiles', None)">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000023375A685C0&gt;
+
+    def test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution(
+        monkeypatch: pytest.MonkeyPatch,
+    ) -&gt; None:
+        sample = np.repeat(np.arange(1, 11, dtype=np.int64), 10)
+    
+        class KnownDistributionSimulator:
+            def __init__(self, *args: object, **kwargs: object) -&gt; None:
+                pass
+    
+            def _branch_paths(
+                self,
+                checkpoint: _PathCheckpoint,
+                *,
+                actions: Mapping[str, Mapping[str, Plan]],
+                n_races: int,
+                rng: np.random.Generator,
+                checkpoint_laps: Sequence[int],
+                capture_actions: Sequence[str],
+            ) -&gt; dict[str, Any]:
+                assert set(actions) == {"stay out"}
+                outcomes = np.column_stack((sample, np.full(n_races, 11, dtype=np.int64)))
+                return {
+                    "stay out": SimpleNamespace(
+                        result=SimpleNamespace(finish_positions=outcomes),
+                        checkpoints={},
+                    )
+                }
+    
+        monkeypatch.setattr(longstaff, "NumpySimulator", KnownDistributionSimulator)
+        option = LongstaffSchwartzPolicy(
+            FlatPace(), compounds=("HARD",), n_simulations=100, seed=3
+        ).analyze(state(lap=10, laps_total=16), driver="AAA").best
+    
+        expected = tuple(int(value) for value in sample)
+&gt;       assert getattr(option, "finish_quantiles", None) == expected, (
+            "The ranked option should retain all 100 midpoint inverted-CDF quantiles "
+            "from its known finish distribution."
+        )
+E       AssertionError: The ranked option should retain all 100 midpoint inverted-CDF quantiles from its known finish distribution.
+E       assert None == (1, 1, 1, 1, 1, 1, ...)
+E        +  where None = getattr(RankedOption(action='stay out', plan=Plan(stop_laps=(), compounds=(), total_time_s=0.0), mean_finish=5.5, spread=2.8722813232690143, cvar10=10.0, score=7.75, podium_probability=0.3, top10_probability=1.0, finish_p05=1, finish_p95=10), 'finish_quantiles', None)
+
+tests\strategy\test_longstaff.py:381: AssertionError</failure></testcase></testsuite></testsuites>

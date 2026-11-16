@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.549" timestamp="2026-11-13T18:41:51.521408-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.strategy.test_longstaff" name="test_policy_ranks_stay_out_when_no_second_compound_is_available" time="0.204"><failure message="ValueError: stop and continuation outcomes must be non-empty and path-aligned">def test_policy_ranks_stay_out_when_no_second_compound_is_available() -&gt; None:
+        race = state(lap=10, laps_total=16)
+        policy = LongstaffSchwartzPolicy(
+            FlatPace(), compounds=("HARD",), n_simulations=12, seed=5
+        )
+&gt;       analysis = policy.analyze(race, driver="AAA")
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\strategy\test_longstaff.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src\f1si\strategy\longstaff.py:304: in analyze
+    _, _, value_after_wait = _backward_stop_options(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+features = {11: array([[0.5  , 0.   , 0.625, 0.375, 0.   , 0.   ],
+       [0.5  , 0.   , 0.625, 0.375, 0.   , 0.   ],
+       [0.5... 0.   , 0.   ],
+       [0.5  , 0.   , 0.625, 0.375, 0.   , 0.   ],
+       [0.5  , 0.   , 0.625, 0.375, 0.   , 0.   ]])}
+stop_values = {11: {}}
+terminal_values = array([2., 2., 1., 1., 2., 2., 1., 1., 1., 1., 1., 1.])
+
+    def _backward_stop_options(
+        features: Mapping[int, NDArray[np.float64]],
+        stop_values: Mapping[int, Mapping[str, NDArray[np.float64]]],
+        terminal_values: NDArray[np.float64],
+    ) -&gt; tuple[
+        NDArray[np.float64],
+        dict[int, NDArray[np.bool_]],
+        dict[int, dict[str, NDArray[np.float64]]],
+    ]:
+        """Fit continuation means backward and retain each compound's pathwise action value."""
+        values = np.asarray(terminal_values, dtype=np.float64).copy()
+        decisions: dict[int, NDArray[np.bool_]] = {}
+        action_values: dict[int, dict[str, NDArray[np.float64]]] = {}
+        for time in sorted(stop_values, reverse=True):
+            state = np.asarray(features[time], dtype=np.float64)
+            continuation = _fit_continuation(state, values)
+            immediate = {
+                action: np.asarray(sample, dtype=np.float64)
+                for action, sample in stop_values[time].items()
+            }
+            if not immediate or any(sample.shape != values.shape for sample in immediate.values()):
+&gt;               raise ValueError("stop and continuation outcomes must be non-empty and path-aligned")
+E               ValueError: stop and continuation outcomes must be non-empty and path-aligned
+
+src\f1si\strategy\longstaff.py:117: ValueError</failure></testcase></testsuite></testsuites>

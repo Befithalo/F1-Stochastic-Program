@@ -1,0 +1,13 @@
+{
+  "command": "uv run python -m pytest tests/backtest/test_metrics.py::test_frozen_prediction_scoring_api_is_available -q --junitxml=.planning/phases/06-mvp-backtest-streamlit-view-readme/06-04-01-red.xml",
+  "exitCode": 1,
+  "output": "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuites name=\"pytest tests\"><testsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"1\" time=\"7.142\" timestamp=\"2026-11-13T23:26:55.177802-05:00\" hostname=\"LAPTOP-OAMU4RG3\"><testcase classname=\"tests.backtest.test_metrics\" name=\"test_frozen_prediction_scoring_api_is_available\" time=\"0.010\"><failure message=\"AssertionError: the isolated scorer must consume frozen predictions&#10;assert None is not None\">def test_frozen_prediction_scoring_api_is_available() -&gt; None:\r\n        module = importlib.util.find_spec(\"f1si.backtest.scoring\")\r\n&gt;       assert module is not None, \"the isolated scorer must consume frozen predictions\"\r\nE       AssertionError: the isolated scorer must consume frozen predictions\r\nE       assert None is not None\r\n\r\ntests\\backtest\\test_metrics.py:25: AssertionError</failure></testcase></testsuite></testsuites>",
+  "reportPath": ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-04-01-red.xml",
+  "runStartedAt": "2026-11-14T04:26:51.605Z",
+  "reportModifiedAt": "2026-11-14T04:27:02.321Z",
+  "targetTest": "test_frozen_prediction_scoring_api_is_available",
+  "targetFile": "tests/backtest/test_metrics.py",
+  "expected": "The target assertion should fail because the scoring module is missing before implementation.",
+  "actual": "The target assertion failed because f1si.backtest.scoring was not present.",
+  "semanticAssessment": "Target test executed and failed on the planned missing-scoring-module assertion; collection and fixtures completed."
+}

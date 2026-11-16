@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.162" timestamp="2026-11-14T04:16:08.344931-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.backtest.test_strategy" name="test_each_stop_uses_latest_recommendation_strictly_before_event" time="0.006"><failure message="assert 0 == 1&#10; +  where 0 = len(Empty DataFrame\nColumns: []\nIndex: [])">def test_each_stop_uses_latest_recommendation_strictly_before_event() -&gt; None:
+        recommendations = pd.DataFrame(
+            {
+                "race_id": ["2023-01"] * 4,
+                "driver": ["ALO"] * 4,
+                "cutoff_lap": [4, 7, 9, 10],
+                "top_action": ["stay out", "pit", "pit", "stay out"],
+                "planned_stop_lap": [None, 8, 10, None],
+            }
+        )
+        stops = pd.DataFrame({"race_id": ["2023-01"], "driver": ["ALO"], "in_lap": [10]})
+        matched = match_team_stops(recommendations, stops)
+&gt;       assert len(matched) == 1
+E       assert 0 == 1
+E        +  where 0 = len(Empty DataFrame\nColumns: []\nIndex: [])
+
+tests\backtest\test_strategy.py:22: AssertionError</failure></testcase></testsuite></testsuites>

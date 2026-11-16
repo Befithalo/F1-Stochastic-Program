@@ -49,25 +49,25 @@
 
 ### Strategy
 
-- [ ] **STR-01**: Longstaff-Schwartz optimal pit timing implements `StrategyPolicy`
-- [ ] **STR-02**: Each option (pit now, pit in 1-5 laps, stay out) is ranked by mean finish and CVaR@10%
-- [ ] **STR-03**: A risk-appetite setting shifts ranking between mean and tail risk
-- [ ] **STR-04**: Each recommendation includes a one-sentence reason (e.g. undercut threat, cliff risk, safety-car window)
+- [x] **STR-01**: Longstaff-Schwartz optimal pit timing implements `StrategyPolicy`
+- [x] **STR-02**: Each option (pit now, pit in 1-5 laps, stay out) is ranked by mean finish and CVaR@10%
+- [x] **STR-03**: A risk-appetite setting shifts ranking between mean and tail risk
+- [x] **STR-04**: Each recommendation includes a one-sentence reason (e.g. undercut threat, cliff risk, safety-car window)
 
 ### Replay and Backtest
 
-- [ ] **RPL-01**: User can replay a race lap by lap for any driver and get a recommendation with uncertainty each lap
-- [ ] **RPL-02**: Live replay of Bahrain 2023 works end to end (M1 definition of done)
-- [ ] **BKT-01**: A walk-forward backtester runs races from 2023-2025 with zero look-ahead
-- [ ] **BKT-02**: Backtest reports Brier score (podium, top-10) vs a grid-position baseline and 90% finishing-interval coverage
+- [x] **RPL-01**: User can replay a race lap by lap for any driver and get a recommendation with uncertainty each lap
+- [x] **RPL-02**: Live replay of Bahrain 2023 works end to end (M1 definition of done)
+- [x] **BKT-01**: A walk-forward backtester runs races from 2023-2025 with zero look-ahead
+- [x] **BKT-02**: Backtest reports Brier score (podium, top-10) vs a grid-position baseline and 90% finishing-interval coverage
 - [ ] **BKT-03**: Backtest covers at least 20 races (10 at the MVP checkpoint), with results reported per era
-- [ ] **BKT-04**: Strategy calls are compared with actual team calls, with confidence intervals
+- [x] **BKT-04**: Strategy calls are compared with actual team calls, with confidence intervals
 - [ ] **BKT-05**: A locked holdout set is defined and touched only once, at milestone end
 
 ### Presentation
 
-- [ ] **UI-01**: A one-page Streamlit view shows strategy table, finishing-position fan chart, regime gauge, tire panel, reason line and risk dial
-- [ ] **UI-02**: README documents real measured results, hidden-variable assumptions and data licensing/credits
+- [x] **UI-01**: A one-page Streamlit view shows strategy table, finishing-position fan chart, regime gauge, tire panel, reason line and risk dial
+- [x] **UI-02**: README documents real measured results, hidden-variable assumptions and data licensing/credits
 - [x] **UI-03**: After each phase, a plain-language explanation of what was built is produced
 
 ## v2 Requirements (later milestones)
@@ -113,17 +113,17 @@
 | REG-01 | Phase 3 | Complete |
 | PAC-03 | Phase 4 | Complete |
 | PAC-04 | Phase 4 | Complete |
-| STR-01 | Phase 5 | Pending |
-| STR-02 | Phase 5 | Pending |
-| STR-03 | Phase 5 | Pending |
-| STR-04 | Phase 5 | Pending |
-| RPL-01 | Phase 5 | Pending |
-| RPL-02 | Phase 5 | Pending |
-| BKT-01 | Phase 6 | Pending |
-| BKT-02 | Phase 6 | Pending |
-| BKT-04 | Phase 6 | Pending |
-| UI-01 | Phase 6 | Pending |
-| UI-02 | Phase 6 | Pending |
+| STR-01 | Phase 5 | Complete |
+| STR-02 | Phase 5 | Complete |
+| STR-03 | Phase 5 | Complete |
+| STR-04 | Phase 5 | Complete |
+| RPL-01 | Phase 5 | Complete |
+| RPL-02 | Phase 5 | Complete |
+| BKT-01 | Phase 6 | Complete |
+| BKT-02 | Phase 6 | Complete |
+| BKT-04 | Phase 6 | Complete |
+| UI-01 | Phase 6 | Complete |
+| UI-02 | Phase 6 | Complete |
 | PAC-05 | Phase 7 | Pending |
 | PAC-06 | Phase 7 | Pending |
 | REG-02 | Phase 8 | Pending |

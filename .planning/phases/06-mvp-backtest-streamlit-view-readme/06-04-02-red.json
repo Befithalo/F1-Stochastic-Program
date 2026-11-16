@@ -1,0 +1,13 @@
+{
+  "command": "uv run python -m pytest tests/test_cli.py::test_backtest_report_parser_accepts_report_mode_and_default_output -q --junitxml=.planning/phases/06-mvp-backtest-streamlit-view-readme/06-04-02-red.xml",
+  "exitCode": 1,
+  "output": "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuites name=\"pytest tests\"><testsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"1\" time=\"1.854\" timestamp=\"2026-11-13T23:40:14.580397-05:00\" hostname=\"LAPTOP-OAMU4RG3\"><testcase classname=\"tests.test_cli\" name=\"test_backtest_report_parser_accepts_report_mode_and_default_output\" time=\"0.004\"><failure message=\"AssertionError: backtest --report must not require single-cutoff arguments&#10;assert None is not None\">def test_backtest_report_parser_accepts_report_mode_and_default_output() -&gt; None:\r\n        parsed = None\r\n        with contextlib.suppress(SystemExit):\r\n            parsed = build_parser().parse_args([\"backtest\", \"--report\"])\r\n&gt;       assert parsed is not None, \"backtest --report must not require single-cutoff arguments\"\r\nE       AssertionError: backtest --report must not require single-cutoff arguments\r\nE       assert None is not None\r\n\r\ntests\\test_cli.py:26: AssertionError</failure></testcase></testsuite></testsuites>",
+  "targetTest": "test_backtest_report_parser_accepts_report_mode_and_default_output",
+  "targetFile": "tests/test_cli.py",
+  "expected": "backtest --report parses without single-cutoff arguments and defaults output to reports/backtest/phase-06.json",
+  "actual": "Argparse rejects the report invocation because --race, --driver, and --lap are required.",
+  "reportPath": ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-04-02-red.xml",
+  "runStartedAt": "2026-11-14T04:40:11Z",
+  "reportModifiedAt": "2026-11-14T04:40:16.434Z",
+  "semanticAssessment": "The target test executed and failed on the intended assertion because the existing parser requires the single-cutoff arguments; this is the planned missing report-mode behavior."
+}

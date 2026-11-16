@@ -11,7 +11,9 @@ from typing import Final
 
 import numpy as np
 
-from f1si.data.asof import AsOf, AsOfAccessor
+from f1si.backtest.walk_forward import cutoff_consumer
+from f1si.cli import _replay_at_cutoff
+from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.plots.stints import prepare_stint_plot_data
@@ -131,6 +133,38 @@ def wear_filter(db_path: Path, at: AsOf) -> object:
     return results, current_stint_snapshots(results), priors
 
 
+def strategy_replay(db_path: Path, at: AsOf) -> object:
+    """The CLI's cutoff-local Longstaff recommendation and ranked evidence."""
+    accessor = AsOfAccessor(db_path)
+    snapshot = accessor.snapshot(at)
+    if snapshot.entries.empty:
+        return ("unavailable", "No entrants are available.")
+    distance = accessor.snapshot(AsOf(at.race_id, RACE_END))
+    if distance.laps.empty:
+        return ("unavailable", "No lap data are available.")
+    laps_total = int(distance.laps["lap_number"].max())
+    lap = at.lap if isinstance(at.lap, int) else laps_total
+    code = sorted(str(value) for value in snapshot.entries["driver_code"])[0]
+    result = _replay_at_cutoff(
+        accessor,
+        at.race_id,
+        laps_total,
+        code,
+        lap,
+        n_simulations=1,
+        risk=0.5,
+        seed=0,
+    )
+    if result.analysis is None:
+        return ("unavailable", (), result.unavailable_reason)
+    status = "fallback" if result.is_fallback else "available"
+    evidence = tuple(
+        (option.action, option.mean_finish, option.spread, option.cvar10, option.score)
+        for option in result.analysis.options
+    )
+    return (status, evidence, result.analysis.reason)
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -145,6 +179,8 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "wear_plot_data": wear_plot_data,
     "sc_rate": sc_rate,
     "wear_filter": wear_filter,
+    "strategy_replay": strategy_replay,
+    "walk_forward_cutoff": cutoff_consumer,
 }
 
 
@@ -152,8 +188,8 @@ CONSUMERS: Final[dict[str, Consumer]] = {
 # function and method of the DESIGNATED_MODULES and fails unless each one is either CONSUMED
 # (some registered consumer calls it) or EXEMPT with a written reason. Adding a public function to
 # one of these modules therefore forces a decision here. A module outside this list that reads
-# race data must not hold the accessor at all: the import scan allows `AsOfAccessor` and
-# `RACE_END` only in the replay drivers and the CLI.
+# race data must not hold the accessor unless the import-scan policy explicitly identifies it as a
+# replay/backtest driver; model and plot code must receive prepared snapshots or values instead.
 DESIGNATED_MODULES: Final = (
     "f1si.data.asof",
     "f1si.plots.stints",

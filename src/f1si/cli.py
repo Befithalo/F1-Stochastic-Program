@@ -9,10 +9,12 @@ Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
 """
 
 import argparse
+import json
 import re
 import sys
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -27,8 +29,14 @@ from f1si.data.sources import RaceSource, SourceError
 from f1si.data.sources.openf1 import OpenF1Source
 from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.eras import ERAS, UnknownEraError
-from f1si.interfaces import DRY_COMPOUNDS, Plan
-from f1si.pace.kalman import CutoffRow, cutoff_row, cutoff_rows, filter_stints
+from f1si.interfaces import DRY_COMPOUNDS, PaceModel, Plan
+from f1si.pace.kalman import (
+    CutoffRow,
+    current_stint_snapshots,
+    cutoff_row,
+    cutoff_rows,
+    filter_stints,
+)
 from f1si.pace.linear import (
     DEFAULT_PIT_LOSS_S,
     FUEL_SANITY_RANGE,
@@ -38,6 +46,7 @@ from f1si.pace.linear import (
     fit_linear_pace,
     measure_pit_loss,
 )
+from f1si.pace.sparse_fallback import PACE_OFFSET_SD_S, SparsePaceFallback
 from f1si.plots.simulate import prepare_sim_plot_data, render_sim_plot, sim_file_name
 from f1si.plots.stints import (
     UnknownDriverError,
@@ -57,8 +66,20 @@ from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
 from f1si.state import CarState, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
+from f1si.strategy.longstaff import LongstaffSchwartzPolicy, StrategyAnalysis
 
-_FRIENDLY_VALUE_ERRORS = frozenset({"plot", "wear", "plan", "simulate", "wear-filter"})
+_FRIENDLY_VALUE_ERRORS = frozenset(
+    {
+        "plot",
+        "wear",
+        "plan",
+        "simulate",
+        "wear-filter",
+        "replay",
+        "backtest",
+        "backfill-scheduled-laps",
+    }
+)
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
 
 
@@ -202,7 +223,85 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="N",
         help="replay up to the leader's lap N (default: the whole race)",
     )
+    replay = sub.add_parser("replay", help="replay pit actions from as-of race cutoffs")
+    replay.add_argument(
+        "slug", metavar="SLUG", help="cached race slug from the catalog (for example bahrain-2023)"
+    )
+    replay.add_argument(
+        "--driver",
+        required=True,
+        metavar="CODE",
+        help="known driver code for that race (three letters, case-insensitive)",
+    )
+    replay.add_argument(
+        "--lap",
+        type=int,
+        default=None,
+        metavar="N",
+        help="cutoff after lap N (0 to one less than the race lap count; default all cutoffs)",
+    )
+    replay.add_argument(
+        "--n",
+        type=int,
+        default=50000,
+        metavar="N",
+        help=f"positive simulation count up to {MAX_RACES} (default 50000)",
+    )
+    replay.add_argument(
+        "--risk",
+        "--risk-aversion",
+        dest="risk",
+        type=float,
+        default=0.5,
+        metavar="R",
+        help=("risk aversion in [0, 1]: 0 weights mean, 1 weights worst-decile CVaR (default 0.5)"),
+    )
+    replay.add_argument("--seed", type=int, default=0, metavar="S", help="random seed (default 0)")
+    backtest = sub.add_parser("backtest", help="score the registered sample or make one prediction")
+    backtest.add_argument("--race", help="registered race ID, for example 2023-01")
+    backtest.add_argument("--driver", metavar="CODE", help="driver code, e.g. ALO")
+    backtest.add_argument("--lap", type=int, metavar="N", help="cutoff lap")
+    backtest.add_argument("--n", type=int, default=1000, help="seeded simulation count")
+    backtest.add_argument("--risk", type=float, default=0.5, help="risk aversion in [0, 1]")
+    backtest.add_argument("--seed", type=int, default=0, help="seed for repeatable predictions")
+    backtest.add_argument(
+        "--report", action="store_true", help="score and report the full registered race sample"
+    )
+    backtest.add_argument(
+        "--diagnostics-only",
+        action="store_true",
+        help="extend a matching existing report with team-call and wear-proxy diagnostics",
+    )
+    backtest.add_argument(
+        "--output",
+        type=Path,
+        default=Path("reports/backtest/phase-06.json"),
+        help="completed report path (default: reports/backtest/phase-06.json)",
+    )
+    backtest.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="bounded report prediction workers, 1 through 4 (default: 4)",
+    )
+    backfill = sub.add_parser(
+        "backfill-scheduled-laps",
+        help="fill missing 2023-2025 race lap counts from FastF1",
+    )
+    backfill.add_argument(
+        "--output",
+        type=Path,
+        default=Path(
+            ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-11-lap-count-backfill.csv"
+        ),
+        help="write lap-count source provenance to this CSV",
+    )
     return parser
+
+
+def _make_asof_accessor(db_path: Path) -> asof.AsOfAccessor:
+    """Create the cache-reading capability for CLI and backtest replay drivers."""
+    return asof.AsOfAccessor(db_path)
 
 
 def _cmd_load(
@@ -895,11 +994,282 @@ def _cmd_wear_filter(
     return 0
 
 
+@dataclass(frozen=True)
+class _ReplayCutoff:
+    lap: int
+    analysis: StrategyAnalysis | None
+    unavailable_reason: str | None = None
+    is_fallback: bool = False
+
+
+@dataclass(frozen=True)
+class _PreparedReplayContext:
+    """Race/cutoff inputs shared by all driver-specific strategy analyses."""
+
+    snapshot: asof.RaceSnapshot
+    state: RaceState
+    model: PaceModel
+    compounds: tuple[str, ...]
+    estimate: ScRateEstimate
+    wear_sd_by_compound: dict[str, float | None] | None
+    fallback: SparsePaceFallback | None
+    is_fallback: bool
+
+
+def _prepare_replay_context(
+    accessor: asof.AsOfAccessor,
+    race_id: str,
+    laps_total: int,
+    lap: int,
+    *,
+    snapshot: asof.RaceSnapshot | None = None,
+) -> _PreparedReplayContext:
+    """Build all race/cutoff data once, retaining the cutoff-only replay boundary."""
+
+    at = asof.AsOf(race_id, lap)
+    if snapshot is None:
+        snapshot = accessor.snapshot(at)
+    history = accessor.history(at)
+    fit = fit_linear_pace(snapshot)
+    pit = measure_pit_loss(snapshot, fit)
+    wear = current_stint_snapshots(filter_stints(snapshot, fit))
+    state = build_race_state(
+        snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
+    )
+    estimate = estimate_sc_rate(history)
+    # A legal dry strategy must use two different compounds. A one-compound fit cannot price a
+    # legal stop candidate, so Longstaff could misleadingly rank "stay out" as the only action.
+    # Use the cutoff-local generic fallback to price all dry compounds until the fit supports a
+    # strategy.
+    is_fallback = not fit.is_identified or len(fit.fitted_compounds) < 2
+    model: PaceModel = fit
+    compounds = fit.fitted_compounds
+    wear_sd_by_compound: dict[str, float | None] | None = None
+    fallback: SparsePaceFallback | None = None
+    if is_fallback:
+        fallback = SparsePaceFallback(snapshot)
+        model = fallback
+        compounds = DRY_COMPOUNDS
+        wear_sd_by_compound = fallback.wear_sd_by_compound
+        state = replace(
+            state,
+            cars=tuple(
+                replace(
+                    car,
+                    pace_offset_s=fallback.driver_offsets[car.driver_number],
+                    pace_offset_sd=PACE_OFFSET_SD_S,
+                )
+                for car in state.cars
+            ),
+        )
+    return _PreparedReplayContext(
+        snapshot,
+        state,
+        model,
+        compounds,
+        estimate,
+        wear_sd_by_compound,
+        fallback,
+        is_fallback,
+    )
+
+
+def _replay_at_cutoff(
+    accessor: asof.AsOfAccessor,
+    race_id: str,
+    laps_total: int,
+    code: str,
+    lap: int,
+    n_simulations: int,
+    risk: float,
+    seed: int,
+    prepared_context: _PreparedReplayContext | None = None,
+    retain_position_history: bool = False,
+) -> _ReplayCutoff:
+    """Rebuild every input from one cutoff and fall back without leaving its as-of snapshot."""
+
+    if prepared_context is None:
+        prepared_context = _prepare_replay_context(accessor, race_id, laps_total, lap)
+    policy = LongstaffSchwartzPolicy(
+        prepared_context.model,
+        compounds=prepared_context.compounds,
+        risk_aversion=risk,
+        n_simulations=n_simulations,
+        seed=seed,
+        sc=SafetyCarModel(
+            prepared_context.estimate.rate_per_lap,
+            prepared_context.estimate.duration_laps,
+        ),
+        wear_sd_by_compound=prepared_context.wear_sd_by_compound,
+    )
+    try:
+        analysis = policy.analyze(
+            prepared_context.state,
+            driver=code,
+            retain_position_history=retain_position_history,
+        )
+    except ValueError as err:
+        return _ReplayCutoff(lap, None, str(err))
+    if prepared_context.is_fallback:
+        fallback = prepared_context.fallback
+        assert fallback is not None
+        basis = (
+            f"{fallback.clean_laps_for(prepared_context.state.car(code).driver_number)} driver and "
+            f"{fallback.visible_clean_laps} field cutoff-visible clean laps, generic DEC-091 "
+            f"fuel/wear/noise priors, [ASSUMED] {PACE_OFFSET_SD_S:.1f} s pace-offset SD, "
+            "uncalibrated"
+        )
+        analysis = replace(
+            analysis,
+            reason=f"{analysis.reason.rstrip('.')}; sparse fallback basis: {basis}.",
+        )
+    return _ReplayCutoff(lap, analysis, is_fallback=prepared_context.is_fallback)
+
+
+def _print_replay_cutoff(
+    race: asof.RaceSnapshot,
+    code: str,
+    cutoff: _ReplayCutoff,
+    n_simulations: int,
+    risk: float,
+) -> None:
+    """Print the shared row format used by selected and full replay."""
+    print(
+        f"Cutoff lap {cutoff.lap}: {race.race.event_name} {race.race.season}, {code}; "
+        f"recommendation after lap {cutoff.lap}"
+    )
+    if cutoff.analysis is None:
+        print("Status: unavailable")
+        unavailable_reason = (
+            cutoff.unavailable_reason or "No cutoff-local model is available."
+        ).rstrip()
+        if not unavailable_reason.endswith((".", "!", "?")):
+            unavailable_reason += "."
+        print(f"Reason: {unavailable_reason}")
+        return
+    report = cutoff.analysis
+    print("Status: fallback" if cutoff.is_fallback else "Status: available")
+    print(
+        f"risk aversion {risk:.2f}; options share {n_simulations} seeded race scenarios. "
+        "CVaR10 is the exact worst decile; lower blended score ranks first."
+    )
+    _print_table(
+        ("ACTION", "MEAN", "SPREAD", "CVAR10", "SCORE"),
+        [
+            (
+                option.action,
+                f"{option.mean_finish:.3f}",
+                f"{option.spread:.3f}",
+                f"{option.cvar10:.3f}",
+                f"{option.score:.3f}",
+            )
+            for option in report.options
+        ],
+    )
+    print(f"Recommendation: {report.best.action}")
+    print(f"Reason: {report.reason}")
+
+
+def _cmd_replay(
+    data_dir: Path,
+    slug: str,
+    driver: str,
+    lap: int | None,
+    n_simulations: int,
+    risk_aversion: float,
+    seed: int,
+) -> int:
+    """Replay cutoff-local policy evidence, or print one selected cutoff."""
+    from f1si.strategy.longstaff import _risk
+
+    try_line = f"Try: uv run f1si replay {slug} --driver CODE --lap 20"
+    code = driver.upper()
+    if not _DRIVER_CODE.fullmatch(code):
+        return _refuse(f"Driver codes are three capital letters, like VER; got {code}. {try_line}")
+    if lap is not None and lap < 0:
+        return _refuse(f"--lap must be 0 or more, got {lap}. {try_line}")
+    if isinstance(n_simulations, bool) or not isinstance(n_simulations, int) or n_simulations < 1:
+        return _refuse(f"--n must be positive, got {n_simulations}. {try_line}")
+    if n_simulations > MAX_RACES:
+        return _refuse(f"--n must be at most {MAX_RACES}, got {n_simulations}. {try_line}")
+    try:
+        risk = _risk(risk_aversion)
+    except ValueError as err:
+        return _refuse(f"{err}. {try_line}")
+    if isinstance(seed, bool) or seed < 0:
+        return _refuse(f"--seed must be 0 or more, got {seed}. {try_line}")
+
+    db = paths.db_path(data_dir)
+    race_id = asof.resolve_slug(db, slug)
+    accessor = asof.AsOfAccessor(db)
+    from f1si.backtest.walk_forward import _race_laps_total
+
+    try:
+        first = accessor.snapshot(asof.AsOf(race_id, 0))
+        laps_total = _race_laps_total(accessor, race_id, first)
+    except OutOfSampleLockedError as err:
+        return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+    except ValueError as err:
+        return _refuse(str(err))
+    try:
+        end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
+    except OutOfSampleLockedError as err:
+        return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+    if end.laps.empty:
+        return _refuse(f"No lap data available for {slug}; cannot replay this race.")
+    if lap is not None and lap >= laps_total:
+        return _refuse(f"--lap must be in 0..{laps_total - 1}, got {lap}. {try_line}")
+    known = set(str(v) for v in end.entries["driver_code"])
+    if code not in known:
+        return _refuse(f"Unknown driver {code!r}; choose a driver in {slug}. {try_line}")
+    cutoffs = range(laps_total) if lap is None else (lap,)
+    for cutoff_lap in cutoffs:
+        try:
+            result = _replay_at_cutoff(
+                accessor, race_id, laps_total, code, cutoff_lap, n_simulations, risk, seed
+            )
+        except OutOfSampleLockedError as err:
+            return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
+        except ValueError as err:
+            result = _ReplayCutoff(cutoff_lap, None, str(err))
+        _print_replay_cutoff(end, code, result, n_simulations, risk)
+    return 0
+
+
+def _cmd_backfill_scheduled_laps(data_dir: Path, provenance_path: Path) -> int:
+    """Run the guarded FastF1 race-metadata repair and report unresolved rows."""
+    from f1si.data.loader import backfill_scheduled_laps
+
+    report = backfill_scheduled_laps(
+        paths.db_path(data_dir),
+        fastf1_cache_dir=data_dir / "http-cache" / "fastf1",
+        provenance_path=provenance_path,
+    )
+    if report.failed:
+        print("Unresolved eligible races:", file=sys.stderr)
+        for failure in report.failed:
+            print(f"  {failure.race_id}: {failure.reason}", file=sys.stderr)
+        print("Run the same command again to retry unresolved races.", file=sys.stderr)
+        return 2
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the f1si command line and return the process exit code."""
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.command == "backtest":
+        single_cutoff_values = (args.race, args.driver, args.lap)
+        if args.report and any(value is not None for value in single_cutoff_values):
+            parser.error("--report cannot be combined with --race, --driver, or --lap")
+        if args.diagnostics_only and not args.report:
+            parser.error("--diagnostics-only requires --report")
+        if not args.report and any(value is None for value in single_cutoff_values):
+            parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
+        if args.command == "backfill-scheduled-laps":
+            return _cmd_backfill_scheduled_laps(data_dir, args.output)
         if args.command == "plot":
             reports_dir: Path = (
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()
@@ -924,6 +1294,77 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()
             )
             return _cmd_wear_filter(data_dir, wf_reports, args.slug, args.driver, args.lap)
+        if args.command == "replay":
+            return _cmd_replay(
+                data_dir, args.slug, args.driver, args.lap, args.n, args.risk, args.seed
+            )
+        if args.command == "backtest":
+            if args.report:
+                output: Path = args.output
+                if args.diagnostics_only:
+                    if not output.is_file():
+                        raise ValueError(
+                            f"No existing report found at {output}; run f1si backtest --report "
+                            "first."
+                        )
+                    from f1si.backtest.scoring import extend_existing_report
+
+                    try:
+                        existing_report = json.loads(output.read_text(encoding="utf-8"))
+                    except json.JSONDecodeError as err:
+                        raise ValueError(
+                            f"Invalid JSON in existing report {output}: {err.msg} "
+                            f"(line {err.lineno}, column {err.colno})"
+                        ) from err
+                    if not isinstance(existing_report, dict):
+                        raise ValueError(f"Existing report at {output} must contain a JSON object.")
+                    report = extend_existing_report(
+                        paths.db_path(data_dir),
+                        existing_report,
+                        n_simulations=args.n,
+                        risk=args.risk,
+                        seed=args.seed,
+                    )
+                else:
+                    from f1si.backtest.scoring import score_registered_sample
+
+                    report = score_registered_sample(
+                        paths.db_path(data_dir),
+                        n_simulations=args.n,
+                        risk=args.risk,
+                        seed=args.seed,
+                        workers=args.workers,
+                    )
+                output.parent.mkdir(parents=True, exist_ok=True)
+                output.write_text(
+                    json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
+                    encoding="utf-8",
+                )
+                print(f"Wrote completed backtest report to {output}")
+                print(
+                    "Report includes one-to-one team-stop comparisons with race-cluster "
+                    "uncertainty and retrospective wear-proxy diagnostics."
+                )
+                return 0
+            from f1si.backtest.walk_forward import predict_at_cutoff
+
+            row = predict_at_cutoff(
+                paths.db_path(data_dir),
+                args.race,
+                args.driver,
+                args.lap,
+                n_simulations=args.n,
+                risk=args.risk,
+                seed=args.seed,
+            )
+            if row.analysis is None:
+                print(f"Prediction unavailable: {row.unavailable_reason or 'no supported model'}")
+            else:
+                print(
+                    f"{row.race_id} {row.driver} lap {row.cutoff_lap}: {row.analysis.best.action}"
+                )
+                print(row.analysis.reason)
+            return 0
         if args.command == "load":
             return _cmd_load(data_dir, args.source, args.seed, args.seasons, args.only)
         return _cmd_races(data_dir)

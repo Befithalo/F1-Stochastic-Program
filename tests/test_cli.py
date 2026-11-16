@@ -1,12 +1,16 @@
 """Command line, loader and catalog behavior (in-process, scratch data folders)."""
 
+import contextlib
+import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
-from f1si import paths
+from f1si import cli, paths
 from f1si.cli import build_parser, main
 from f1si.data import _db, asof, schema
 from f1si.data.loader import load_races
@@ -15,6 +19,165 @@ from f1si.data.sources.synthetic_source import SyntheticSource
 from f1si.rng import make_rng
 
 NOW = datetime(2026, 10, 22, tzinfo=UTC)
+
+
+def test_backtest_report_parser_accepts_report_mode_and_default_output() -> None:
+    parsed = None
+    with contextlib.suppress(SystemExit):
+        parsed = build_parser().parse_args(["backtest", "--report"])
+    assert parsed is not None, "backtest --report must not require single-cutoff arguments"
+    assert parsed.report is True
+    assert parsed.output == Path("reports/backtest/phase-06.json")
+    assert parsed.workers == 4
+
+
+def test_scheduled_lap_backfill_cli_passes_cache_and_provenance_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls: list[tuple[Path, Path]] = []
+    output = tmp_path / "lap-counts.csv"
+
+    def capture(data_dir: Path, provenance: Path) -> int:
+        calls.append((data_dir, provenance))
+        return 0
+
+    monkeypatch.setattr(
+        cli,
+        "_cmd_backfill_scheduled_laps",
+        capture,
+    )
+
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backfill-scheduled-laps",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    assert calls == [(tmp_path, output)]
+
+
+def test_backtest_report_writes_completed_json_to_output_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from f1si.backtest import scoring
+
+    report: dict[str, object] = {
+        "race_ids": ["2023-01"],
+        "metrics": {"podium_brier": {"model": {"mean": 0.2}}},
+    }
+    calls: list[tuple[Path, dict[str, object], dict[str, object]]] = []
+
+    def score(db_path: Path, **options: object) -> dict[str, object]:
+        calls.append((db_path, report, options))
+        return report
+
+    monkeypatch.setattr(scoring, "score_registered_sample", score)
+    output = tmp_path / "phase-06.json"
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backtest",
+                "--report",
+                "--output",
+                str(output),
+                "--workers",
+                "2",
+            ]
+        )
+        == 0
+    )
+    assert calls == [
+        (
+            paths.db_path(tmp_path),
+            report,
+            {"n_simulations": 1000, "risk": 0.5, "seed": 0, "workers": 2},
+        )
+    ]
+    assert json.loads(output.read_text(encoding="utf-8")) == report
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_backtest_report_incomplete_cache_writes_no_completed_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    existing: bool,
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-06.json"
+    before = '{"complete":true}\n'
+    if existing:
+        output.write_text(before, encoding="utf-8")
+
+    def incomplete(*_args: object, **_kwargs: object) -> dict[str, object]:
+        raise ValueError("Backtest cache is missing complete registered races: 2024-02")
+
+    monkeypatch.setattr(scoring, "score_registered_sample", incomplete)
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backtest",
+                "--report",
+                "--output",
+                str(output),
+            ]
+        )
+        == 1
+    )
+    assert (output.read_text(encoding="utf-8") == before) if existing else not output.exists()
+    assert "missing complete registered races" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("contents", "message"),
+    [("{truncated", "Invalid JSON in existing report"), ("[]", "must contain a JSON object")],
+)
+def test_backtest_diagnostics_reports_invalid_json_without_traceback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    contents: str,
+    message: str,
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-06.json"
+    output.write_text(contents, encoding="utf-8")
+    monkeypatch.setattr(
+        scoring,
+        "extend_existing_report",
+        lambda *_args, **_kwargs: pytest.fail("invalid report reached extension"),
+    )
+
+    assert (
+        main(
+            [
+                "--data-dir",
+                str(tmp_path),
+                "backtest",
+                "--report",
+                "--diagnostics-only",
+                "--output",
+                str(output),
+            ]
+        )
+        == 1
+    )
+    captured = capsys.readouterr()
+    assert message in captured.err
+    assert "Traceback" not in captured.err
+    assert output.read_text(encoding="utf-8") == contents
 
 
 def test_races_lists_era(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -37,6 +200,72 @@ def test_races_without_cache_says_what_to_do(
 ) -> None:
     assert main(["--data-dir", str(tmp_path / "nothing"), "races"]) == 1
     assert "uv run f1si load" in capsys.readouterr().err
+
+
+def test_replay_horizon_comes_from_ex_ante_schedule_not_race_end(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    requests: list[asof.AsOf] = []
+    replay_horizons: list[int] = []
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, at: asof.AsOf) -> SimpleNamespace:
+            requests.append(at)
+            if at.lap == asof.RACE_END:
+                return SimpleNamespace(
+                    laps=pd.DataFrame({"lap_number": [44]}),
+                    entries=pd.DataFrame({"driver_code": ["VER"]}),
+                )
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=57),
+                entries=pd.DataFrame({"driver_code": ["VER"]}),
+            )
+
+    monkeypatch.setattr(paths, "db_path", lambda _data: tmp_path / "cache.duckdb")
+    monkeypatch.setattr(asof, "resolve_slug", lambda _db, _slug: "2023-01")
+    monkeypatch.setattr(asof, "AsOfAccessor", Accessor)
+
+    def capture_replay_horizon(*args: object, **_kwargs: object) -> SimpleNamespace:
+        horizon = args[2]
+        assert isinstance(horizon, int)
+        replay_horizons.append(horizon)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(
+        cli,
+        "_replay_at_cutoff",
+        capture_replay_horizon,
+    )
+    monkeypatch.setattr(cli, "_print_replay_cutoff", lambda *_args: None)
+
+    assert cli._cmd_replay(tmp_path, "test-race", "VER", 10, 1, 0.5, 0) == 0
+    assert replay_horizons == [57]
+    assert [request.lap for request in requests] == [0, asof.RACE_END]
+
+
+def test_replay_refuses_when_ex_ante_schedule_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    requests: list[asof.AsOf] = []
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, at: asof.AsOf) -> SimpleNamespace:
+            requests.append(at)
+            return SimpleNamespace(race=SimpleNamespace(scheduled_laps=None))
+
+    monkeypatch.setattr(paths, "db_path", lambda _data: tmp_path / "cache.duckdb")
+    monkeypatch.setattr(asof, "resolve_slug", lambda _db, _slug: "2023-01")
+    monkeypatch.setattr(asof, "AsOfAccessor", Accessor)
+
+    assert cli._cmd_replay(tmp_path, "test-race", "VER", 10, 1, 0.5, 0) == 1
+    assert requests == [asof.AsOf("2023-01", 0)]
+    assert "Scheduled race distance is unavailable for 2023-01" in capsys.readouterr().err
 
 
 def test_races_with_an_empty_cache_says_what_to_do(

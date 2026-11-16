@@ -1,0 +1,10 @@
+{
+    "command":  "uv run --python C:/Users/befit/AppData/Local/Programs/Python/Python312/python.exe python -m unittest tests.conformance.test_suites.LongstaffConformanceRegistrationTest.test_longstaff_strategy_is_in_shared_policy_suite",
+    "exitCode":  1,
+    "output":  "F\r\n======================================================================\r\nFAIL: test_longstaff_strategy_is_in_shared_policy_suite (tests.conformance.test_suites.LongstaffConformanceRegistrationTest.test_longstaff_strategy_is_in_shared_policy_suite)\r\n----------------------------------------------------------------------\r\nTraceback (most recent call last):\r\n  File \"C:\\Users\\befit\\Documents\\f1si\\tests\\conformance\\test_suites.py\", line 59, in test_longstaff_strategy_is_in_shared_policy_suite\r\n    assert \"longstaff_schwartz\" in POLICIES\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\nAssertionError\r\n\r\n----------------------------------------------------------------------\r\nRan 1 test in 0.001s\r\n\r\nFAILED (failures=1)\r\n",
+    "targetTest":  "tests.conformance.test_suites.LongstaffConformanceRegistrationTest.test_longstaff_strategy_is_in_shared_policy_suite",
+    "targetFile":  "tests/conformance/test_suites.py",
+    "expected":  "LongstaffSchwartzPolicy is registered in shared StrategyPolicy conformance",
+    "actual":  "assert longstaff_schwartz in POLICIES fails",
+    "semanticAssessment":  "The unique unittest target executed and failed on the planned registry assertion; this is the missing conformance registration."
+}

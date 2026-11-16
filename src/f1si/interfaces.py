@@ -131,7 +131,8 @@ class SimulationResult:
     `pit_loss_paid_s` (n_races, n_cars) float64, total pit loss paid;
     `plan_sources` one `PlanSource` per driver; `diagnostics` free-text notes (borrowed compounds,
     retired or lapped cars placed last, fallbacks); `clock_s` (n_races, n_laps, n_cars) float64,
-    cumulative time at each lap end, filled only on request.
+    cumulative time at each lap end, filled only on request; `position_history` (n_races, n_laps)
+    integer ranks for one requested driver, filled only on request.
     """
 
     finish_positions: NDArray[np.int64]
@@ -142,6 +143,7 @@ class SimulationResult:
     plan_sources: tuple[PlanSource, ...] = ()
     diagnostics: tuple[str, ...] = ()
     clock_s: NDArray[np.float64] | None = None
+    position_history: NDArray[np.int64] | None = None
 
 
 @runtime_checkable
@@ -187,9 +189,12 @@ class SimulatorBackend(Protocol):
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
         """Simulate `n_races` continuations of `state`, optionally forcing `plans` by driver code.
 
-        The same `rng` seed gives the same result. The state is never mutated.
+        The same `rng` seed gives the same result. The state is never mutated. When
+        `position_history_driver` is set, retain only that driver's ranks after each simulated
+        future lap; ordinary calls allocate no position history.
         """
         ...

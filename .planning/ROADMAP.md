@@ -189,7 +189,7 @@ Plans:
 
 ### Phase 5: Longstaff-Schwartz Strategy & Live Replay
 
-**Goal**: User can replay Bahrain 2023 lap by lap for any driver and get a ranked, explained pit recommendation with uncertainty
+**Goal**: As a strategist, I want to see explained, uncertainty-aware pit rankings per driver and lap, so that I can choose.
 **Mode:** mvp
 **Depends on**: Phase 4
 **Requirements**: STR-01, STR-02, STR-03, STR-04, RPL-01, RPL-02
@@ -201,11 +201,15 @@ Plans:
   4. Each recommendation carries a one-sentence reason such as undercut threat, cliff risk or safety-car window
   5. The Longstaff-Schwartz policy passes the shared `StrategyPolicy` test suite
 
-**Plans**: TBD
+**Plans**: 3/4 complete; 05-04 closes the RPL-01 verification gap.
+- [x] 05-01-PLAN.md
+- [x] 05-02-PLAN.md
+- [x] 05-03-PLAN.md - Documentation, validation, Bahrain smoke, and current-head Ubuntu/Windows CI complete
+- [x] 05-04-PLAN.md — Cutoff-only sparse-data recommendations for unsupported fits (gap closure)
 
 ### Phase 6: MVP Backtest, Streamlit View & README
 
-**Goal**: User can see how well the platform's calls and probabilities hold up across 10 real races, in one page and a README of measured results, and decide go or no-go
+**Goal**: As a strategist, I want to see ten-race prediction and strategy results in one page, so that I can decide to proceed.
 **Mode:** mvp
 **Depends on**: Phase 5
 **Requirements**: BKT-01, BKT-02, BKT-04, UI-01, UI-02
@@ -219,8 +223,54 @@ Plans:
 
 **Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
 
-**Plans**: TBD
+**Plans:** 10/12 plans executed
+
+Plans:
+- [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
+- [x] 06-08-PLAN.md — Same-sample quantile dotplot, selected-driver fan chart, brief-compliant UI, and live desktop/phone audit
+- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and final owner acceptance
+
+**Wave 0**
+- [x] 06-00-PLAN.md — Create the five missing backtest and app test modules before implementation verifies them
+
+**Wave 1**
+- [x] 06-01-PLAN.md — Cache-gated fixed-sample walk-forward tracer and cutoff predictions
+
+**Wave 2**
+- [x] 06-02-PLAN.md — Brier, baseline, interval, and race-cluster metric primitives
+
+**Wave 3**
+- [x] 06-03-PLAN.md — Compact same-draw strategy probabilities and finishing endpoints
+
+**Wave 4**
+- [x] 06-04-PLAN.md — Freeze-gated scoring, all-ten preflight, and measured evaluation report
+
+**Wave 5**
+- [x] 06-05-PLAN.md — Team-call comparison and retrospective wear proxy
+
+**Wave 6**
+- [x] 06-06-PLAN.md — One-page Streamlit view over measured results and cutoff replay
+
+**Wave 7**
+- [x] 06-07-PLAN.md — Measured README results, explainer, decisions, and docs checks
+
+**Wave 8**
+- [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
+
+**Wave 9**
+- [x] 06-08-PLAN.md — Same-sample quantile dotplot, selected-driver fan chart, brief-compliant UI, and live desktop/phone audit
+
+**Wave 10**
+- [x] 06-11-PLAN.md — FastF1 scheduled-lap backfill, Bahrain replay, corrected UI, real chart/screenshots, and post-rework gates
+
+**Wave 11**
+- [ ] 06-10-PLAN.md — Final owner approval at desktop and phone widths after Plan 06-11
+
 **UI hint**: yes
+
+**Phase 06 rejection rework order (2026-11-15):** Existing Plan 06-08 chart and UI implementation remains complete and unchanged; its finished summary and tests are preserved. Plan 06-11 closes the owner's new data, replay, layout, copy, and real-render gaps in Wave 10. The original Plan 06-10 local/CI gate task completed at commit `4997c1e`; Plan 06-11 reruns all gates after the new implementation. Plan 06-10 then runs in Wave 11 with only its blocking owner approval checkpoint pending.
+
+Rework order is represented by Waves 10 and 11 above.
 
 ### Phase 7: Bayesian Pace Model
 
@@ -261,7 +311,7 @@ Plans:
 | 2. Interfaces, Linear Tire Wear & Free-Track Optimizer | 5/5 | Complete   | 2026-11-12 |
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
-| 5. Longstaff-Schwartz Strategy & Live Replay | 0/0 | Not started | - |
-| 6. MVP Backtest, Streamlit View & README | 0/0 | Not started | - |
+| 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
+| 6. MVP Backtest, Streamlit View & README | 10/11 | In Progress | - |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |
 | 8. Markov Regimes & Full Backtest | 0/0 | Not started | - |

@@ -96,8 +96,15 @@ class WrongShapeSim(NoisySimulator):
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
-        res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+        res = super().simulate(
+            state,
+            n_races=n_races,
+            rng=rng,
+            plans=plans,
+            position_history_driver=position_history_driver,
+        )
         return SimulationResult(res.finish_positions[:, :-1], res.total_time_s[:, :-1])
 
 
@@ -109,8 +116,15 @@ class WrongDiagnosticsShapeSim(NoisySimulator):
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
-        res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+        res = super().simulate(
+            state,
+            n_races=n_races,
+            rng=rng,
+            plans=plans,
+            position_history_driver=position_history_driver,
+        )
         mask = np.zeros((n_races - 1, 3), dtype=np.bool_)
         return SimulationResult(res.finish_positions, res.total_time_s, sc_lap_mask=mask)
 
@@ -123,8 +137,15 @@ class NanSim(NoisySimulator):
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
-        res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+        res = super().simulate(
+            state,
+            n_races=n_races,
+            rng=rng,
+            plans=plans,
+            position_history_driver=position_history_driver,
+        )
         total = res.total_time_s.copy()
         total[0, 0] = np.nan
         return SimulationResult(res.finish_positions, total)
@@ -138,8 +159,15 @@ class NotPermutationSim(NoisySimulator):
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
-        res = super().simulate(state, n_races=n_races, rng=rng, plans=plans)
+        res = super().simulate(
+            state,
+            n_races=n_races,
+            rng=rng,
+            plans=plans,
+            position_history_driver=position_history_driver,
+        )
         return SimulationResult(np.ones_like(res.finish_positions), res.total_time_s)
 
 
@@ -151,8 +179,15 @@ class IgnoresSeedSim(NoisySimulator):
         n_races: int,
         rng: np.random.Generator,
         plans: Mapping[str, Plan] | None = None,
+        position_history_driver: str | None = None,
     ) -> SimulationResult:
-        return super().simulate(state, n_races=n_races, rng=np.random.default_rng(), plans=plans)
+        return super().simulate(
+            state,
+            n_races=n_races,
+            rng=np.random.default_rng(),
+            plans=plans,
+            position_history_driver=position_history_driver,
+        )
 
 
 class MissingSimulate:

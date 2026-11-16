@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 95
+MIN_ENTRIES = 104
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -162,3 +162,49 @@ def test_free_track_decisions_exist_by_title() -> None:
     cutoff = [b for _, t, b in _entries() if t == "Plan cutoff policy and analytic ground truth"]
     assert len(cutoff) == 1
     assert "hindsight" in cutoff[0]
+
+
+def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    phase6_ids = [f"DEC-{number:03d}" for number in range(102, 111)]
+    assert [entry_id for entry_id, _, _ in _entries()][-9:] == phase6_ids
+
+    expected_titles = {
+        "DEC-102": "Pre-registered Phase 6 sample and cache gate",
+        "DEC-103": "Past-only scoring and race-cluster uncertainty",
+        "DEC-104": "One-event team matching and wear proxy interpretation",
+        "DEC-108": "Set the replay backtest simulation count and M5 runtime target",
+        "DEC-109": "Use cached timing data first and OpenF1 when FastF1 access is unavailable",
+        "DEC-110": "Compare conditional expected outcomes when choosing a simulated stop",
+    }
+    for entry_id, title in expected_titles.items():
+        assert entries[entry_id][0] == title
+    for entry_id in ("DEC-102", "DEC-103", "DEC-104", "DEC-108"):
+        assert "reports/backtest/phase-06.json" in entries[entry_id][1]
+
+    semantics = {
+        "DEC-102": ("4/3/3", "calendar", "complete", "2026"),
+        "DEC-103": (
+            "past-only",
+            "five neutral pseudo-starts",
+            "non-events",
+            "inverted-CDF",
+            "race-cluster",
+            "same finite rows",
+        ),
+        "DEC-104": (
+            "strictly before",
+            "one event",
+            "retrospective proxy",
+            "not latent ground truth",
+            "eight clean laps",
+            "current stint",
+        ),
+        "DEC-108": ("1,000 simulations", "50,000", "14.600 seconds", "M5"),
+        "DEC-109": ("F1 TV Access", "OpenF1", "local cache"),
+        "DEC-110": ("future lap noise", "conditional expected", "P7.291", "P8.477"),
+    }
+    for entry_id, phrases in semantics.items():
+        body = entries[entry_id][1].lower()
+        for phrase in phrases:
+            assert phrase.lower() in body, (entry_id, phrase)

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.149" timestamp="2026-11-14T04:19:34.285348-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.backtest.test_wear_diagnostic" name="test_reference_excludes_every_lap_from_the_current_stint" time="0.002"><failure message="assert set() == {1, 2, 3}&#10;  &#10;  Extra items in the right set:&#10;  1&#10;  2&#10;  3&#10;  Use -v to get more diff">def test_reference_excludes_every_lap_from_the_current_stint() -&gt; None:
+        laps = pd.DataFrame(
+            {
+                "driver": ["ALO"] * 6,
+                "stint": [1, 1, 1, 2, 2, 2],
+                "lap_number": [1, 2, 3, 4, 5, 6],
+                "lap_time_s": [91.0, 91.2, 91.4, 92.0, 92.2, 92.4],
+            }
+        )
+        reference = build_leave_stint_out_reference(laps, driver="ALO", stint=2)
+&gt;       assert set(reference["lap_number"]) == {1, 2, 3}
+E       assert set() == {1, 2, 3}
+E         
+E         Extra items in the right set:
+E         1
+E         2
+E         3
+E         Use -v to get more diff
+
+tests\backtest\test_wear_diagnostic.py:19: AssertionError</failure></testcase></testsuite></testsuites>

@@ -1,0 +1,14 @@
+F
+======================================================================
+FAIL: test_longstaff_strategy_is_in_shared_policy_suite (tests.conformance.test_suites.LongstaffConformanceRegistrationTest.test_longstaff_strategy_is_in_shared_policy_suite)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "C:\Users\befit\Documents\f1si\tests\conformance\test_suites.py", line 59, in test_longstaff_strategy_is_in_shared_policy_suite
+    assert "longstaff_schwartz" in POLICIES
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+
+----------------------------------------------------------------------
+Ran 1 test in 0.001s
+
+FAILED (failures=1)

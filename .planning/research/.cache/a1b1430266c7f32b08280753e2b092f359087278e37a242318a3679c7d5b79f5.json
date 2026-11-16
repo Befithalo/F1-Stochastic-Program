@@ -1,0 +1,1 @@
+{"content":"Current NumPy docs warn that exact Generator stream reproducibility requires same bit generator, seed, method calls, NumPy build, environment, and machine; reproducibility must be scoped accordingly.","source":"web","provider":"websearch","confidence":"MEDIUM","fetched_at":"2026-11-13T08:30:25.692Z","ttl":86400000,"kind":"docs"}

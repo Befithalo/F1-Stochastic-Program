@@ -1047,3 +1047,168 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** One end-of-race fit reused for every lap (look-ahead). Showing only rows whose race lap equals the cutoff (empty for cars behind the leader). Overwriting a lap's row with its later, better-informed version (not what was known then).
 **Consequences:** Measured replay time on the real Bahrain 2023 race (ALO, 57 laps, 3 stints): 8.1 to 8.4 s of replay, about 15 s wall time including start-up. On the real race the SOFT stint prior jumps when the fit first identifies SOFT (lap 13), from the generic 0.10 s/lap to about 0.26 s/lap, which is the early-fit bias the D-19 lines expose; the band is honest about the filter's inputs, not a statement that the fit prior is right.
 **Refs:** D-09, D-15, D-19, DEC-091, PAC-03
+
+## DEC-096 — Longstaff-Schwartz conditional-mean continuation basis
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** STR-01 requires pathwise stop/continue decisions learned from later simulated outcomes. The fitted target is finishing position, where lower values are better, and each target must stay aligned with the same simulation path's state.
+**Decision:** At each future stop time, `_backward_stop_options` regresses the later policy's realized finishing position on an intercept and six normalized, cutoff-visible features: position, gap to the field's lead clock, tire age, remaining distance, stops completed, and safety-car state. It uses `numpy.linalg.lstsq`; when there are fewer paths than design columns or the design is rank-deficient, it uses the finite intercept-only mean. It compares the predicted conditional-mean continuation cost with each legal immediate-stop cost path by path and carries the realized lower-cost outcome backward. **[ASSUMED]** This small basis and intercept fallback are the first stable, interpretable implementation, not a proven best basis. Keep the fallback and basis easy to replace if Phase 6 calibration or stability measurements show material error.
+**Why:** The basis represents the race state that changes stop value without adding a regression dependency, and the fallback is defined for every sample size without an unstable inverse.
+**Alternatives rejected:** Fitting one real `RaceState` as though it were a simulated training set; ranking preselected full schedules without backward regression; custom normal-equation or matrix-inverse code.
+**Consequences:** The continuation values estimate a conditional mean, not a tail-risk objective. Results can depend on this assumed linear basis and need backtest evidence before any accuracy claim.
+**Refs:** D-01, D-04, D-05, D-08, STR-01
+
+## DEC-097 — Exact current-cutoff mean and CVaR10 ranking
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** Analysts need to see both expected finishing position and the bad-result tail when comparing pit timing at a specific replay cutoff.
+**Decision:** For each current-cutoff option, report the sample mean, standard-deviation spread, and CVaR10 formed from exactly the worst 10% of finishing-position mass (larger position numbers are worse); use fractional weight on the boundary outcome when needed. Rank by `(1 - risk_aversion) * mean_finish + risk_aversion * CVaR10`, ascending, with default `risk_aversion = 0.5` and a finite input range `[0, 1]`. This blend ranks only the current-cutoff option distributions; it does not feed into the backward continuation regression and does not make the policy dynamically CVaR-optimal.
+**Why:** The visible parts of the score show whether expected finish or the worst decile moves an option, while the fractional tail convention represents exactly 10% even when sample counts do not divide by ten.
+**Alternatives rejected:** Tail fitting, integer-only tail cutoffs, hiding the mean and tail behind one score, and recursively optimizing a blended tail measure.
+**Consequences:** Risk settings can change the current recommendation without changing the conditional-mean continuation rule. The Monte Carlo sample and simulator assumptions still limit the precision of both metrics.
+**Refs:** D-01, D-02, D-08, STR-02, STR-03
+
+## DEC-098 — Comparable simulator branches from private path checkpoints
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** A policy must compare pit-now, delayed-stop and stay-out outcomes under the same future race luck, while preserving interaction with the whole field.
+**Decision:** Capture compact simulator checkpoints behind the private `_PathCheckpoint` / `_branch_paths` seam in `numpy_backend.py`. Branch each action from the same path state and seed; clone the NumPy generator so indexed child-stream state stays aligned. The public simulator result and StrategyPolicy protocol do not expose kernel checkpoint arrays. The fixed seeded policy replays the same action comparisons for the same state and settings.
+**Why:** Common scenarios reduce unrelated Monte Carlo noise between actions; a full-race checkpoint preserves traffic, order, tire age, stops and safety-car state without storing every random draw in the public result.
+**Alternatives rejected:** Independently seeding each action, restarting every forced plan from the current live state, or exposing mutable kernel arrays in `SimulationResult`.
+**Consequences:** Branch results are comparable only while action branches preserve the shared random-stream layout. The private seam has regression coverage for reproducibility and scenario alignment.
+**Refs:** D-03, D-05, D-08, STR-01, STR-02
+
+## DEC-099 — Legal stop boundary, deterministic ties and score-only reasons
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** The candidate set must obey existing stop-count and minimum-stint rules and return the same recommendation when simulated scores tie.
+**Decision:** Candidate stops cover the next available stop through at most five laps later, subject to fitted dry compounds, stop-count limits and the existing five-lap minimum final stint; staying out is always included. **[ASSUMED]** Sort equal scores by mean, then CVaR10, then earlier stop lap, then compound name, with stay-out after stop actions. This gives a stable and inspectable order while preserving the plan boundary; revisit it if Phase 6 shows these tie choices affect measured outcomes. The current reason is a deterministic sentence that quotes the winning action, blended score, mean and CVaR10. No numeric threshold for undercut, safety-car or wear narratives is implemented; unsupported explanations remain score-only (D-06/D-07).
+**Why:** Existing strategy rules provide the stint boundary, while a documented lexical order avoids run-to-run changes and unsupported race narratives.
+**Alternatives rejected:** Allowing a stop that leaves fewer than the required final-stint laps; random tie-breaking; inferring an undercut or tire-cliff story from unobserved future events.
+**Consequences:** Equal metrics can prefer a specific action due to the assumed tie order, so that policy is recorded rather than presented as a learned result. The single score reason is intentionally less descriptive than a validated causal explanation.
+**Refs:** D-06, D-07, D-08, STR-02, STR-04
+
+## DEC-100 — Replay rebuilds and validates each as-of cutoff
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** A selected-lap recommendation and the corresponding row in a full replay must use the same information and construction path.
+**Decision:** Keep replay composition in `cli.py`. For every cutoff, rebuild the `AsOfAccessor` snapshot, pace fit, wear-filter output and `RaceState`, then pass only that state to the policy. Full replay and `--lap N` share the same cutoff builder and formatter. Slugs resolve through the local race catalog; driver codes normalize to three letters and must appear in that race; lap inputs are integers from zero to one less than the race lap count; simulation count is a positive integer; risk is finite in `[0, 1]`. When cutoff-visible data cannot identify the needed dry-compound pace fit, report that cutoff as unavailable instead of supplying later laps. The race-distance maximum remains public metadata per D-21.
+**Why:** Rebuilding each row makes the no-look-ahead promise testable and ensures selected/full replay output can be compared exactly.
+**Alternatives rejected:** Reusing an end-of-race fit for early cutoffs; accepting arbitrary race/driver identifiers; silently producing a recommendation with an unidentified model.
+**Consequences:** Some early rows can be unavailable even though later rows in the same replay are supported. The Phase 4 fit-prior double-counting question from DEC-091 remains open measurement work for Phase 6; Phase 5 does not change that method.
+**Refs:** D-03, D-04, D-05, D-08, D-21, RPL-01, RPL-02
+
+## DEC-101 — Sparse cutoff pace fallback for ranked replay
+
+**Date:** 2026-11-13
+**Status:** Accepted
+**Context:** RPL-01 requires a ranked recommendation with finishing-position uncertainty at every in-race cutoff. A strict joint pace fit can be unidentified early, including at lap zero when no clean lap is visible, but using a later fit would violate the as-of boundary.
+**Decision:** When the current snapshot does not identify the joint pace fit, build a sparse fallback from that snapshot only. Use each driver's median clean-lap residual after the existing DEC-091 generic fuel and compound-wear means, centered by the field median; drivers with no clean lap use the neutral center. Reuse DEC-091 generic fuel, wear and noise assumptions; estimate lap-noise SD from the robust residual MAD when it exceeds the existing generic noise floor, otherwise retain that floor. Pass the existing generic wear-rate SD to shared simulator draws. Use a broad driver pace-offset SD of **[ASSUMED] 1.0 s** because lap zero and sparse cutoffs cannot support a fitted driver-level uncertainty estimate; keep the observed starting order at lap zero. Label every such result as fallback-driven and uncalibrated, with visible clean-lap counts and the assumed offset scale in its reason. This decision supersedes DEC-100's initial unavailable-row behavior for unsupported fits; selected and full replay still share the same cutoff builder.
+**Why:** A broad nonzero offset prior preserves visible uncertainty when there are no driver observations, while residual medians use the evidence available at later unsupported cutoffs. Reusing the existing generic fuel and wear priors avoids inventing new compound effects, and the fallback can satisfy RPL-01 without reading later laps.
+**Alternatives rejected:** Reusing an end-of-race or later-cutoff fit (look-ahead); returning unavailable for an in-race cutoff (does not meet RPL-01); claiming the prior is calibrated (no walk-forward evidence supports that claim).
+**Consequences:** Fallback recommendations are deterministic and ranked but prior-driven; their spread is model uncertainty under stated generic assumptions, not a calibrated confidence interval. The 1.0 s offset scale remains an assumption for Phase 6 evaluation and may be revised using walk-forward evidence. DEC-091's field-fit/current-stint measurement question is unchanged.
+**Refs:** D-01, D-02, D-04, D-05, D-06, D-07, D-08, D-21, RPL-01
+
+## DEC-102 — Pre-registered Phase 6 sample and cache gate
+
+**Date:** 2026-11-14
+**Status:** Accepted
+**Context:** Phase 6 is a go/no-go evaluation. Replacing a race after seeing an outcome or a model score would make the sample outcome-selected, while an incomplete cache could silently change the fixed sample.
+**Decision:** Freeze the first calendar rounds in a 4/3/3 split: `2023-01` through `2023-04`, `2024-01` through `2024-03`, and `2025-01` through `2025-03`; Bahrain 2023 remains the reference race. Confirm all ten races are complete in the local cache before scoring. Use 1,000 simulations per prediction, base seed 0, and risk aversion 0.5 for the published report. Do not replace a race based on results, model metrics, or convenience; 2026 is excluded.
+**Why:** Calendar selection and a complete-cache gate protect the pre-registration from post-outcome selection and ensure the published report is reproducible.
+**Alternatives rejected:** Choosing races after looking at model performance; silently scoring a partial cache; substituting another race if a selected race is inconvenient.
+**Consequences:** The sample stays fixed even when a selected race exposes an unavailable diagnostic. A missing race input requires resolving the cache or reporting the evaluation blocked; it does not authorize selecting a better-looking replacement.
+**Refs:** D-01, D-02, BKT-01, `.planning/phases/06-mvp-backtest-streamlit-view-readme/06-CONTEXT.md`, `reports/backtest/phase-06.json`
+
+## DEC-103 — Past-only scoring and race-cluster uncertainty
+
+**Date:** 2026-11-14
+**Status:** Accepted
+**Context:** Probability scores need a baseline that does not learn from the race being scored, and uncertainty must respect that observations from the same race are related. Finishing-position coverage also has a different valid denominator from binary outcome scoring.
+**Decision:** Learn the grid-position baseline only from earlier completed races, shrink sparse grid rates toward five neutral pseudo-starts, and use field-size neutral event rates for the first race. Compare model and baseline Brier scores on the same finite rows; unclassified starters count as non-events for podium and top-10. Average observations within each race before equal-weighting races. Form paired 95% percentile-bootstrap intervals by resampling whole races (2,000 resamples). Form each simulated 90% finishing interval with inclusive empirical inverted-CDF P05/P95 endpoints and measure its observed coverage only on classified finishers. Record all values and denominators in the fixed report.
+**Why:** Past-only updates avoid leakage, the shared row mask makes the Brier comparison paired, and race-cluster resampling avoids treating laps and drivers as independent race experiments. Separating classified-finisher coverage from binary outcomes makes the denominator explicit when retirements are not simulated.
+**Alternatives rejected:** Training the baseline on the full sample; comparing model and baseline on different rows; counting all drivers as interval-covered when no classified finishing position exists; treating each driver-cutoff as an independent bootstrap unit; tuning interval endpoints on the evaluation races.
+**Consequences:** The report's uncertainty intervals describe variation across the ten sampled races, not future calibration. The 90% interval is a discrete interval with inclusive empirical endpoints and may have coverage above or below 90% in this small sample.
+**Refs:** D-02, D-03, D-04, BKT-02, `src/f1si/backtest/metrics.py`, `reports/backtest/phase-06.json`
+
+## DEC-104 — One-event team matching and wear proxy interpretation
+
+**Date:** 2026-11-14
+**Status:** Accepted
+**Context:** A race can produce many prior recommendations for one eventual stop, and the observed stop must not influence the recommendation matched to it. The Phase 4 wear band also needs an honest real-data follow-up even though latent tire wear is not observed.
+**Decision:** Match each observed pit event once to the latest recommendation cutoff strictly before its in-lap. Summarize top-action agreement and signed timing error (planned stop lap minus observed in-lap), plus absolute timing error, with 95% race-cluster bootstrap intervals. Compare cutoff wear estimates with a race-end pace fit after excluding the evaluated driver's current stint, label it a retrospective proxy and not latent ground truth, report early-fit bias only for estimates with at most eight clean laps, and report the same-cutoff/current-stint clean-lap share. Do not tune filter parameters on these evaluation races or claim the strategy beats teams.
+**Why:** One event/one prior recommendation prevents a stop from being repeated across many cutoffs or matched using information visible only after it happened. Removing the current stint makes the wear reference less circular; the proxy label prevents it from being confused with a measurement of the hidden tire state.
+**Alternatives rejected:** Matching a stop to the closest or latest recommendation even if it is after the stop; counting every preceding cutoff as a separate event; treating the leave-stint-out fit as true wear; adjusting the filter to maximize proxy coverage; claiming superiority from a retrospective comparison.
+**Consequences:** Agreement and timing results are descriptive comparisons with observed team behavior. Proxy coverage and bias are diagnostic evidence with their reported denominators; two races without an estimable leave-stint-out reference remain explicitly unavailable.
+**Refs:** D-05, D-06, BKT-04, `src/f1si/backtest/strategy.py`, `src/f1si/backtest/wear_diagnostic.py`, `reports/backtest/phase-06.json`
+
+## DEC-105 — Record pre-start race-distance reductions in lap-count provenance
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The FastF1 winner-laps fallback records laps completed by the winner. Some events start over a shortened distance after an aborted start or extra formation laps, so that value can be lower than the original event timetable without indicating a mid-race shortening.
+**Decision:** Preserve the three Phase 6 cases with both the original timetable distance and the distance used at the race start: 2023 Italian GP (53 advertised, reduced to 51 after start-procedure delays before the lights); 2024 Sao Paulo GP (71 advertised, stewards reduced it to 69 before the start after an aborted start); and 2025 Australian GP (58 advertised, reduced to 57 after an aborted formation-lap start). All three reductions were decided before the eventual race start. A fallback count of 51, 69, or 57 is therefore the correct race-start horizon for those event records.
+**Why:** The replay must know the race horizon before simulation, and provenance must distinguish pre-start distance changes from a race that ended early after starting.
+**Alternatives rejected:** Treating the original timetable as the simulation horizon after the race director or stewards have reduced it; inferring race length from the number of laps in the cache.
+**Consequences:** The winner-laps fallback is an ex-post source for an event-level race-start distance, but the user-facing horizon is race metadata and is not inferred from live telemetry. Future caches should retain whether a count came from `Session.total_laps` or winner results.
+**Refs:** [F1 Italian timetable](https://www.formula1.com/en/latest/article/formula-1-pirelli-gran-premio-ditalia-2023-timetable.3KDv0T9Nh7tRPhgy0esA2w); [F1 Italian start report](https://www.formula1.com/en/latest/article/verstappen-charges-to-monza-victory-for-record-breaking-10th-successive-f1.6jCUOTZ4lZB3kxfIiwsiHK); [FIA Italian classification](https://www.fia.com/sites/default/files/decision-document/2023%20Italian%20Grand%20Prix%20-%20Final%20Race%20Classification.pdf); [FIA Sao Paulo timetable](https://www.fia.com/sites/default/files/decision-document/2024%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Change%20to%20Timetable.pdf); [FIA Sao Paulo distance decision](https://www.fia.com/sites/default/files/decision-document/2024%20S%C3%A3o%20Paulo%20Grand%20Prix%20-%20Decision%20-%20Race%20Distance.pdf); [F1 Australian timetable](https://www.formula1.com/en/latest/article/formula-1-louis-vuitton-australian-grand-prix-2025.41bqABavUOOfgZY9SeGUFc); [F1 Australian start report](https://www.formula1.com/en/latest/article/norris-beats-verstappen-to-victory-in-dramatic-australian-gp-opener-amid.5rKGxQHJoDl1P8stMSHlIN.html); [FIA Australian classification](https://www.fia.com/system/files/decision-document/2025_australian_grand_prix_-_final_race_classification.pdf)
+
+## DEC-106 — Record Bahrain lap-15 convergence and forecast limits
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** ALO's Bahrain 2023 replay after lap 15 is a real-data check for the strategy ranking and Monte Carlo stability.
+**Decision:** After correcting the stopping rule for simulated future-noise lookahead (DEC-110), record the 0.5-risk recommendation and convergence under the same seed and cutoff: 1,000 simulations produced mean finish 8.477, CVaR10 16.680, and `pit in 1 lap (HARD)` in 2.069 s; 10,000 produced 8.484, 16.730, and `pit in 4 laps (MEDIUM)` in 4.399 s; 50,000 produced 8.482, 16.693, and the same action in 14.600 s. The mean and tail estimates are stable, but the selected action differs at 1,000 simulations. The 50,000-simulation result is the reference convergence check. It underestimates ALO's actual P3 by 5.482 places because lap-15 data cannot see Aston Martin's full race pace; retirements are not modeled yet.
+**Why:** Increasing the simulation count stabilizes the forecast mean and tail, while the action can still change when close policy values are resolved with fewer simulations.
+**Alternatives rejected:** Treating Monte Carlo convergence as proof of calibration; adjusting the lap-15 model with the actual result; presenting a DNF outcome as a simulated retirement.
+**Consequences:** Report the forecast miss and retirement limitation beside the convergence figures. Actual classification remains restricted to tests, scoring, and post-run comparison; it is not a replay input. The corrected forecast misses the previously requested five-place bound for ALO by 0.482 places, so do not conceal this limitation or tune the model to the race result.
+**Refs:** `reports/backtest/phase-06.json`; `src/f1si/cli.py`; `tests/real/test_bahrain_2023.py`; DEC-003, DEC-101, DEC-102
+
+## DEC-107 — FastF1 timing archive access requires F1 TV
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The 70-race lap-count backfill used FastF1 winner results. FastF1 reports that Formula 1 added authentication to its timing archive endpoints in October 2026.
+**Decision:** Treat fresh FastF1 timing-archive downloads as requiring an active F1 TV Access, Pro, or Premium subscription. Existing cache files and non-timing result sources remain separate; do not describe fresh timing downloads as anonymous.
+**Why:** FastF1 v3.9.0 added F1 TV authentication support after unauthenticated archive access stopped working; a no-credentials request in this workspace returned no session data.
+**Alternatives rejected:** Assuming historical public access still applies to current archive downloads; treating FastF1, Jolpica, and OpenF1 as having identical access requirements.
+**Consequences:** A new FastF1 backfill without account credentials may fail and must report unresolved race rows. Current verified cached counts remain usable.
+**Refs:** [FastF1 v3.9.0 release notes](https://github.com/theOehrly/Fast-F1/releases/tag/v3.9.0); [FastF1 account authentication docs](https://docs.fastf1.dev/api_reference/accounts_auth.html); [FastF1 maintainer's access update](https://github.com/theOehrly/Fast-F1/issues/978)
+
+## DEC-108 — Set the replay backtest simulation count and M5 runtime target
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The ten-race Phase 6 backtest and the Bahrain lap-15 replay need a fixed simulation count and a recorded convergence check.
+**Decision:** Use 1,000 simulations per backtest prediction. After the corrected stopping rule, Bahrain 2023 ALO's after-lap-15 mean finish moved from 8.477 at 1,000 simulations to 8.482 at 50,000; the recommendation changed from `pit in 1 lap (HARD)` to `pit in 4 laps (MEDIUM)`. The 50,000-simulation run took 14.600 seconds, above the 10-second target.
+**Why:** One thousand simulations keeps the backtest practical. This convergence check shows a stable mean, while the selected action needs more simulations to settle; it is not a calibration claim.
+**Alternatives rejected:** Raising every backtest prediction to 50,000 simulations; treating this one convergence check as proof of model calibration.
+**Consequences:** Keep 1,000 as the backtest default. Treat close action rankings cautiously at that count. Reduce the 50,000-simulation runtime below 10 seconds as M5 work.
+**Refs:** DEC-106; \`reports/backtest/phase-06.json\`; \`tests/real/test_bahrain_2023.py\`; M5 roadmap.
+
+## DEC-109 — Use cached timing data first and OpenF1 when FastF1 access is unavailable
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** Recent FastF1 timing archive downloads require F1 TV account access, while existing local race data must remain usable without another download.
+**Decision:** Reuse verified cached race data first. A fresh FastF1 timing archive download requires F1 TV Access or a higher subscription tier. When a new race is not in the local cache and FastF1 access is unavailable, use OpenF1 as the fallback data source.
+**Why:** This keeps the replay usable with the verified cache and provides a route to load new races without depending on an authenticated FastF1 archive request.
+**Alternatives rejected:** Assuming fresh FastF1 timing downloads are anonymous; discarding cached data when account access is unavailable.
+**Consequences:** Backfills must identify unresolved races and use OpenF1 for available new-race data; FastF1 remains useful when the required F1 TV account is available.
+**Refs:** DEC-107; \`src/f1si/data/loader.py\`; \`src/f1si/data/sources/openf1.py\`; [FastF1 account authentication docs](https://docs.fastf1.dev/api_reference/accounts_auth.html)
+
+## DEC-110 — Compare conditional expected outcomes when choosing a simulated stop
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** A Longstaff–Schwartz stopping policy compares simulated outcomes from a stop branch with the option to continue. Using each path's realized future finishing place to choose whether that path stops gives the decision information from future race noise.
+**Decision:** At each candidate stop time, regress each stop action's simulated finish on the cutoff-safe path features and compare its conditional expected finish with the fitted continuation finish. Choose the stop or continuation using those conditional expectations; use realized branch results only to assemble the distribution after the decision rule has been selected.
+**Why:** The pit decision cannot know future lap noise. Comparing expectations avoids selecting stops with hindsight while retaining simulated outcomes for uncertainty estimates.
+**Alternatives rejected:** Choosing an action from pathwise realized future finishes; tuning the policy against the actual Bahrain result.
+**Consequences:** The Bahrain ALO lap-15 1,000-simulation mean moves from P7.291 to P8.477, and the 50,000-simulation recommendation differs from the 1,000-simulation recommendation. The real P3 remains a 5.482-place forecast miss; the model must not be fitted to that result. Retirements remain unmodeled.
+**Refs:** \`src/f1si/strategy/longstaff.py\`; \`tests/strategy/test_longstaff.py::test_delayed_option_does_not_use_future_finish_noise_to_choose_a_stop\`; \`tests/real/test_bahrain_2023.py\`; DEC-106, DEC-108

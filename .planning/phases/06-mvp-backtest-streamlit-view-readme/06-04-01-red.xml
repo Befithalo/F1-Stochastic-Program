@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="7.142" timestamp="2026-11-13T23:26:55.177802-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.backtest.test_metrics" name="test_frozen_prediction_scoring_api_is_available" time="0.010"><failure message="AssertionError: the isolated scorer must consume frozen predictions&#10;assert None is not None">def test_frozen_prediction_scoring_api_is_available() -&gt; None:
+        module = importlib.util.find_spec("f1si.backtest.scoring")
+&gt;       assert module is not None, "the isolated scorer must consume frozen predictions"
+E       AssertionError: the isolated scorer must consume frozen predictions
+E       assert None is not None
+
+tests\backtest\test_metrics.py:25: AssertionError</failure></testcase></testsuite></testsuites>

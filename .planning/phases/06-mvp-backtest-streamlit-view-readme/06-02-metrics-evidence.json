@@ -1,0 +1,13 @@
+{
+  "command": "uv run python -m pytest tests/backtest/test_metrics.py -q --junitxml=.planning/phases/06-mvp-backtest-streamlit-view-readme/06-02-red-metrics.xml",
+  "exitCode": 1,
+  "reportPath": ".planning/phases/06-mvp-backtest-streamlit-view-readme/06-02-red-metrics.xml",
+  "runStartedAt": "2026-11-14T03:21:26.5470323Z",
+  "reportModifiedAt": "2026-11-14T03:21:28.6061815Z",
+  "targetTest": "test_brier_score_api_is_available_for_binary_outcomes",
+  "targetFile": "tests/backtest/test_metrics.py",
+  "expected": "A deterministic Brier-scoring API exists for binary outcomes.",
+  "actual": "The test failed on the assertion because the metrics module/API is not available.",
+  "output": "<?xml version=\"1.0\" encoding=\"utf-8\"?><testsuites name=\"pytest tests\"><testsuite name=\"pytest\" errors=\"0\" failures=\"1\" skipped=\"0\" tests=\"1\" time=\"1.336\" timestamp=\"2026-11-13T22:21:27.264707-05:00\" hostname=\"LAPTOP-OAMU4RG3\"><testcase classname=\"tests.backtest.test_metrics\" name=\"test_brier_score_api_is_available_for_binary_outcomes\" time=\"1.042\"><failure message=\"AssertionError: metrics must expose deterministic Brier scoring&#10;assert None is not None\">test_brier_score_api_is_available_for_binary_outcomes -&gt; None: expected metrics module, but importlib.util.find_spec returned None</failure></testcase></testsuite></testsuites>",
+  "semanticAssessment": "The target executed and failed directly on the planned API assertion; no load or unrelated failure occurred."
+}

@@ -1,17 +1,21 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v1.0
-milestone_name: milestone
-status: ready_to_plan
-stopped_at: Phase 4 complete (5/5) — ready to discuss Phase 5
-last_updated: 2026-11-13T08:07:25.964Z
-last_activity: 2026-11-13
+current_phase: 06
+current_phase_name: MVP Backtest, Streamlit View & README
+current_plan: 10
+status: awaiting_owner_approval
+stopped_at: Completed 06-11-PLAN.md; waiting for the Plan 06-10 owner approval checkpoint
+last_updated: "2026-11-15T10:28:48Z"
+last_activity: 2026-11-15
+last_activity_desc: Completed Plan 06-11 and exact-head Ubuntu/Windows CI; owner approval is pending
+state_head: afa2aeee9fd888bba452a0c7103fe9062531a0bb
 progress:
   total_phases: 8
   completed_phases: 4
-  total_plans: 28
-  completed_plans: 28
-  percent: 50
+  total_plans: 44
+  completed_plans: 43
+milestone_name: milestone
 ---
 
 # Project State
@@ -21,16 +25,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-22)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 5 — longstaff schwartz strategy & live replay
+**Current focus:** Phase 06 — MVP Backtest, Streamlit View & README
 
 ## Current Position
 
-Phase: 5
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-11-13
+Phase: 06 (MVP Backtest, Streamlit View & README) — OWNER ACCEPTANCE PENDING
+Current Plan: 10
+Total Plans in Phase: 12
+Plan: 10 of 12
+Status: Awaiting owner approval after completed Plan 06-11
+Last activity: 2026-11-15 — Completed Phase 06 Plan 11; exact-head Ubuntu and Windows CI passed
 
-Progress: [██████████] 100%
+Progress: [====------] 38%
 
 ## Performance Metrics
 
@@ -54,6 +60,22 @@ Progress: [██████████] 100%
 | 3 | 7 | - | - |
 | Phase 04 P01 | 1h | 3 tasks | 12 files |
 | 4 | 5 | - | - |
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 05 P01 | 9min | 2 tasks | 7 files |
+| Phase 05 P02 | 25min | 2 tasks | 14 files |
+| Phase 05 P04 | 86min | 3 tasks | 14 files |
+| Phase 06 P00 | 6min | 2 tasks | 5 files |
+| Phase 06 P01 | 27m | 2 tasks | 5 files |
+| Phase 06 P03 | 12min | 1 tasks | 2 files |
+| Phase 06 P04 | 4h27m | 2 tasks | 16 files |
+| Phase 06 P05 | 1h15m | 2 tasks | 12 files |
+| Phase 06 P06 | 12min | 2 tasks | 8 files |
+| Phase 06 P07 | 7min | 2 tasks | 5 files |
+| Phase 06 P09 | 13min | 2 tasks | 5 files |
+| Phase 06 P08 | 42m | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -99,18 +121,50 @@ Progress: [██████████] 100%
 - [Phase 03]: DEC-083/084: Sobol+antithetic variance ratios 4.5/16.4/3.2; 50k benchmark 1.4 s
 - [Phase 03]: DEC-085: simulate command - hindsight rule, bounds, warm-up excluded, limitations printed
 - [Phase ?]: [Phase 04-01]: DEC-088..090 three-state wear filter with fuel nuisance state; q=0 default; gate 3.0 SD from the 3rd used lap, never twice in a row
+- [Phase 05]: D-01/D-02/D-08: use conditional-mean LSM recursion and the locked current-cutoff mean/CVaR10 score, default risk 0.5.
+- [Phase 05]: Use a normalized cutoff-visible basis with intercept-only conditional-mean fallback when data are undersized or rank-deficient.
+- [Phase 05]: Keep reasons score-only without supporting visible evidence; enforce the existing five-lap minimum final stint.
+- [Phase 05]: Full and selected replay share a cutoff builder and format unavailable results when cutoff-visible pace fit is unsupported.
+- [Phase 05]: Replay consumers use the CLI cutoff builder and future-scramble tests preserve D-21 public max-lap metadata while scrambling observations.
+- [Phase 05]: DEC-101: cutoff-visible sparse pace fallback uses existing generic priors and an [ASSUMED] 1.0 s driver-offset SD; results remain uncalibrated.
+- [Phase 05]: If an identified partial fit has no legal second compound, rank stay out as the sole legal action.
+- [Phase 06]: Pre-register the calendar-first 4/3/3 ten-race sample before scoring.
+- [Phase 06]: Build each prediction from its cutoff snapshot and strictly earlier history.
+- [Phase 06]: Keep result access and scoring outside the prediction runner.
+- [Phase 06]: Ranked options retain podium/top-10 probabilities and inclusive inverted-CDF endpoints from their own finish draws; raw draws remain local to analysis.
+- [Phase 06]: Preserve all registered rows, per-row seed derivation, 1,000 simulations, risk 0.5, and bootstrap settings while parallelizing independent cutoffs.
+- [Phase 06]: Keep serial execution available and assemble process results in locked race/lap/driver order.
+- [Phase 06]: Version only the measured Phase 6 report under reports/; keep other generated report files ignored.
+- [Phase 06]: Match each stop to the newest recommendation strictly before its in-lap whose snapshot has not yet exposed the event.
+- [Phase 06]: Compare cutoff wear estimates to the existing pace fit after removing the evaluated driver stint; report unavailable proxies explicitly.
+- [Phase 06]: The Streamlit page uses the shared cutoff replay builder and a cache keyed by selected inputs, local cache metadata, and model-source identity.
+- [Phase 06]: Keep published Phase 6 metrics tied to the fixed report, preserving samples, denominators, and interval conventions.
+- [Phase 06]: Describe observed team calls comparatively and wear estimates as retrospective proxy evidence, not proof of superiority or latent ground truth.
+- [Phase 06]: D-11's graphite dashboard was rejected after the owner inspected it; D-12 through D-15 supersede its visual choices with a light, editorial, replay-first page and an ex-ante schedule-horizon requirement. Preserve D-07/D-08 data semantics and the one-page scope.
+- [Phase 06]: Reserve purple for the recommended strategy; label any overall-best lap Best in neutral fog.
+- [Phase 06]: Retain compact same-sample finish quantiles and opt-in selected-driver history; reduce simulation history to percentile bands before UI rendering.
 
 ### Pending Todos
 
-None yet.
+- GitHub Actions must run on the current Phase 5 commits on both Ubuntu and Windows before phase closeout. The local branch agent-05-01 is not on origin.
 
 ### Blockers/Concerns
 
-- 2026 regulation break: keep 2026 races out-of-sample
-- Fuel load and tire wear are hidden variables; state this in README
+- Phase 5 current-branch CI is pending; the latest available main run is for Phase 4 commit fcec2f2, not these commits.
+- Keep 2026 races out-of-sample because of the regulation break.
+- Fuel load and tire wear are hidden variables; state this in README.
+- The prior Windows Application Control OS error 4551 is resolved with verified PSF-signed CPython 3.12.10 at %LOCALAPPDATA%/Programs/Python/Python312/python.exe.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
+| 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
+| 261115-166 | Merge only the user-selected Streamlit-compatible rules from the supplied F1 design brief into Phase 6 06-UI-SPEC.md. Ignore plugin and screenshot instructions. Update no app code and do not build the dashboard. Stop after the spec merge, brief summary, and a proposed post-approval build plan. | 2026-11-15 | 79da677 | Passed | [261115-166-merge-only-the-user-selected-streamlit-c](./quick/261115-166-merge-only-the-user-selected-streamlit-c/) |
 
 ## Session Continuity
 
-Last session: 2026-11-13T07:25:35.386Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-11-15T07:16:45.425Z
+Stopped at: Completed 06-08-PLAN.md
 Resume file: None

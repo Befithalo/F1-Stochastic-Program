@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="1.941" timestamp="2026-11-14T05:35:33.361683-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.app.test_app" name="test_zero_one_many_actions_use_singular_labels_and_count_visible_rows" time="1.586"><failure message="AssertionError: assert False&#10; +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_action_heading')">def test_zero_one_many_actions_use_singular_labels_and_count_visible_rows() -&gt; None:
+        app = import_module("f1si.app")
+&gt;       assert hasattr(app, "_action_heading")
+E       AssertionError: assert False
+E        +  where False = hasattr(&lt;module 'f1si.app' from 'C:\\Users\\befit\\Documents\\f1si\\src\\f1si\\app.py'&gt;, '_action_heading')
+
+tests\app\test_app.py:126: AssertionError</failure></testcase></testsuite></testsuites>
