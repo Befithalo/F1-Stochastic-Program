@@ -60,6 +60,18 @@ def test_selected_cutoff_replay_prints_ranked_options(
     assert "Reason:" in out
 
 
+def test_replay_state_contains_validated_five_state_markov_inputs(
+    long_synthetic_db: Path,
+) -> None:
+    accessor = AsOfAccessor(long_synthetic_db)
+    context = cli._prepare_replay_context(accessor, LONG_RACE_ID, 57, 35)
+
+    assert tuple(context.state.regime_transition.shape) == (5, 5)
+    assert context.state.regime_transition.flags.c_contiguous
+    assert tuple(context.state.pit_loss_by_regime_s) == (22.0, 16.5, 11.0, 22.0, 22.0)
+    assert sum(context.state.regime.values()) == pytest.approx(1.0)
+
+
 def test_sparse_fallback_replay_returns_ranked_options_at_lap_zero_and_fallback_lap(
     long_synthetic_data_dir: Path,
     long_synthetic_db: Path,
