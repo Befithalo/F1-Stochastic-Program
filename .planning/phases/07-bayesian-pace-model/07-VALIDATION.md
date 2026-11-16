@@ -34,8 +34,8 @@ created: "2026-11-16"
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 07-01-01 | 01 | 1 | PAC-05 | — | Deterministic finite fit; explicit failure | unit/conformance | uv run pytest tests/pace/test_bayesian_model.py tests/conformance/test_suites.py -q | Created | pass |
 | 07-01-02 | 01 | 1 | PAC-05 | — | Shared uncertainty is drawn once | integration | uv run pytest tests/sim/test_bayesian_pace.py tests/test_state_builder.py -q; uv run pytest tests/sim/test_reproducibility.py -q | Created | pass |
-| 07-02-01 | 02 | 2 | PAC-05, DAT-03, DAT-04 | T-07-01 | No future rows/results enter fit | unit/guard | uv run pytest tests/pace/test_bayesian_training.py tests/guards/test_future_scramble.py -q | TDD task | pending |
-| 07-02-02 | 02 | 2 | PAC-05, DAT-05 | T-07-01 | Stable identities and era boundary | unit | uv run pytest tests/pace/test_bayesian_model.py tests/pace/test_bayesian_training.py -q | TDD task | pending |
+| 07-02-01 | 02 | 2 | PAC-05, DAT-03, DAT-04 | T-07-01 | No future rows/results enter fit | unit/guard | uv run pytest tests/pace/test_bayesian_training.py -q; uv run pytest tests/guards/test_future_scramble.py -q | Created | pass |
+| 07-02-02 | 02 | 2 | PAC-05, DAT-05 | T-07-01 | Stable identities and era boundary | unit | uv run pytest tests/pace/test_bayesian_model.py tests/pace/test_bayesian_training.py -q | Created | pass |
 | 07-03-01 | 03 | 3 | PAC-06 | — | Failed inference is reported | unit | uv run pytest tests/pace/test_bayesian_model.py -q | TDD task | pending |
 | 07-03-02 | 03 | 3 | PAC-06 | — | Synthetic truth and uncertainty are measured | recovery/reference | uv run pytest tests/pace/test_bayesian_recovery.py -q | TDD task | pending |
 | 07-04-01 | 04 | 4 | PAC-05, RPL-01, BKT-01 | T-07-01 | Same-cutoff history and snapshot | integration | uv run pytest tests/test_cli_replay.py tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -q | Existing + TDD | pending |
