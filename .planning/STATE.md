@@ -5,16 +5,16 @@ current_phase: 8
 current_phase_name: Markov Regimes & Full Backtest
 current_plan: 10
 status: executing
-stopped_at: Completed 08-01-PLAN.md
-last_updated: "2026-11-16T19:51:46.599Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-11-16T20:44:38.654Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 8 planning complete
-state_head: 8ae453792f60b6466152f2b131d40963287b16f4
+state_head: 89568280b2fc30ca499658c031009efbfed87126
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 55
-  completed_plans: 50
+  completed_plans: 51
 milestone_name: milestone
 ---
 
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 Phase: 8 (Markov Regimes & Full Backtest) — READY TO EXECUTE
 Current Plan: Not started
 Total Plans in Phase: 6
-Plan: 11 of 12
+Plan: 12 of 12
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 8 planning complete
 
@@ -77,6 +77,7 @@ Progress: [====------] 38%
 | Phase 06 P09 | 13min | 2 tasks | 5 files |
 | Phase 06 P08 | 42m | 3 tasks | 9 files |
 | Phase 08 P01 | 27min | 2 tasks | 8 files |
+| Phase 08 P02 | 49m | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -147,6 +148,9 @@ Progress: [====------] 38%
 - [Phase 08]: Use green, vsc, sc, red, wet order and Dirichlet(1) smoothing for race-local one-lap transitions.
 - [Phase 08]: Keep green pit loss measured; treat VSC at 0.75x and SC at 0.5x as assumptions, with red and wet at green cost.
 - [Phase 08]: Require a one-hot cutoff regime when a Markov transition matrix is supplied; legacy states without a matrix retain the existing SC path.
+- [Phase 08]: DEC-121: cutoff-visible regimes use explicit control and rainfall precedence
+- [Phase 08]: DEC-122: race-local one-lap transitions use Dirichlet(1) smoothing
+- [Phase 08]: DEC-123: green pit loss is measured; SC and VSC discounts are assumptions
 
 ### Pending Todos
 
@@ -170,6 +174,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-16T19:51:45.903Z
-Stopped at: Completed 08-01-PLAN.md
+Last session: 2026-11-16T20:44:37.325Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
