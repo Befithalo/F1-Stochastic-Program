@@ -39,7 +39,7 @@ surname and never uses a pronoun for them (added in the step 7 review, 2026-11-1
 | Lede, run the old set first | {Action}: the {Soft} still has useful pace, so use it through the in-lap before switching to fresh {Hard} for the final stint. | The {Softs} still have pace. Run them to the stop, then fit {Hards} for the last stint. |
 | Lede, tied stop window | Stopping between laps {17} and {20} gives a similar result, so keep the current tires and reassess next lap. | Any stop between laps {17} and {20} gives about the same result, so there's no rush. Look again next lap. |
 | Close-call note | Close call: {Box this lap (Hard)} is only {0.3} places worse on average. | Close call: {boxing this lap for Hards} is only {0.3} places worse on average. |
-| Thin tyre data note | The tire estimate uses limited data at this lap. | There are only a few laps on this set, so the tyre wear figure is a rough estimate. |
+| Thin tyre data note | The tire estimate uses limited data at this lap. | Uncalibrated: there's too little tyre data at this lap, so the model falls back to prior estimates. Treat this call as a rough guide. (Shown whenever the call rests on fallback estimates; verifier warning W-2, 2026-11-16.) |
 | Fact: position | (not shown) | **{4th}** {27.5} s behind the leader |
 | Fact: expected finish | (in option row only) | **{P7.5}** expected finish |
 | Fact: points chance | (in option row only) | **{76%}** points chance |

@@ -72,7 +72,8 @@ CUTOFF_UNAVAILABLE_COPY = "There's no replay for this lap. Pick another lap or r
 NO_STRATEGY_COPY = "The model has no strategy for this lap. Pick another lap or race."
 REPORT_MISSING_COPY = "The model report for the ten test races didn't load."
 THIN_TYRE_DATA_COPY = (
-    "There are only a few laps on this set, so the tyre wear figure is a rough estimate."
+    "Uncalibrated: there's too little tyre data at this lap, so the model falls back to prior "
+    "estimates. Treat this call as a rough guide."
 )
 TIRE_NAMES = {
     "SOFT": "Soft",
@@ -1080,7 +1081,7 @@ def _decision_band_html(
         safety_line=safety_line,
     )
     notes = f'<p class="thin-note">{_esc(_tyre_line(result, context.current))}</p>'
-    if bool(result.get("fallback")) and result.get("tire_rate") is not None:
+    if bool(result.get("fallback")):
         notes += f'<p class="thin-note">{_esc(THIN_TYRE_DATA_COPY)}</p>'
     hist_title = (
         f"{_sentence_case(_option_gerund(best.action, context.current))}, {context.surname} scores "

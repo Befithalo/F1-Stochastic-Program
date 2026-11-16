@@ -227,7 +227,7 @@ def test_stay_out_band_for_alonso_after_lap_15() -> None:
     assert "Alonso has made one stop and needs no more" in band
     assert "<b>4th</b><span>27.5 s behind the leader</span>" in band
     assert "about 1 in 3 races before the flag" in band
-    assert "rough estimate" not in band  # no wear figure to qualify yet
+    assert "Uncalibrated: there&#x27;s too little tyre data at this lap" in band
     assert "rs-window" not in band  # decision 1: no window when no stop is planned
     assert "<svg" not in band
 

@@ -48,6 +48,7 @@ uv run pre-commit install
 uv run f1si --data-dir data/demo load --source synthetic   # offline demo with fake races
 uv run f1si --data-dir data/demo races
 uv run f1si load                                           # real races, about 15 minutes the first time
+uv run f1si backfill-scheduled-laps                        # FastF1 scheduled lap counts; the backtest and page need them
 uv run f1si races
 uv run f1si plot bahrain-2023                              # writes reports\bahrain-2023.png
 uv run f1si wear bahrain-2023                              # writes reports\wear-bahrain-2023.png
@@ -57,9 +58,11 @@ uv run f1si simulate bahrain-2023 --driver ALO             # hindsight simulatio
 uv run f1si simulate bahrain-2023 --driver ALO --lap 30    # simulation using only data up to lap 30
 uv run f1si wear-filter bahrain-2023 --driver ALO           # as-of wear-rate band, writes reportswear-filter-bahrain-2023-ALO.png
 uv run f1si wear-filter bahrain-2023 --driver ALO --lap 30   # replay stopped at lap 30
+uv run f1si backtest --report                              # score the ten registered races, writes reports\backtest\phase-06.json
+uv run streamlit run src/f1si/app.py                       # the replay page
 uv run pytest
 ```
 
 ## Data and credits
 
-The current loader uses OpenF1 (openf1.org; personal, non-commercial use) for timing and race data and the Jolpica F1 API (Ergast-compatible) for calendar, grid, results, and pit-stop facts. FastF1 was the original planned source; it is MIT-licensed, but DEC-005 records why the current loader uses OpenF1 and Jolpica instead. This project is not affiliated with Formula 1. Source terms still apply; raw data is never committed or republished.
+The loader uses OpenF1 (openf1.org; personal, non-commercial use) for timing and race data and the Jolpica F1 API (Ergast-compatible) for calendar, grid, results, and pit-stop facts (DEC-005). FastF1 (MIT-licensed) supplies each race's scheduled lap count through `f1si backfill-scheduled-laps`, which the backtest and the replay page need, and the team colors on the page. Fresh FastF1 timing downloads may require an F1 TV Access, Pro, or Premium account (DEC-107); verified cached counts keep working without one. This project is not affiliated with Formula 1. Source terms still apply; raw data is never committed or republished.
