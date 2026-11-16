@@ -22,6 +22,9 @@ from f1si.pace.training import BayesianTrainingPanel
 _MIN_DRIVER_LAPS = 5
 _MIN_TEAM_LAPS = 20
 _MIN_GROUP_ROWS = 30
+_MIN_ADVI_ITERATIONS = 10_000
+_ADVI_LOSS_WINDOW = 200
+_ADVI_MAX_RELATIVE_CHANGE = 0.10
 _EFFECT_NAMES = (
     "team/car",
     "driver",
@@ -49,6 +52,9 @@ class BayesianFitReport:
     seed: int
     iterations: int
     final_loss: float
+    converged: bool
+    loss_relative_change: float
+    loss_window: int
     effect_names: tuple[str, ...]
     team_offsets: Mapping[str, float]
     driver_identity_offsets: Mapping[str, float]
@@ -150,7 +156,7 @@ def fit_bayesian_pace(
     lap: NDArray[np.int64],
     lap_time_s: NDArray[np.float64],
     seed: int,
-    iterations: int = 3_000,
+    iterations: int = _MIN_ADVI_ITERATIONS,
     draws: int = 256,
 ) -> BayesianPaceFit:
     """Fit a seeded single-event panel for the model tracer and compact synthetic fixtures."""
@@ -184,7 +190,7 @@ def fit_bayesian_panel(
     panel: BayesianTrainingPanel,
     *,
     seed: int,
-    iterations: int = 3_000,
+    iterations: int = _MIN_ADVI_ITERATIONS,
     draws: int = 256,
 ) -> BayesianPaceFit:
     """Fit the partially pooled model from a cutoff-safe panel and its active grid lookup."""
@@ -249,8 +255,10 @@ def _fit_arrays(
         raise PaceFitError(
             "driver numbers and lap numbers must be positive; tire age cannot be negative"
         )
-    if iterations < 1 or draws < 2 or seed < 0:
-        raise PaceFitError("iterations must be positive, draws at least 2, and seed non-negative")
+    if iterations < _MIN_ADVI_ITERATIONS:
+        raise PaceFitError(f"ADVI requires at least {_MIN_ADVI_ITERATIONS} iterations")
+    if draws < 2 or seed < 0:
+        raise PaceFitError("draws must be at least 2 and seed must be non-negative")
     if np.unique(lap).size < 2 or np.unique(tire_age).size < 2:
         raise PaceFitError("lap and tire-age effects are not identifiable from constant predictors")
     if any(
@@ -349,7 +357,12 @@ def _fit_arrays(
                 random_seed=int(seed),
                 progressbar=False,
             )
+            final_loss, loss_relative_change, loss_window = _check_advi_loss(
+                np.asarray(approximation.hist, dtype=np.float64)
+            )
             posterior = approximation.sample(draws=draws, random_seed=int(seed))
+    except PaceFitError:
+        raise
     except Exception as err:
         raise PaceFitError(f"Bayesian pace inference failed: {err}") from err
 
@@ -369,8 +382,6 @@ def _fit_arrays(
     team_scale_draws = posterior_values("team_effect_scale").reshape(-1)
     driver_scale_draws = posterior_values("driver_effect_scale").reshape(-1)
 
-    if not np.isfinite(np.asarray(approximation.hist, dtype=np.float64)).all():
-        raise PaceFitError("Bayesian pace inference returned a non-finite optimization loss")
     if not np.isfinite(residual_draws).all() or (residual_draws <= 0.0).any():
         raise PaceFitError("Bayesian pace inference returned invalid residual-noise summaries")
 
@@ -450,7 +461,6 @@ def _fit_arrays(
         notes.append(
             "one or more group predictions are prior-driven because their clean-row count is sparse"
         )
-    final_loss = float(np.asarray(approximation.hist, dtype=np.float64)[-1])
     report = BayesianFitReport(
         driver_offsets=MappingProxyType(dict(current_driver_offsets)),
         driver_offset_se=MappingProxyType(dict(current_driver_sd)),
@@ -460,6 +470,9 @@ def _fit_arrays(
         seed=int(seed),
         iterations=iterations,
         final_loss=final_loss,
+        converged=True,
+        loss_relative_change=loss_relative_change,
+        loss_window=loss_window,
         effect_names=_EFFECT_NAMES,
         team_offsets=MappingProxyType(team_map),
         driver_identity_offsets=MappingProxyType(driver_map),
@@ -487,3 +500,24 @@ def _fit_arrays(
         _wear_s_per_lap=report.wear_s_per_lap,
         _wear_sd=report.wear_sd,
     )
+
+
+def _check_advi_loss(loss_history: NDArray[np.float64]) -> tuple[float, float, int]:
+    """Reject non-finite or unstable variational loss before posterior draws are used."""
+    if loss_history.ndim != 1 or len(loss_history) < _MIN_ADVI_ITERATIONS:
+        raise PaceFitError(
+            f"ADVI returned fewer than {_MIN_ADVI_ITERATIONS} optimization-loss values"
+        )
+    if not np.isfinite(loss_history).all():
+        raise PaceFitError("ADVI optimization loss contains a non-finite value")
+    window = min(_ADVI_LOSS_WINDOW, len(loss_history))
+    split = window // 2
+    first = float(np.median(loss_history[-window:-split]))
+    second = float(np.median(loss_history[-split:]))
+    relative_change = abs(second - first) / max(abs(first), abs(second), 1.0)
+    if relative_change > _ADVI_MAX_RELATIVE_CHANGE:
+        raise PaceFitError(
+            "ADVI optimization loss did not stabilize over its trailing window "
+            f"(relative change {relative_change:.3f}, limit {_ADVI_MAX_RELATIVE_CHANGE:.2f})"
+        )
+    return float(loss_history[-1]), relative_change, window

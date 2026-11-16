@@ -60,7 +60,7 @@ def _fit(data: TrainingArrays) -> BayesianPaceFit:
         lap=lap,
         lap_time_s=lap_time,
         seed=191,
-        iterations=1_500,
+        iterations=10_000,
         draws=96,
     )
 
@@ -163,6 +163,8 @@ def test_seeded_fit_returns_finite_shape_matched_predictions(
     assert np.isfinite(mean).all()
     assert np.isfinite(sd).all()
     assert (sd > 0.0).all()
+    assert fitted.report.converged
+    assert fitted.report.loss_relative_change <= 0.1
 
 
 def test_fit_satisfies_shared_pace_model_conformance(fitted: BayesianPaceFit) -> None:
@@ -200,7 +202,7 @@ def test_missing_or_degenerate_training_rows_raise_fit_error() -> None:
 
 def test_hierarchical_fit_exposes_centered_effects_and_shrinks_new_groups() -> None:
     panel = _hierarchical_panel()
-    fitted = fit_bayesian_panel(panel, seed=47, iterations=2_500, draws=96)
+    fitted = fit_bayesian_panel(panel, seed=47, iterations=10_000, draws=96)
 
     assert set(fitted.report.effect_names) == {
         "team/car",
@@ -226,3 +228,59 @@ def test_hierarchical_fit_exposes_centered_effects_and_shrinks_new_groups() -> N
     assert list(fitted.report.category_indexes["team_name"]) == sorted(
         fitted.report.category_indexes["team_name"]
     )
+
+
+class _UnusableApproximation:
+    def __init__(self, loss: NDArray[np.float64]) -> None:
+        self.hist = loss
+
+    def sample(self, *, draws: int, random_seed: int) -> object:
+        raise AssertionError("posterior sampling must not follow a failed ADVI diagnostic")
+
+
+@pytest.mark.parametrize(
+    "loss",
+    [
+        np.full(10_000, np.nan, dtype=np.float64),
+        np.concatenate(
+            (np.full(9_900, 1_000.0, dtype=np.float64), np.full(100, 1_500.0, dtype=np.float64))
+        ),
+    ],
+    ids=["non-finite", "not-stable"],
+)
+def test_non_finite_or_non_stable_advi_raises_named_fit_error(
+    training_data: TrainingArrays, loss: NDArray[np.float64], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "f1si.pace.bayesian.pm.fit",
+        lambda *args, **kwargs: _UnusableApproximation(loss),
+    )
+    driver, compound, tire_age, lap, lap_time = training_data
+    with pytest.raises(PaceFitError, match=r"loss|converg"):
+        fit_bayesian_pace(
+            driver=driver,
+            compound=compound,
+            tire_age=tire_age,
+            lap=lap,
+            lap_time_s=lap_time,
+            seed=191,
+            iterations=10_000,
+            draws=96,
+        )
+
+
+def test_fit_refuses_an_iteration_budget_below_the_convergence_minimum(
+    training_data: TrainingArrays,
+) -> None:
+    driver, compound, tire_age, lap, lap_time = training_data
+    with pytest.raises(PaceFitError, match="at least 10000"):
+        fit_bayesian_pace(
+            driver=driver,
+            compound=compound,
+            tire_age=tire_age,
+            lap=lap,
+            lap_time_s=lap_time,
+            seed=191,
+            iterations=9_999,
+            draws=96,
+        )

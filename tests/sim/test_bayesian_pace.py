@@ -41,7 +41,7 @@ def bayesian_fit(long_synthetic_db: Path) -> BayesianPaceFit:
         lap=lap,
         lap_time_s=lap_time.astype(np.float64),
         seed=73,
-        iterations=1_000,
+        iterations=10_000,
         draws=80,
     )
 
