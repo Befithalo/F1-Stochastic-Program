@@ -109,6 +109,10 @@ def test_phase_08_in_sample_lock_records_exact_calendar_and_settings() -> None:
     assert lock["lock_digest"]["sha256"] == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def test_runner_registry_matches_the_committed_phase_08_sample() -> None:
+    assert REGISTERED_RACE_IDS == PHASE_08_RACES
+
+
 def _catalog(*, missing: tuple[str, ...] = ()) -> pd.DataFrame:
     return pd.DataFrame(
         [
