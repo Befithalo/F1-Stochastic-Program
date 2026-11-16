@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from f1si.data.asof import AsOf, AsOfAccessor, History, RaceSnapshot
-from f1si.eras import GROUND_EFFECT
+from f1si.eras import GROUND_EFFECT, era_for_season
 from f1si.pace.linear import _classify
 from f1si.pace.training import build_bayesian_training_panel
 
@@ -109,3 +109,9 @@ def test_category_indexes_are_stable_and_keep_event_identity(asof_data: AsOfData
         name: index
         for index, name in enumerate(sorted(panel.rows["team_name"].astype(str).unique()))
     }
+
+
+def test_real_training_seasons_share_one_era_and_2026_stays_out_of_sample() -> None:
+    in_sample = {era_for_season(season).name for season in (2023, 2024, 2025)}
+    assert in_sample == {GROUND_EFFECT.name}
+    assert era_for_season(2026).out_of_sample
