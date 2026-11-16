@@ -277,7 +277,7 @@ def test_four_chain_nuts_reference_is_converged_and_compared_with_advi() -> None
         f"min bulk ESS={min_ess:.1f}, divergences={divergences}, "
         f"max-depth hits={max_depth_hits}"
     )
-    print(f"ADVI minus NUTS reference summary deltas: {comparisons}")
+    print(f"NUTS minus ADVI reference summary deltas: {comparisons}")
 
 
 def _interval_sd(report: BayesianFitReport, name: str) -> float:

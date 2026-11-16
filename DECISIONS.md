@@ -1267,3 +1267,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Skipping started out-lap stints (hides a stop the state already counts); embedding SVG as data-URI images; showing the exception text on the page.
 **Consequences:** `prepare_stint_bar_data` returns `laps_completed` and `in_progress`; the stint tooltip shows laps completed instead of a last lap. `tests/plots/test_replay_charts.py` and the network test `test_alo_stint_chart_and_replay_after_lap_15` cover the Bahrain 2023 ALO lap-15 case.
 **Refs:** `src/f1si/plots/replay_charts.py`, `src/f1si/plots/altair_charts.py`, `src/f1si/app.py`, `tests/plots/test_replay_charts.py`, `tests/real/test_bahrain_2023.py`, DEC-112, DEC-114
+
+## DEC-116 — Gate operational pace fits on synthetic-calibrated ADVI convergence
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** A 10,000-step ADVI fit passed a loose loss-stability check while missing known synthetic intercept by 0.81 seconds and fuel slope by 0.029 seconds per lap. The fit feeds race replay and the Bayesian backtest, so an underfit approximation must not be reported as converged.
+**Decision:** Require at least 50,000 ADVI iterations, finite loss throughout, and no more than 6% relative movement between the medians of the first and second halves of the trailing 1,000 loss values. Check this before posterior sampling and raise `PaceFitError` on failure. Keep only compact means, marginal SDs, and 90% intervals in the report. Validate the common model graph against a four-chain NUTS reference using R-hat <= 1.05, bulk ESS >= 100, and divergence fraction <= 1%; record depth-cap hits and NUTS-minus-ADVI differences.
+**Why:** The higher floor was selected from seeded known-truth recovery, where 50,000 steps recovered the declared effects and 10,000 did not. The loss check is a refusal gate, not a claim that a stable variational approximation is identical to the exact posterior.
+**Alternatives rejected:** Keep a 10,000-step fit with a loose 10% loss limit; silently return an underfit or linear fallback; demand exact agreement between ADVI and NUTS.
+**Consequences:** The multi-era recovery fit measured 90.755% coverage within its 90% residual interval. The bounded NUTS reference measured max R-hat 1.006, min bulk ESS 928.4, one divergence in 1,600 draws, and one depth-12 hit. NUTS-minus-ADVI mean deltas were -0.0017 s for intercept and -0.000089 s/lap for fuel. Operational fits may take longer and fail explicitly if the loss remains unstable.
+**Refs:** `src/f1si/pace/bayesian.py`; `tests/pace/test_bayesian_model.py`; `tests/pace/test_bayesian_recovery.py`; DEC-113
