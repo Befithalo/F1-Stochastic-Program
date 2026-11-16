@@ -1278,3 +1278,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Keep a 10,000-step fit with a loose 10% loss limit; silently return an underfit or linear fallback; demand exact agreement between ADVI and NUTS.
 **Consequences:** The multi-era recovery fit measured 90.755% coverage within its 90% residual interval. The bounded NUTS reference measured max R-hat 1.006, min bulk ESS 928.4, one divergence in 1,600 draws, and one depth-12 hit. NUTS-minus-ADVI mean deltas were -0.0017 s for intercept and -0.000089 s/lap for fuel. Operational fits may take longer and fail explicitly if the loss remains unstable.
 **Refs:** `src/f1si/pace/bayesian.py`; `tests/pace/test_bayesian_model.py`; `tests/pace/test_bayesian_recovery.py`; DEC-113
+
+## DEC-117 — Keep the Bayesian pace selector cutoff-local and opt-in
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Phase 7 adds the hierarchical pace fit to replay and walk-forward evaluation while the existing linear report and reproducible predictions remain the compatibility baseline. The 2025 Bayesian holdout also needs to remain a distinct, pre-registered score.
+**Decision:** Keep `linear` as the default pace model and expose Bayesian pace explicitly at replay and backtest composition points. At each race/cutoff, fit from the snapshot and earlier-only history; share one model-fit seed across drivers and cache only on race, cutoff, panel content and current identity maps, model configuration, and seed. A Bayesian CLI report writes to a separate default path from the Phase 6 linear report.
+**Why:** The model can be evaluated through the existing strategy and simulator contracts without changing the already measured linear predictions. A content-bound cutoff cache avoids duplicate fitting across drivers while remaining deterministic and invalidating on changed training inputs.
+**Alternatives rejected:** Replacing the linear default; caching only by race or lap; writing Bayesian results over the frozen Phase 6 report; fitting the model from current-race results.
+**Consequences:** Linear replay and scoring remain the defaults. Bayesian report selection is available for reproducible experimentation, with a separate artifact path. Future-scramble policy checks keep the real cutoff-local training-panel builder but substitute a cheap deterministic fit to bound CI resources; real ADVI convergence and recovery remain covered by the dedicated recovery tests.
+**Refs:** `src/f1si/cli.py`; `src/f1si/backtest/walk_forward.py`; `src/f1si/backtest/scoring.py`; `tests/guards/consumers.py`; DEC-116

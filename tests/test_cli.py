@@ -27,8 +27,9 @@ def test_backtest_report_parser_accepts_report_mode_and_default_output() -> None
         parsed = build_parser().parse_args(["backtest", "--report"])
     assert parsed is not None, "backtest --report must not require single-cutoff arguments"
     assert parsed.report is True
-    assert parsed.output == Path("reports/backtest/phase-06.json")
+    assert parsed.output is None
     assert parsed.workers == 4
+    assert parsed.pace_model == "linear"
 
 
 def test_scheduled_lap_backfill_cli_passes_cache_and_provenance_paths(
@@ -90,6 +91,8 @@ def test_backtest_report_writes_completed_json_to_output_override(
                 str(output),
                 "--workers",
                 "2",
+                "--pace-model",
+                "bayesian",
             ]
         )
         == 0
@@ -98,10 +101,40 @@ def test_backtest_report_writes_completed_json_to_output_override(
         (
             paths.db_path(tmp_path),
             report,
-            {"n_simulations": 1000, "risk": 0.5, "seed": 0, "workers": 2},
+            {
+                "n_simulations": 1000,
+                "risk": 0.5,
+                "seed": 0,
+                "workers": 2,
+                "pace_model": "bayesian",
+            },
         )
     ]
     assert json.loads(output.read_text(encoding="utf-8")) == report
+
+
+def test_backtest_report_uses_model_specific_default_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from f1si.backtest import scoring
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(scoring, "score_registered_sample", lambda *_args, **_kwargs: {})
+
+    assert main(["backtest", "--report"]) == 0
+    assert Path("reports/backtest/phase-06.json").is_file()
+
+    assert main(["backtest", "--report", "--pace-model", "bayesian"]) == 0
+    assert Path("reports/backtest/phase-07-bayesian.json").is_file()
+
+
+def test_bayesian_backtest_cannot_extend_linear_diagnostics_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["backtest", "--report", "--diagnostics-only", "--pace-model", "bayesian"]) == 1
+    assert "cannot extend the existing Phase 6 linear report" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("existing", [False, True])

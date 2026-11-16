@@ -20,6 +20,7 @@ from f1si.backtest.walk_forward import (
 from f1si.cli import main
 from f1si.data import asof
 from f1si.strategy.longstaff import StrategyAnalysis
+from tests.conftest import LONG_RACE_ID
 
 EXPECTED_RACES = (
     "2023-01",
@@ -120,6 +121,69 @@ def test_reference_cli_returns_prediction_row_after_full_preflight(
     assert "results" not in events
 
 
+def test_predict_at_cutoff_passes_the_selected_pace_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(asof, "catalog", lambda _db: _catalog())
+    captured: list[str] = []
+
+    class Accessor:
+        def __init__(self, _db: Path) -> None:
+            pass
+
+        def snapshot(self, _at: object) -> object:
+            return SimpleNamespace(
+                race=SimpleNamespace(scheduled_laps=10),
+                laps=pd.DataFrame({"lap_number": [1]}),
+                entries=pd.DataFrame({"driver_code": ["ALO"]}),
+            )
+
+    monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
+
+    def predict(*_args: object, **options: object) -> PredictionRow:
+        captured.append(str(options["pace_model"]))
+        return PredictionRow("2025-01", "ALO", 5, None, "stub")
+
+    monkeypatch.setattr(walk_forward, "_predict_from_accessor", predict)
+    row = predict_at_cutoff(Path("cache.duckdb"), "2025-01", "ALO", 5, pace_model="bayesian")
+    assert row.unavailable_reason == "stub"
+    assert captured == ["bayesian"]
+
+
+def test_registered_backtest_prediction_uses_bayesian_selected_context(
+    long_synthetic_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si import cli
+    from f1si.data.asof import AsOfAccessor
+    from f1si.pace.linear import fit_linear_pace
+
+    accessor = AsOfAccessor(long_synthetic_db)
+    lap = 35
+    snapshot = accessor.snapshot(asof.AsOf(LONG_RACE_ID, lap))
+    driver = str(snapshot.entries.iloc[0]["driver_code"])
+    fit_calls: list[tuple[str, int]] = []
+
+    def substitute(_panel: object, *, seed: int) -> object:
+        fit_calls.append((LONG_RACE_ID, seed))
+        return fit_linear_pace(snapshot)
+
+    monkeypatch.setattr(cli, "_fit_bayesian_panel", substitute)
+    row = walk_forward._predict_from_accessor(
+        accessor,
+        LONG_RACE_ID,
+        driver,
+        lap,
+        n_simulations=1,
+        risk=0.5,
+        seed=123,
+        laps_total=57,
+        pace_model="bayesian",
+    )
+    assert row.analysis is not None
+    assert fit_calls == [(LONG_RACE_ID, walk_forward._model_seed(LONG_RACE_ID, lap, 123))]
+
+
 def test_prediction_runner_has_no_results_or_scoring_imports() -> None:
     from pathlib import Path
 
@@ -151,7 +215,7 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
     monkeypatch.setattr(
         cli,
         "_prepare_replay_context",
-        lambda _accessor, _race_id, _laps_total, _lap, *, snapshot: SimpleNamespace(
+        lambda _accessor, _race_id, _laps_total, _lap, *, snapshot, **_options: SimpleNamespace(
             snapshot=snapshot
         ),
         raising=False,
@@ -228,6 +292,7 @@ def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
 
     monkeypatch.setattr(walk_forward, "_new_accessor", Accessor)
     prepared: list[tuple[str, int, object]] = []
+    prepared_models: list[object] = []
     received: list[tuple[str, int, str, object]] = []
 
     def prepare(
@@ -239,6 +304,7 @@ def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
     ) -> object:
         context = object()
         prepared.append((race_id, lap, context))
+        prepared_models.append(_options.get("pace_model"))
         return context
 
     monkeypatch.setattr(cli, "_prepare_replay_context", prepare, raising=False)
@@ -254,10 +320,11 @@ def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
         return PredictionRow(race_id, driver, lap, None, "test row")
 
     monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
-    run_walk_forward(Path("cache.duckdb"))
+    run_walk_forward(Path("cache.duckdb"), pace_model="bayesian")
 
     expected_cutoffs = [(race_id, lap) for race_id in EXPECTED_RACES for lap in range(3)]
     assert [(race_id, lap) for race_id, lap, _ in prepared] == expected_cutoffs
+    assert prepared_models == ["bayesian"] * len(expected_cutoffs)
     assert len(received) == 2 * len(expected_cutoffs)
     contexts = {(race_id, lap): context for race_id, lap, context in prepared}
     assert all(context is contexts[(race_id, lap)] for race_id, lap, _, context in received)

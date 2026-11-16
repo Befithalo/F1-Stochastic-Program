@@ -81,6 +81,11 @@ def _seed(race_id: str, driver: str, lap: int, seed: int) -> int:
     return (seed + zlib.crc32(f"{race_id}:{driver}:{lap}".encode())) & 0x7FFFFFFF
 
 
+def _model_seed(race_id: str, lap: int, seed: int) -> int:
+    """Derive one pace-fit seed per cutoff, shared by every driver in that race state."""
+    return (seed + zlib.crc32(f"{race_id}:pace:{lap}".encode())) & 0x7FFFFFFF
+
+
 def _predict_cutoff_rows(
     accessor: asof.AsOfAccessor,
     race_id: str,
@@ -90,6 +95,7 @@ def _predict_cutoff_rows(
     n_simulations: int,
     risk: float,
     seed: int,
+    pace_model: str = "linear",
     snapshot: asof.RaceSnapshot | None = None,
 ) -> tuple[PredictionRow, ...]:
     """Predict a cutoff's drivers using one shared preparation context."""
@@ -101,7 +107,13 @@ def _predict_cutoff_rows(
     from f1si.cli import _prepare_replay_context
 
     prepared_context = _prepare_replay_context(
-        accessor, race_id, laps_total, lap, snapshot=snapshot
+        accessor,
+        race_id,
+        laps_total,
+        lap,
+        snapshot=snapshot,
+        pace_model=pace_model,
+        seed=_model_seed(race_id, lap, seed),
     )
     return tuple(
         _predict_from_accessor(
@@ -126,12 +138,12 @@ def _initialize_prediction_worker(db_path: str) -> None:
 
 
 def _predict_cutoff_worker(
-    job: tuple[str, int, int, int, float, int],
+    job: tuple[str, int, int, int, float, int, str],
 ) -> tuple[PredictionRow, ...]:
     """Process one race/cutoff with the worker's isolated accessor."""
     if _WORKER_ACCESSOR is None:
         raise RuntimeError("prediction worker was not initialized with a cache accessor")
-    race_id, laps_total, lap, n_simulations, risk, seed = job
+    race_id, laps_total, lap, n_simulations, risk, seed, pace_model = job
     return _predict_cutoff_rows(
         _WORKER_ACCESSOR,
         race_id,
@@ -140,6 +152,7 @@ def _predict_cutoff_worker(
         n_simulations=n_simulations,
         risk=risk,
         seed=seed,
+        pace_model=pace_model,
     )
 
 
@@ -164,6 +177,7 @@ def _predict_from_accessor(
     seed: int,
     laps_total: int | None = None,
     prepared_context: _PreparedReplayContext | None = None,
+    pace_model: str = "linear",
 ) -> PredictionRow:
     """Build one row from the shared replay cutoff builder; never reads final outcomes."""
     if race_id not in REGISTERED_RACE_IDS:
@@ -193,6 +207,8 @@ def _predict_from_accessor(
         risk=risk,
         seed=_seed(race_id, code, lap, seed),
         prepared_context=prepared_context,
+        pace_model=pace_model,
+        model_seed=_model_seed(race_id, lap, seed),
     )
     return PredictionRow(
         race_id, code, lap, result.analysis, result.unavailable_reason, result.is_fallback
@@ -208,6 +224,7 @@ def predict_at_cutoff(
     n_simulations: int = 1_000,
     risk: float = 0.5,
     seed: int = 0,
+    pace_model: str = "linear",
 ) -> PredictionRow:
     """Run the tracer request after verifying the complete frozen sample is cached."""
     if race_id not in REGISTERED_RACE_IDS:
@@ -222,6 +239,7 @@ def predict_at_cutoff(
             n_simulations=n_simulations,
             risk=risk,
             seed=seed,
+            pace_model=pace_model,
         )
     except OutOfSampleLockedError as err:
         raise ValueError(f"{err} 2026 races are out-of-sample and cannot be backtested.") from err
@@ -261,10 +279,13 @@ def run_walk_forward(
     risk: float = 0.5,
     seed: int = 0,
     workers: int = 1,
+    pace_model: str = "linear",
 ) -> WalkForwardTrace:
     """Freeze all drivers' predictions at every eligible cutoff of the ten registered races."""
     if not 1 <= workers <= _MAX_WORKERS:
         raise ValueError(f"workers must be between 1 and {_MAX_WORKERS}, got {workers}.")
+    if pace_model not in ("linear", "bayesian"):
+        raise ValueError(f"Unknown pace model {pace_model!r}; choose 'linear' or 'bayesian'.")
     _preflight_database(db_path)
     accessor = _new_accessor(db_path)
     rows: list[PredictionRow] = []
@@ -287,12 +308,13 @@ def run_walk_forward(
                         n_simulations=n_simulations,
                         risk=risk,
                         seed=seed,
+                        pace_model=pace_model,
                         snapshot=snapshot,
                     )
                 )
     else:
         jobs = tuple(
-            (race_id, laps_total, lap, n_simulations, risk, seed)
+            (race_id, laps_total, lap, n_simulations, risk, seed, pace_model)
             for race_id, laps_total, _first in race_horizons
             for lap in range(laps_total)
         )

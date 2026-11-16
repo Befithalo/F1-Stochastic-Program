@@ -696,6 +696,7 @@ def score_registered_sample(
     seed: int = 0,
     n_resamples: int = BOOTSTRAP_RESAMPLES,
     workers: int = 1,
+    pace_model: str = "linear",
 ) -> dict[str, Any]:
     """Preflight, freeze all predictions, then open outcomes and calculate the report."""
     _preflight_database(db_path)
@@ -705,6 +706,7 @@ def score_registered_sample(
         risk=risk,
         seed=seed,
         workers=workers,
+        pace_model=pace_model,
     )
     expected = _expected_prediction_keys(db_path)
     frozen = _validate_frozen_trace(trace, expected)
@@ -729,6 +731,24 @@ def score_registered_sample(
         "tunes_interval_endpoints": False,
         "note": "Carry-forward reference miss; it is not used to adjust the empirical endpoints.",
     }
+    metadata = {
+        "base_seed": seed,
+        "bootstrap_seed": seed + BOOTSTRAP_SEED_OFFSET,
+        "bootstrap_resamples": n_resamples,
+        "risk_aversion": risk,
+        "n_simulations_per_prediction": n_simulations,
+        "continuation_fit_scheme": "two-fold cross-fit on the registered path batch",
+        "continuation_fit_scoring_isolation": (
+            "each scoring fold is excluded from its regression-fit paths"
+        ),
+        "aggregation": "equal race weight after within-race observation means",
+        "baseline": "past-only grid-position event rates with five neutral pseudo-starts",
+        "first_race_baseline": "neutral podium and top-10 rates based on field size",
+        "paired_model_baseline_mask": "same finite model and baseline probabilities per row",
+        "uncertainty": "paired 95% percentile bootstrap resampling whole races",
+    }
+    if pace_model != "linear":
+        metadata["pace_model"] = pace_model
     return {
         "schema_version": 1,
         "race_ids": list(REGISTERED_RACE_IDS),
@@ -740,21 +760,6 @@ def score_registered_sample(
             "team_strategy_comparison": strategy,
             "wear_band_retrospective_proxy": wear_proxy,
         },
-        "metadata": {
-            "base_seed": seed,
-            "bootstrap_seed": seed + BOOTSTRAP_SEED_OFFSET,
-            "bootstrap_resamples": n_resamples,
-            "risk_aversion": risk,
-            "n_simulations_per_prediction": n_simulations,
-            "continuation_fit_scheme": "two-fold cross-fit on the registered path batch",
-            "continuation_fit_scoring_isolation": (
-                "each scoring fold is excluded from its regression-fit paths"
-            ),
-            "aggregation": "equal race weight after within-race observation means",
-            "baseline": "past-only grid-position event rates with five neutral pseudo-starts",
-            "first_race_baseline": "neutral podium and top-10 rates based on field size",
-            "paired_model_baseline_mask": "same finite model and baseline probabilities per row",
-            "uncertainty": "paired 95% percentile bootstrap resampling whole races",
-        },
+        "metadata": metadata,
         "carry_forward_diagnostic": diagnostic,
     }
