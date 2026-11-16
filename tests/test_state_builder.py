@@ -4,6 +4,7 @@ import dataclasses
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -131,6 +132,59 @@ def test_last_lap_round_trips(long_synthetic_db: Path) -> None:
     state = build_race_state(snap, fit_linear_pace(snap), laps_total=LAPS_TOTAL, pit_loss_s=22.0)
     assert state.lap == LAPS_TOTAL
     assert RaceState.from_json(state.to_json()) == state
+
+
+def test_markov_state_json_round_trips_transition_and_regime_costs(long_synthetic_db: Path) -> None:
+    snapshot = _snap(long_synthetic_db, 40)
+    state = build_race_state(
+        snapshot, fit_linear_pace(snapshot), laps_total=LAPS_TOTAL, pit_loss_s=22.0
+    )
+    transition = np.eye(5, dtype=np.float64)
+    costs = np.array([22.0, 16.5, 11.0, 22.0, 22.0])
+    marked = dataclasses.replace(state, regime_transition=transition, pit_loss_by_regime_s=costs)
+
+    restored = RaceState.from_json(marked.to_json())
+
+    np.testing.assert_array_equal(restored.regime_transition, transition)
+    np.testing.assert_array_equal(restored.pit_loss_by_regime_s, costs)
+    assert restored.regime_transition.flags.c_contiguous
+    assert not restored.regime_transition.flags.writeable
+    assert restored == marked
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("regime_transition", [[1.0, 0.0], [0.0, 1.0]], "5x5"),
+        ("regime_transition", [[0.1] * 5] * 5, "sum to one"),
+        ("pit_loss_by_regime_s", [22.0, 16.5, 11.0, 22.0, float("inf")], "finite"),
+        ("pit_loss_by_regime_s", [22.0, 16.5, 11.0, 22.0, 0.0], "finite positive"),
+    ],
+)
+def test_markov_state_rejects_invalid_numeric_inputs(
+    long_synthetic_db: Path, field: str, value: object, message: str
+) -> None:
+    snapshot = _snap(long_synthetic_db, 40)
+    state = build_race_state(
+        snapshot, fit_linear_pace(snapshot), laps_total=LAPS_TOTAL, pit_loss_s=22.0
+    )
+    with pytest.raises(ValueError, match=message):
+        dataclasses.replace(state, **{field: value})
+
+
+def test_markov_state_requires_a_one_hot_cutoff_regime(long_synthetic_db: Path) -> None:
+    snapshot = _snap(long_synthetic_db, 40)
+    state = build_race_state(
+        snapshot, fit_linear_pace(snapshot), laps_total=LAPS_TOTAL, pit_loss_s=22.0
+    )
+
+    with pytest.raises(ValueError, match="one-hot"):
+        dataclasses.replace(
+            state,
+            regime={"green": 0.5, "sc": 0.5},
+            regime_transition=np.eye(5),
+            pit_loss_by_regime_s=[22.0, 16.5, 11.0, 22.0, 22.0],
+        )
 
 
 def test_gap_not_positive_becomes_none(long_synthetic_db: Path) -> None:

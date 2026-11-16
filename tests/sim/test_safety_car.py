@@ -1,5 +1,6 @@
 """Safety car in the simulator: opportunistic stops, frozen order, restart gaps, cheap stops."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -100,3 +101,22 @@ def test_safety_car_active_at_the_cutoff(sc_history_db: Path) -> None:
     assert res.sc_lap_mask is not None
     assert res.sc_lap_mask[:, :2].all()
     assert not res.sc_lap_mask[:, 2:].any()
+
+
+def test_markov_stop_uses_cost_for_each_current_regime() -> None:
+    transition = np.eye(5, dtype=np.float64)
+    costs = np.array([22.0, 16.5, 11.0, 22.0, 22.0], dtype=np.float64)
+    plan = Plan((1,), ("MEDIUM",), 0.0)
+    for index, regime in enumerate(("green", "vsc", "sc", "red", "wet")):
+        state = replace(
+            hand_state(2, lap=0, laps_total=3),
+            regime={regime: 1.0},
+            regime_transition=transition,
+            pit_loss_by_regime_s=costs,
+        )
+        result = _sim(0.0).simulate(state, n_races=4, rng=make_rng(index + 20), plans={"AAA": plan})
+        assert result.pit_loss_paid_s is not None
+        np.testing.assert_allclose(result.pit_loss_paid_s[:, 0], costs[index])
+        if regime in ("green", "vsc", "red", "wet"):
+            assert result.sc_lap_mask is not None
+            assert not result.sc_lap_mask.any()
