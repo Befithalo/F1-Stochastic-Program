@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 REGIMES: Final[tuple[str, ...]] = ("green", "vsc", "sc", "red", "wet")
 _STATUS_REGIME: Final[dict[str, str]] = {"4": "sc", "5": "red", "6": "vsc", "7": "vsc"}
+_STATUS_PRIORITY: Final[dict[str, int]] = {"1": 0, "2": 0, "6": 1, "7": 1, "4": 2, "5": 3}
 
 
 @dataclass(frozen=True, eq=False)
@@ -45,7 +46,14 @@ def label_regime(track_status: pd.DataFrame, weather: pd.DataFrame, cutoff_s: fl
     if len(status):
         status = status.loc[pd.to_numeric(status["t_s"], errors="coerce") <= cutoff_s]
         if len(status):
-            latest = status.sort_values(["t_s", "seq"], kind="stable").iloc[-1]["status"]
+            latest_time = pd.to_numeric(status["t_s"], errors="coerce").max()
+            at_latest = status.loc[pd.to_numeric(status["t_s"], errors="coerce") == latest_time]
+            # Multiple control events can share a timestamp. Resolve conflicts by explicit
+            # regime priority, independent of the feed's sequence order.
+            latest = max(
+                at_latest["status"],
+                key=lambda value: _STATUS_PRIORITY.get(str(value), -1),
+            )
             if not pd.isna(latest):
                 label = _STATUS_REGIME.get(str(latest))
                 if label is not None:
