@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import itertools
 from datetime import UTC, datetime
+from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
 
@@ -26,6 +27,7 @@ from f1si.data.loader import backfill_scheduled_laps, load_races
 from f1si.data.results import ResultsAccessor
 from f1si.data.sources.openf1 import OpenF1Source
 from f1si.interfaces import Plan
+from f1si.plots.replay_charts import prepare_stint_bar_data
 from f1si.plots.stints import build_figure, prepare_stint_plot_data, render_stint_plot
 from f1si.rng import make_rng
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
@@ -146,6 +148,28 @@ def test_alo_mid_pit_state_after_lap_15(db: Path) -> None:
     assert alo.tire_age == 0
     assert alo.stops_done == 1
     assert alo.compounds_used == ("SOFT", "HARD")
+
+
+def test_alo_stint_chart_and_replay_after_lap_15(db: Path) -> None:
+    """The started Hard out-lap draws from the stop to the cutoff, and the page replay builds."""
+    accessor = AsOfAccessor(db)
+    rows = prepare_stint_bar_data(accessor.snapshot(AsOf(RACE_ID, 15)))
+    alo = [row for row in rows if row["driver_code"] == "ALO"]
+
+    assert [row["compound"] for row in alo] == ["SOFT", "HARD"]
+    assert (alo[0]["start_lap"], alo[0]["end_lap"]) == (0.5, 14.5)
+    assert (alo[1]["start_lap"], alo[1]["end_lap"]) == (14.5, 15.5)
+    assert alo[1]["laps_completed"] == 0
+    assert alo[1]["in_progress"] is True
+    assert max(cast(float, row["end_lap"]) for row in rows) == 15.5
+
+    app = import_module("f1si.app")
+    replay = app._build_selected_replay(RACE_ID, "ALO", 15, 0.5, 200, 0, str(db), "test")
+    assert replay["strategy_available"] is True
+    assert replay["tire_compound"] == "HARD"
+    assert any(
+        row["driver_code"] == "ALO" and row["compound"] == "HARD" for row in replay["stint_rows"]
+    )
 
 
 def test_results_door(db: Path) -> None:

@@ -7,6 +7,8 @@ from functools import lru_cache
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pandas as pd
+
 from f1si.data.asof import RaceSnapshot
 from f1si.ui_theme import TIMING_COLORS, TIRE_LETTERS
 
@@ -131,19 +133,37 @@ def prepare_race_trace_data(snapshot: RaceSnapshot) -> tuple[dict[str, object], 
 
 
 def prepare_stint_bar_data(snapshot: RaceSnapshot) -> tuple[dict[str, object], ...]:
-    """Convert as-of visible stints to compound-labeled bar segments."""
+    """Convert as-of visible stints to compound-labeled bar segments.
+
+    Lap ``k`` occupies ``[k - 0.5, k + 0.5]``, so the cutoff "after lap N" sits at ``N + 0.5``. A
+    completed-lap stint spans ``first_lap - 0.5`` to ``last_visible_lap + 0.5``. A stint whose
+    out-lap has started but not finished (the car has stopped; ``last_visible_lap`` is missing)
+    spans from the stop, ``first_lap - 0.5``, to the cutoff ``N + 0.5`` on the new compound, with
+    zero completed laps. Nothing after the cutoff is drawn.
+    """
     if snapshot.stints.empty:
         return ()
     codes = _driver_codes_by_number(snapshot)
+    cutoff_lap = snapshot.at.lap if isinstance(snapshot.at.lap, int) else None
     rows: list[dict[str, object]] = []
     for stint in snapshot.stints.itertuples(index=False):
         compound = str(stint.compound).upper()
-        if compound not in TIRE_LETTERS:
+        if compound not in TIRE_LETTERS or pd.isna(stint.first_lap):
             continue
         first_lap = _as_int(stint.first_lap)
-        last_lap = _as_int(stint.last_visible_lap)
-        if first_lap < 1 or last_lap < first_lap:
-            continue
+        start = first_lap - 0.5
+        if pd.isna(stint.last_visible_lap):
+            if cutoff_lap is None or first_lap < 1 or first_lap > cutoff_lap:
+                continue
+            last_lap: int | None = None
+            end = cutoff_lap + 0.5
+            laps_completed = 0
+        else:
+            last_lap = _as_int(stint.last_visible_lap)
+            if first_lap < 1 or last_lap < first_lap:
+                continue
+            end = last_lap + 0.5
+            laps_completed = last_lap - first_lap + 1
         rows.append(
             {
                 "driver_code": codes[_as_int(stint.driver_number)],
@@ -151,9 +171,11 @@ def prepare_stint_bar_data(snapshot: RaceSnapshot) -> tuple[dict[str, object], .
                 "compound_letter": TIRE_LETTERS[compound],
                 "first_lap": first_lap,
                 "last_visible_lap": last_lap,
-                "start_lap": first_lap - 0.5,
-                "end_lap": last_lap + 0.5,
-                "mid_lap": (first_lap + last_lap) / 2,
+                "laps_completed": laps_completed,
+                "in_progress": last_lap is None,
+                "start_lap": start,
+                "end_lap": end,
+                "mid_lap": (start + end) / 2,
             }
         )
     return tuple(rows)

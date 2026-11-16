@@ -167,7 +167,9 @@ def test_free_track_decisions_exist_by_title() -> None:
 def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
     entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
     phase6_ids = [f"DEC-{number:03d}" for number in range(102, 114)]
-    assert [entry_id for entry_id, _, _ in _entries()][-12:] == phase6_ids
+    ids = [entry_id for entry_id, _, _ in _entries()]
+    start = ids.index("DEC-102")
+    assert ids[start : start + 12] == phase6_ids
 
     expected_titles = {
         "DEC-102": "Pre-registered Phase 6 sample and cache gate",

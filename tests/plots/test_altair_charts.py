@@ -9,12 +9,11 @@ import numpy as np
 
 from f1si.plots.altair_charts import (
     build_fan_chart,
-    build_finish_probability_strip,
     build_race_trace_chart,
     build_stint_chart,
 )
-from f1si.plots.simulate import prepare_fan_chart_data, prepare_quantile_dotplot_data
-from f1si.ui_theme import ASPHALT, FOG, RECOMMENDATION, contrast_ratio
+from f1si.plots.simulate import prepare_fan_chart_data
+from f1si.ui_theme import ASPHALT, CHALK, FOG, contrast_ratio, fan_band_colors, readable_on
 
 
 def _inline_values(spec: dict[str, object], layer: dict[str, object]) -> list[dict[str, object]]:
@@ -29,48 +28,7 @@ def _inline_values(spec: dict[str, object], layer: dict[str, object]) -> list[di
     return values
 
 
-def test_probability_strip_aggregates_known_quantiles_into_one_cell_per_place() -> None:
-    sample = np.repeat(np.arange(1, 11, dtype=np.int64), 10)
-    probabilities = (np.arange(100, dtype=np.float64) + 0.5) / 100.0
-    expected = np.quantile(sample, probabilities, method="inverted_cdf").astype(np.int64)
-    labels = (
-        "Stay out",
-        "Box now M",
-        "Box +1 lap M",
-        "Box +2 laps H",
-        "Box +3 laps H",
-        "Box +4 laps H",
-    )
-    quantile_rows = tuple(tuple(int(value) for value in expected) for _ in labels)
-    data = prepare_quantile_dotplot_data(
-        labels,
-        quantile_rows,
-        mean_finish=float(sample.mean()),
-        n_cars=10,
-        simulation_count=len(sample),
-    )
-
-    spec = build_finish_probability_strip(data).to_dict()
-    assert spec["height"] >= 230
-    layers = spec["layer"]
-    assert isinstance(layers, list)
-    cells = [cell for layer in layers for cell in _inline_values(spec, layer)]
-
-    assert len(cells) == 5 * 10
-    assert {cell["action"] for cell in cells} == set(labels[:5])
-    assert {(cell["action"], cell["position"]) for cell in cells} == {
-        (label, position) for label in labels[:5] for position in range(1, 11)
-    }
-    for cell in cells:
-        assert cell["probability"] == 0.1
-    color_ranges = [layer["encoding"]["color"]["scale"]["range"] for layer in layers]
-    assert color_ranges == [
-        ["#8A8F99", RECOMMENDATION],
-        ["#8A8F99", "#D3D5D9"],
-    ]
-
-
-def test_fan_chart_uses_team_nested_bands_labeled_at_race_finish() -> None:
+def test_fan_chart_uses_one_team_hue_strongest_at_the_median_and_labels_at_the_flag() -> None:
     history = np.asarray(
         [[1, 2, 3, 3, 3], [2, 4, 5, 5, 5], [3, 5, 7, 7, 7], [5, 7, 9, 9, 9]],
         dtype=np.int64,
@@ -83,86 +41,86 @@ def test_fan_chart_uses_team_nested_bands_labeled_at_race_finish() -> None:
     assert "title" not in spec
     x_axis = layers[0]["encoding"]["x"]
     assert x_axis["title"] == "Lap"
-    assert x_axis["scale"]["domain"] == [53, 57]
-    y_axis = layers[0]["encoding"]["y"]["axis"]
-    assert y_axis["grid"] is True
+    # Decision 15: lap k spans [k - 0.5, k + 0.5], so laps 53 to 57 fill 52.5 to 57.5.
+    assert x_axis["scale"]["domain"] == [52.5, 57.5]
+    band_rows = _inline_values(spec, layers[0])
+    assert [row["x"] for row in band_rows] == [52.5, 53.5, 54.5, 55.5, 56.5, 57.5]
     area_colors = [layer["mark"]["color"] for layer in layers if layer["mark"]["type"] == "area"]
-    assert area_colors == ["#7CB4A5", "#5DA391", "#459580"]
-    assert len(set(area_colors)) == 3
+    assert area_colors == list(fan_band_colors(team_color))
     assert min(contrast_ratio(color, ASPHALT) for color in area_colors) >= 3.0
-    median = next(layer for layer in layers if layer["mark"]["type"] == "line")
-    assert median["mark"]["color"] == team_color
+    medians = [layer["mark"]["color"] for layer in layers if layer["mark"]["type"] == "line"]
+    assert medians == [ASPHALT, CHALK]
     label_layer = next(layer for layer in layers if layer["mark"]["type"] == "text")
+    assert label_layer["mark"]["color"] == FOG
     labels = _inline_values(spec, label_layer)
-    dash = "\N{EN DASH}"
-    assert {row["label"] for row in labels} == {
-        f"10th{dash}90th",
-        f"25th{dash}75th",
-        f"40th{dash}60th",
-    }
+    assert [
+        row["label"] for row in sorted(labels, key=lambda row: cast(float, row["position"]))
+    ] == [
+        "2 in 10",
+        "5 in 10",
+        "8 in 10 races",
+    ]
     label_rows = sorted(cast(float, row["position"]) for row in labels)
-    assert len(set(label_rows)) == 3
-    assert min(b - a for a, b in pairwise(label_rows)) >= 2.0
-    assert {row["lap"] for row in labels} == {57}
+    assert min(b - a for a, b in pairwise(label_rows)) >= 1.2
+    assert {row["lap"] for row in labels} == {57.5}
 
 
-def test_gap_trace_highlights_selected_driver_and_stops_at_cutoff() -> None:
+def test_gap_trace_has_no_dashes_or_leader_lines_and_labels_line_ends_with_gaps() -> None:
+    def row(code: str, lap: int, gap: float, latest: bool) -> dict[str, object]:
+        return {"driver_code": code, "lap": lap, "gap_to_leader_s": gap, "is_latest": latest}
+
     rows = (
-        {
-            "driver_code": "ALO",
-            "team_name": "Aston Martin",
-            "lap": 14,
-            "gap_to_leader_s": 15.0,
-            "teammate_dash": False,
-            "driver_label": "ALO PB",
-            "label_gap_s": 16.0,
-            "label_lap": 16.0,
-            "is_latest": True,
-        },
-        {
-            "driver_code": "STR",
-            "team_name": "Aston Martin",
-            "lap": 14,
-            "gap_to_leader_s": 20.0,
-            "teammate_dash": True,
-            "driver_label": "STR Pit",
-            "label_gap_s": 22.0,
-            "label_lap": 16.0,
-            "is_latest": True,
-        },
+        row("VER", 13, 0.0, False),
+        row("VER", 14, 0.0, True),
+        row("STR", 14, 14.0, True),
+        row("ALO", 13, 14.5, False),
+        row("ALO", 14, 15.0, True),
+        row("LEC", 14, 20.0, True),
+        row("HAM", 14, 40.0, True),
     )
-    chart = build_race_trace_chart(
-        rows, selected_driver="ALO", selected_color="#358C75", cutoff_lap=15
-    )
+    chart = build_race_trace_chart(rows, selected_driver="ALO", selected_color="#358C75")
     assert chart is not None
     spec = chart.to_dict()
     layers = spec["layer"]
     assert isinstance(layers, list)
-    x_scale = layers[0]["encoding"]["x"]["scale"]
-    assert x_scale["domain"] == [0.5, 15]
-    colors = [layer["mark"].get("color") for layer in layers if layer["mark"]["type"] == "line"]
+    assert layers[0]["encoding"]["x"]["scale"]["domain"] == [0.5, 14.5]
+    assert all("strokeDash" not in layer.get("encoding", {}) for layer in layers)
+    assert all(layer["mark"]["type"] in {"line", "text"} for layer in layers)
+    colors = [layer["mark"]["color"] for layer in layers if layer["mark"]["type"] == "line"]
     assert FOG in colors
-    assert "#358C75" in colors
-    labels = [layer for layer in layers if layer["mark"]["type"] == "text"]
-    assert len(labels) == 2
-    assert all(layer["encoding"]["text"]["field"] == "driver_label" for layer in labels)
-    assert {value["driver_label"] for layer in labels for value in _inline_values(spec, layer)} == {
-        "ALO",
-        "STR",
+    assert readable_on("#358C75") in colors
+    texts = {
+        value["text"]
+        for layer in layers
+        if layer["mark"]["type"] == "text"
+        for value in _inline_values(spec, layer)
     }
+    assert texts == {"ALO 15.0 s", "STR 14.0 s", "LEC 20.0 s"}
 
 
-def test_stint_chart_labels_rows_compounds_and_outlines_recommended_stint() -> None:
+def test_stint_chart_draws_plan_dashed_now_line_and_team_colored_driver() -> None:
     rows = (
         {
             "driver_code": "ALO",
             "compound": "SOFT",
             "compound_letter": "S",
             "first_lap": 1,
-            "last_visible_lap": 15,
+            "last_visible_lap": 14,
+            "laps_completed": 14,
             "start_lap": 0.5,
+            "end_lap": 14.5,
+            "mid_lap": 7.5,
+        },
+        {
+            "driver_code": "ALO",
+            "compound": "HARD",
+            "compound_letter": "H",
+            "first_lap": 15,
+            "last_visible_lap": None,
+            "laps_completed": 0,
+            "start_lap": 14.5,
             "end_lap": 15.5,
-            "mid_lap": 8,
+            "mid_lap": 15.0,
         },
         {
             "driver_code": "VER",
@@ -170,6 +128,7 @@ def test_stint_chart_labels_rows_compounds_and_outlines_recommended_stint() -> N
             "compound_letter": "M",
             "first_lap": 1,
             "last_visible_lap": 15,
+            "laps_completed": 15,
             "start_lap": 0.5,
             "end_lap": 15.5,
             "mid_lap": 8,
@@ -180,36 +139,33 @@ def test_stint_chart_labels_rows_compounds_and_outlines_recommended_stint() -> N
         rows,
         cutoff_lap=15,
         laps_total=57,
-        driver_order=("ALO", "VER"),
+        driver_order=("VER", "ALO"),
         selected_driver="ALO",
-        recommended_stop_lap=16,
-        recommended_compound="MEDIUM",
+        plan_segments=((15.5, 57.5, "HARD"),),
         selected_color=team_color,
     )
     assert chart is not None
     spec = chart.to_dict()
     layers = spec["layer"]
     assert isinstance(layers, list)
-    outlined = next(
+    planned = next(
         layer
         for layer in layers
-        if layer["mark"]["type"] == "bar" and layer["mark"].get("stroke") == team_color
+        if layer["mark"]["type"] == "bar" and "strokeDash" in layer["mark"]
     )
-    outlined_rows = _inline_values(spec, outlined)
-    assert outlined_rows[0]["driver_code"] == "ALO"
-    assert outlined_rows[0]["compound_letter"] == "M"
-    assert outlined_rows[0]["first_lap"] == 17
-    assert outlined_rows[0]["last_visible_lap"] == 57
-    letters = next(
-        layer
-        for layer in layers
-        if layer["mark"]["type"] == "text"
-        and layer["encoding"]["text"]["field"] == "compound_letter"
-    )
-    assert letters["encoding"]["text"]["field"] == "compound_letter"
-    row_labels = next(
+    assert planned["mark"]["stroke"] == readable_on(team_color)
+    plan_rows = _inline_values(spec, planned)
+    assert plan_rows[0]["driver_code"] == "ALO"
+    assert (plan_rows[0]["start_lap"], plan_rows[0]["end_lap"]) == (15.5, 57.5)
+    rule = next(layer for layer in layers if layer["mark"]["type"] == "rule")
+    assert _inline_values(spec, rule)[0]["lap"] == 15.5
+    bars = next(layer for layer in layers if layer["mark"]["type"] == "bar")
+    assert bars["encoding"]["x"]["axis"]["title"] == "Lap"
+    driver_labels = [
         layer
         for layer in layers
         if layer["mark"]["type"] == "text" and layer["encoding"]["text"]["field"] == "driver_code"
-    )
-    assert {value["driver_code"] for value in _inline_values(spec, row_labels)} == {"ALO", "VER"}
+    ]
+    selected = next(layer for layer in driver_labels if layer["mark"]["fontWeight"] == 700)
+    assert selected["mark"]["color"] == readable_on(team_color)
+    assert {value["driver_code"] for value in _inline_values(spec, selected)} == {"ALO"}

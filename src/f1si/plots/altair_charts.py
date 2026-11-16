@@ -1,4 +1,8 @@
-"""Altair renderers for replay uncertainty and race context."""
+"""Altair renderers for replay uncertainty and race context.
+
+Lap coordinates: lap ``k`` occupies ``[k - 0.5, k + 0.5]`` on every lap axis, so the moment
+"after lap N" sits at ``N + 0.5`` (DESIGN_SYSTEM_V2 §10, decision 15).
+"""
 
 from __future__ import annotations
 
@@ -8,8 +12,24 @@ from typing import Any, cast
 import altair as alt
 import pandas as pd
 
-from f1si.plots.simulate import FanChartData, QuantileDotplotData
-from f1si.ui_theme import ASPHALT, CHALK, FOG, RULE, TIRE_COLORS
+from f1si.plots.simulate import FanChartData
+from f1si.ui_theme import (
+    ASPHALT,
+    CHALK,
+    DEFAULT_TEAM_COLOR,
+    FOG,
+    GRID_GREY,
+    RULE,
+    TIRE_COLORS,
+    fan_band_colors,
+    readable_on,
+)
+
+DIM_LINE = GRID_GREY
+"""Every car that is not the selected driver or a labelled neighbour."""
+
+PlanSegment = tuple[float, float, str]
+"""(start, end, compound) on the lap axis for the selected driver's planned running."""
 
 
 def _base_chart(chart: Any) -> Any:
@@ -17,115 +37,70 @@ def _base_chart(chart: Any) -> Any:
         chart.configure(background=ASPHALT)
         .configure_axis(
             labelColor=FOG,
-            titleColor=CHALK,
+            titleColor=FOG,
             labelFont="Titillium Web",
             titleFont="Titillium Web",
-            labelFontSize=12,
+            labelFontSize=13,
             titleFontSize=13,
-            titleFontWeight=500,
+            titleFontWeight=400,
             gridColor=RULE,
-            gridOpacity=0.7,
-            tickColor=FOG,
+            gridOpacity=1,
+            tickColor=RULE,
             domain=False,
         )
         .configure_view(strokeOpacity=0)
     )
 
 
-def build_finish_probability_strip(
-    data: QuantileDotplotData, *, recommended_color: str = "#4ADE80"
-) -> alt.LayerChart:
-    """Show each action's share of simulated finishes at every finishing position."""
-    labels = data.labels[:5]
-    quantiles = data.quantiles[:5]
-    rows: list[dict[str, object]] = []
-    for index, (label, sample) in enumerate(zip(labels, quantiles, strict=True)):
-        for position in range(1, data.n_cars + 1):
-            rows.append(
-                {
-                    "action": label,
-                    "position": position,
-                    "probability": sample.count(position) / 100.0,
-                    "recommended": index == 0,
-                }
-            )
-    frame = pd.DataFrame(rows)
-    max_probability = max(float(frame["probability"].max()), 0.01)
-    labels_order = list(labels)
-    positions_order = list(range(1, data.n_cars + 1))
-
-    def layer(recommended: bool, low: str, high: str) -> Any:
-        subset = frame.loc[frame["recommended"].eq(recommended)]
-        return (
+def _label_layers(
+    frame: pd.DataFrame,
+    *,
+    selected_color: str,
+    encode: dict[str, Any],
+    align: str,
+    dx: int,
+    font_size: int,
+) -> list[Any]:
+    """Two text layers: other labels in fog at weight 400, the selected one bold in its color."""
+    layers: list[Any] = []
+    for selected, color, weight in ((False, FOG, 400), (True, selected_color, 700)):
+        subset = frame.loc[frame["selected"].eq(selected)]
+        if subset.empty:
+            continue
+        layers.append(
             alt.Chart(subset)
-            .mark_rect(stroke=ASPHALT, strokeWidth=0.6)
-            .encode(
-                x=alt.X(
-                    "position:O",
-                    title="Finishing position",
-                    sort=positions_order,
-                    axis=alt.Axis(grid=False, labelAngle=0, labelOverlap=False),
-                ),
-                y=alt.Y(
-                    "action:N",
-                    title=None,
-                    sort=labels_order,
-                    axis=alt.Axis(grid=False, labelLimit=140, labelPadding=8, tickSize=0),
-                ),
-                color=alt.Color(
-                    "probability:Q",
-                    scale=alt.Scale(
-                        domain=[0, max_probability],
-                        range=[low, high],
-                        clamp=True,
-                    ),
-                    legend=None,
-                ),
-                tooltip=[
-                    alt.Tooltip("action:N", title="Action"),
-                    alt.Tooltip("position:O", title="Finishing position"),
-                    alt.Tooltip("probability:Q", title="Chance", format=".0%"),
-                ],
+            .mark_text(
+                align=cast(Any, align),
+                dx=dx,
+                font="Titillium Web",
+                fontSize=font_size,
+                fontWeight=cast(Any, weight),
+                color=color,
             )
+            .encode(**encode)
         )
-
-    chart = (
-        alt.layer(
-            layer(True, "#8A8F99", recommended_color),
-            layer(False, "#8A8F99", "#D3D5D9"),
-        )
-        .resolve_scale(color="independent")
-        .properties(height=max(230, len(labels) * 46))
-    )
-    return cast(alt.LayerChart, _base_chart(chart))
+    return layers
 
 
-def _tint(color: str, amount: float) -> str:
-    """Mix an opaque color toward white for lower-confidence fan bands."""
-    channels = [int(color[index : index + 2], 16) for index in (1, 3, 5)]
-    tinted = [round(channel + (255 - channel) * amount) for channel in channels]
-    return "#" + "".join(f"{channel:02X}" for channel in tinted)
-
-
-def _spaced_labels(centers: Mapping[str, float], n_cars: int) -> dict[str, float]:
-    """Place nested percentile labels on separate rows without changing their order."""
-    gap = min(2.0, max(1.2, (n_cars - 1) / 4))
-    ordered = sorted(centers.items(), key=lambda pair: pair[1])
-    slots = [min(float(n_cars), max(1.0, value)) for _, value in ordered]
+def _spread(values: Mapping[str, float], gap: float, low: float, high: float) -> dict[str, float]:
+    """Place labels at their values, pushed apart to at least ``gap`` and kept in range."""
+    ordered = sorted(values.items(), key=lambda pair: pair[1])
+    slots = [min(high, max(low, value)) for _, value in ordered]
     for index in range(1, len(slots)):
         slots[index] = max(slots[index], slots[index - 1] + gap)
-    if slots and slots[-1] > n_cars:
-        slots[-1] = float(n_cars)
+    if slots and slots[-1] > high:
+        slots[-1] = high
         for index in range(len(slots) - 2, -1, -1):
             slots[index] = min(slots[index], slots[index + 1] - gap)
-    if slots and slots[0] < 1:
-        shift = 1.0 - slots[0]
-        slots = [value + shift for value in slots]
-    return {label: value for (label, _), value in zip(ordered, slots, strict=True)}
+    return {label: slot for (label, _), slot in zip(ordered, slots, strict=True)}
 
 
-def build_fan_chart(data: FanChartData, *, team_color: str = "#229971") -> alt.LayerChart:
-    """Build nested team-colored uncertainty bands with direct labels at race distance."""
+def build_fan_chart(data: FanChartData, *, team_color: str = DEFAULT_TEAM_COLOR) -> alt.LayerChart:
+    """Nested team-colored bands (8, 5 and 2 in 10 races) with the median in chalk.
+
+    The bands are the 10th to 90th, 25th to 75th and 40th to 60th percentiles of the selected
+    driver's simulated position on each remaining lap. Labels sit to the right of the last lap.
+    """
     frame = pd.DataFrame(
         {
             "lap": data.laps,
@@ -140,72 +115,73 @@ def build_fan_chart(data: FanChartData, *, team_color: str = "#229971") -> alt.L
     )
     last = frame.iloc[-1]
     first_lap, last_lap = min(data.laps), max(data.laps)
+    frame["x"] = frame["lap"] - 0.5
+    closing = frame.iloc[[-1]].copy()
+    closing["x"] = last_lap + 0.5
+    frame = pd.concat([frame, closing], ignore_index=True)
     tick_values = {first_lap, last_lap}
     tick_values.update(range(((first_lap + 9) // 10) * 10, last_lap, 10))
-    axis_x = alt.Axis(
-        title="Lap",
-        grid=False,
-        values=sorted(tick_values),
-        tickMinStep=1,
-    )
-    axis_y = alt.Axis(
-        title="Finishing position",
-        grid=True,
-        tickMinStep=1,
-        labelExpr="'P' + datum.value",
-    )
-    x_scale = alt.Scale(domain=[first_lap, last_lap], nice=False)
+    axis_x = alt.Axis(title="Lap", grid=False, values=sorted(tick_values), tickMinStep=1)
+    axis_y = alt.Axis(title="Position", grid=True, tickMinStep=1, labelExpr="'P' + datum.value")
+    x_scale = alt.Scale(domain=[first_lap - 0.5, last_lap + 0.5], nice=False)
     y_scale = alt.Scale(domain=[data.n_cars + 0.5, 0.5], nice=False)
+    outer_color, middle_color, inner_color = fan_band_colors(team_color)
 
     def band(lower: str, upper: str, color: str) -> Any:
         return (
             alt.Chart(frame)
-            .mark_area(color=color, opacity=1)
+            .mark_area(color=color, opacity=1, interpolate="step-after")
             .encode(
-                x=alt.X("lap:Q", title="Lap", scale=x_scale, axis=axis_x),
-                y=alt.Y(f"{lower}:Q", title="Finishing position", scale=y_scale, axis=axis_y),
+                x=alt.X("x:Q", title="Lap", scale=x_scale, axis=axis_x),
+                y=alt.Y(f"{lower}:Q", title="Position", scale=y_scale, axis=axis_y),
                 y2=alt.Y2(f"{upper}:Q"),
+                tooltip=[
+                    alt.Tooltip("lap:Q", title="Lap", format=".0f"),
+                    alt.Tooltip("p50:Q", title="Median position", format=".0f"),
+                    alt.Tooltip("p10:Q", title="8 in 10 races from P", format=".0f"),
+                    alt.Tooltip("p90:Q", title="to P", format=".0f"),
+                ],
             )
         )
 
-    outer = band("p10", "p90", _tint(team_color, 0.35)).encode(opacity=alt.value(0.85))
-    middle = band("p25", "p75", _tint(team_color, 0.20)).encode(opacity=alt.value(0.92))
-    center = band("p40", "p60", _tint(team_color, 0.08)).encode(opacity=alt.value(1.0))
-    median = (
-        alt.Chart(frame)
-        .mark_line(color=team_color, strokeWidth=2.5)
-        .encode(
-            x=alt.X("lap:Q", scale=x_scale, axis=axis_x),
-            y=alt.Y("p50:Q", scale=y_scale, axis=axis_y),
+    def median(color: str, width: float) -> Any:
+        return (
+            alt.Chart(frame)
+            .mark_line(color=color, strokeWidth=width, interpolate="step-after")
+            .encode(
+                x=alt.X("x:Q", scale=x_scale, axis=axis_x),
+                y=alt.Y("p50:Q", scale=y_scale, axis=axis_y),
+            )
         )
-    )
+
+    # Nested bands share a center, so a tiny offset fixes the label order: narrowest band on top.
     centers = {
-        "10th\N{EN DASH}90th": (float(last["p10"]) + float(last["p90"])) / 2,
-        "25th\N{EN DASH}75th": (float(last["p25"]) + float(last["p75"])) / 2,
-        "40th\N{EN DASH}60th": (float(last["p40"]) + float(last["p60"])) / 2,
+        "2 in 10": (float(last["p40"]) + float(last["p60"])) / 2,
+        "5 in 10": (float(last["p25"]) + float(last["p75"])) / 2 + 0.001,
+        "8 in 10 races": (float(last["p10"]) + float(last["p90"])) / 2 + 0.002,
     }
-    positions = _spaced_labels(centers, data.n_cars)
+    gap = max(1.2, data.n_cars / 14)
+    positions = _spread(centers, gap, 1.0, float(data.n_cars))
     labels = pd.DataFrame(
-        [{"lap": last_lap, "position": positions[label], "label": label} for label in centers]
+        [{"lap": last_lap + 0.5, "position": positions[label], "label": label} for label in centers]
     )
     direct_labels = (
         alt.Chart(labels)
-        .mark_text(
-            align="right",
-            dx=-4,
-            font="Titillium Web",
-            fontSize=10,
-            color=FOG,
-            stroke=ASPHALT,
-            strokeWidth=2,
-        )
+        .mark_text(align="left", dx=8, font="Titillium Web", fontSize=13, color=FOG)
         .encode(
             x=alt.X("lap:Q", scale=x_scale, axis=axis_x),
             y=alt.Y("position:Q", scale=y_scale, axis=axis_y),
             text=alt.Text("label:N"),
         )
     )
-    chart = alt.layer(outer, middle, center, median, direct_labels).properties(height=330)
+    chart = alt.layer(
+        band("p10", "p90", outer_color),
+        band("p25", "p75", middle_color),
+        band("p40", "p60", inner_color),
+        median(ASPHALT, 5),
+        median(CHALK, 2.5),
+        direct_labels,
+    ).properties(height=330, padding={"left": 4, "top": 8, "right": 96, "bottom": 4})
     return cast(alt.LayerChart, _base_chart(chart))
 
 
@@ -214,126 +190,111 @@ def build_race_trace_chart(
     *,
     selected_driver: str,
     selected_color: str,
-    cutoff_lap: int,
 ) -> alt.LayerChart | None:
-    """Highlight the selected driver's gap trace and mute every other car."""
+    """Gap to the leader by lap: selected driver in team color, nearest rivals in fog.
+
+    Every other car is one thin dim line with no label. Labels sit at the line ends and carry
+    the latest gap; they are nudged apart only as far as needed to stay readable.
+    """
     if not rows:
         return None
     frame = pd.DataFrame(rows)
     selected_code = selected_driver.upper()
-    frame["selected"] = frame["driver_code"].astype(str).str.upper().eq(selected_code)
-    frame["driver_label"] = frame["driver_code"].astype(str).str.upper()
-    x_scale = alt.Scale(domain=[0.5, max(1, cutoff_lap)], nice=False)
-    tick_step = max(1, cutoff_lap // 5)
-    trace_ticks = sorted({cutoff_lap, *range(tick_step, cutoff_lap, tick_step)})
-    y_scale = alt.Scale(domain=[0, float(frame["label_gap_s"].max()) + 2], nice=False)
-    common = {
-        "x": alt.X(
-            "lap:Q",
-            title="Lap",
-            scale=x_scale,
-            axis=alt.Axis(grid=False, tickMinStep=1, values=trace_ticks),
-        ),
-        "y": alt.Y(
-            "gap_to_leader_s:Q",
-            title="Gap to leader (s)",
-            scale=y_scale,
-            axis=alt.Axis(grid=True),
-        ),
-        "detail": alt.Detail("driver_code:N"),
-        "strokeDash": alt.StrokeDash(
-            "teammate_dash:N",
-            scale=alt.Scale(domain=[False, True], range=[[1, 0], [5, 3]]),
-            legend=None,
-        ),
-    }
-    layers: list[Any] = []
-
-    def add_lines(source: pd.DataFrame, color: str, width: float, opacity: float) -> None:
-        if source.empty:
-            return
-        layers.append(
-            alt.Chart(source)
-            .mark_line(color=color, strokeWidth=width, opacity=opacity)
-            .encode(
-                **common,
-                tooltip=[
-                    alt.Tooltip("driver_code:N", title="Driver"),
-                    alt.Tooltip("lap:Q", title="Lap", format=".0f"),
-                    alt.Tooltip("gap_to_leader_s:Q", title="Gap to leader", format=".1f"),
-                ],
-            )
-        )
-
-    selected_latest = frame.loc[frame["selected"] & frame["is_latest"].astype(bool)]
+    frame["driver_code"] = frame["driver_code"].astype(str).str.upper()
+    frame["selected"] = frame["driver_code"].eq(selected_code)
+    latest_rows = frame.loc[frame["is_latest"].astype(bool)].drop_duplicates("driver_code")
     nearest_codes: set[str] = set()
+    selected_latest = latest_rows.loc[latest_rows["selected"]]
     if not selected_latest.empty:
         selected_gap = float(selected_latest.iloc[-1]["gap_to_leader_s"])
-        latest_gaps = frame.loc[
-            frame["is_latest"].astype(bool), ["driver_code", "gap_to_leader_s"]
-        ].drop_duplicates("driver_code")
-        ahead = latest_gaps.loc[latest_gaps["gap_to_leader_s"] < selected_gap].sort_values(
+        others = latest_rows.loc[~latest_rows["selected"]]
+        ahead = others.loc[others["gap_to_leader_s"] <= selected_gap].sort_values(
             "gap_to_leader_s", ascending=False
         )
-        behind = latest_gaps.loc[latest_gaps["gap_to_leader_s"] > selected_gap].sort_values(
-            "gap_to_leader_s"
-        )
+        behind = others.loc[others["gap_to_leader_s"] > selected_gap].sort_values("gap_to_leader_s")
         nearest_codes = {
-            str(code).upper()
+            str(code)
             for code in [
                 *ahead.head(1)["driver_code"].tolist(),
                 *behind.head(1)["driver_code"].tolist(),
             ]
         }
-    frame["nearest"] = frame["driver_code"].astype(str).str.upper().isin(nearest_codes)
-    add_lines(frame.loc[~frame["selected"] & ~frame["nearest"]], "#7C828D", 0.9, 0.80)
-    add_lines(frame.loc[frame["nearest"]], FOG, 1.25, 0.95)
-    add_lines(frame.loc[frame["selected"]], selected_color, 2.8, 1.0)
-    latest = frame.loc[frame["is_latest"].astype(bool)].copy()
-    latest = latest.loc[latest["selected"] | latest["nearest"]]
-    latest["label_lap"] = cutoff_lap
-    latest["label_color"] = latest["selected"].map({True: selected_color, False: FOG})
-    latest["point_color"] = latest["label_color"]
-
-    def add_latest(source: pd.DataFrame, color: str, text_color: str) -> None:
-        if source.empty:
-            return
-        layers.extend(
+    frame["nearest"] = frame["driver_code"].isin(nearest_codes)
+    max_lap = max(1, int(frame["lap"].max()))
+    x_scale = alt.Scale(domain=[0.5, max(max_lap, 1) + 0.5], nice=False)
+    tick_step = max(1, max_lap // 5)
+    trace_ticks = sorted({1, max_lap, *range(tick_step, max_lap, tick_step)})
+    y_max = float(frame["gap_to_leader_s"].max())
+    y_scale = alt.Scale(domain=[0, y_max * 1.04 + 1], nice=False)
+    x = alt.X(
+        "lap:Q",
+        title="Lap",
+        scale=x_scale,
+        axis=alt.Axis(grid=False, tickMinStep=1, values=trace_ticks),
+    )
+    y = alt.Y(
+        "gap_to_leader_s:Q",
+        title="Gap to leader (s)",
+        scale=y_scale,
+        axis=alt.Axis(grid=True, tickCount=6),
+    )
+    tooltip = [
+        alt.Tooltip("driver_code:N", title="Driver"),
+        alt.Tooltip("lap:Q", title="Lap", format=".0f"),
+        alt.Tooltip("gap_to_leader_s:Q", title="Gap to leader (s)", format=".1f"),
+    ]
+    line_color = readable_on(selected_color)
+    layers: list[Any] = []
+    for subset, color, width in (
+        (frame.loc[~frame["selected"] & ~frame["nearest"]], DIM_LINE, 1.0),
+        (frame.loc[frame["nearest"]], FOG, 1.6),
+        (frame.loc[frame["selected"]], line_color, 3.0),
+    ):
+        if subset.empty:
+            continue
+        layers.append(
+            alt.Chart(subset)
+            .mark_line(color=color, strokeWidth=width)
+            .encode(x=x, y=y, detail=alt.Detail("driver_code:N"), tooltip=tooltip)
+        )
+    labelled = latest_rows.loc[
+        latest_rows["selected"] | latest_rows["driver_code"].isin(nearest_codes)
+    ]
+    if not labelled.empty:
+        gaps = {
+            str(row.driver_code): float(cast(Any, row.gap_to_leader_s))
+            for row in labelled.itertuples(index=False)
+        }
+        placed = _spread(gaps, max(1.0, y_max * 0.06), 0.0, y_max * 1.04 + 1)
+        label_frame = pd.DataFrame(
             [
-                alt.Chart(source)
-                .mark_point(filled=True, size=34, stroke=ASPHALT, strokeWidth=0.8, color=color)
-                .encode(
-                    x=alt.X("lap:Q", scale=x_scale),
-                    y=alt.Y("gap_to_leader_s:Q", scale=y_scale),
-                    tooltip=[
-                        alt.Tooltip("driver_code:N", title="Driver"),
-                        alt.Tooltip("lap:Q", title="Lap", format=".0f"),
-                        alt.Tooltip("gap_to_leader_s:Q", title="Gap to leader", format=".1f"),
-                    ],
-                ),
-                alt.Chart(source)
-                .mark_rule(color=color, opacity=0.62, strokeWidth=0.7)
-                .encode(
-                    x=alt.X("lap:Q", scale=x_scale),
-                    x2=alt.X2("label_lap:Q"),
-                    y=alt.Y("gap_to_leader_s:Q", scale=y_scale),
-                    y2=alt.Y2("label_gap_s:Q"),
-                ),
-                alt.Chart(source)
-                .mark_text(
-                    align="right", dx=-4, font="Titillium Web", fontSize=11, color=text_color
-                )
-                .encode(
-                    x=alt.X("label_lap:Q", scale=x_scale),
-                    y=alt.Y("label_gap_s:Q", scale=y_scale),
-                    text=alt.Text("driver_label:N"),
-                ),
+                {
+                    "lap": int(cast(Any, row.lap)),
+                    "label_y": placed[str(row.driver_code)],
+                    "text": f"{row.driver_code} {float(cast(Any, row.gap_to_leader_s)):.1f} s",
+                    "selected": bool(row.selected),
+                }
+                for row in labelled.itertuples(index=False)
             ]
         )
-
-    add_latest(latest.loc[~latest["selected"]], FOG, FOG)
-    add_latest(latest.loc[latest["selected"]], selected_color, CHALK)
-    return cast(alt.LayerChart, _base_chart(alt.layer(*layers).properties(height=350)))
+        layers.extend(
+            _label_layers(
+                label_frame,
+                selected_color=CHALK,
+                encode={
+                    "x": alt.X("lap:Q", scale=x_scale),
+                    "y": alt.Y("label_y:Q", scale=y_scale),
+                    "text": alt.Text("text:N"),
+                },
+                align="left",
+                dx=8,
+                font_size=13,
+            )
+        )
+    chart = alt.layer(*layers).properties(
+        height=340, padding={"left": 4, "top": 8, "right": 92, "bottom": 4}
+    )
+    return cast(alt.LayerChart, _base_chart(chart))
 
 
 def build_stint_chart(
@@ -343,145 +304,143 @@ def build_stint_chart(
     laps_total: int,
     driver_order: Sequence[str],
     selected_driver: str,
-    recommended_stop_lap: int | None,
-    recommended_compound: str | None,
-    selected_color: str = "#229971",
+    plan_segments: Sequence[PlanSegment] = (),
+    selected_color: str = DEFAULT_TEAM_COLOR,
 ) -> alt.LayerChart | None:
-    """Show completed stint bars and the selected driver's recommended next stint."""
-    if not rows and recommended_stop_lap is None:
+    """Completed stints for every driver, the selected driver's plan dashed in team color.
+
+    ``rows`` come from ``prepare_stint_bar_data``. ``plan_segments`` are the selected driver's
+    planned stints from the cutoff ``N + 0.5`` to the flag.
+    """
+    if not rows and not plan_segments:
         return None
-    segments = [dict(row, recommended=False) for row in rows]
-    compound = (recommended_compound or "").upper()
-    if (
-        recommended_stop_lap is not None
-        and recommended_stop_lap < laps_total
-        and compound in TIRE_COLORS
-    ):
-        first_lap = recommended_stop_lap + 1
-        segments.append(
+    selected_code = selected_driver.upper()
+    actual = pd.DataFrame([dict(row) for row in rows])
+    plan = pd.DataFrame(
+        [
             {
-                "driver_code": selected_driver.upper(),
+                "driver_code": selected_code,
                 "compound": compound,
                 "compound_letter": compound[0],
-                "first_lap": first_lap,
-                "last_visible_lap": laps_total,
-                "start_lap": first_lap - 0.5,
-                "end_lap": laps_total + 0.5,
-                "mid_lap": (first_lap + laps_total) / 2,
-                "recommended": True,
+                "start_lap": start,
+                "end_lap": end,
+                "mid_lap": (start + end) / 2,
+                "laps": round(end - start),
             }
-        )
-    frame = pd.DataFrame(segments)
-    if frame.empty:
-        return None
-    actual = frame.loc[~frame["recommended"]]
-    next_stint = frame.loc[frame["recommended"]]
+            for start, end, compound in plan_segments
+            if compound in TIRE_COLORS and end > start
+        ]
+    )
     compounds = list(TIRE_COLORS)
     colors = [TIRE_COLORS[name] for name in compounds]
-    x_scale = alt.Scale(domain=[-5.5, laps_total + 0.5], nice=False)
-    x_ticks = sorted({*range(5, laps_total + 1, 5), laps_total})
+    order = list(driver_order)
+    x_scale = alt.Scale(domain=[-4.5, laps_total + 0.5], nice=False)
+    x_ticks = sorted({1, *range(10, laps_total + 1, 10), laps_total})
+    lap_axis = alt.Axis(grid=False, values=x_ticks, tickMinStep=1, title="Lap")
 
-    def bar_layer(source: pd.DataFrame, *, recommended: bool) -> Any:
-        return (
-            alt.Chart(source)
-            .mark_bar(
-                size=13,
-                stroke=selected_color if recommended else None,
-                strokeWidth=2 if recommended else 0,
-                fillOpacity=0.48 if recommended else 1,
-            )
+    def x(field: str) -> alt.X:
+        return alt.X(f"{field}:Q", title="Lap", scale=x_scale, axis=lap_axis)
+
+    y = alt.Y(
+        "driver_code:N",
+        title=None,
+        sort=order,
+        axis=alt.Axis(grid=False, labels=False, ticks=False, domain=False),
+        scale=alt.Scale(paddingInner=0.3),
+    )
+    compound_color = alt.Color(
+        "compound:N", scale=alt.Scale(domain=compounds, range=colors), legend=None
+    )
+    layers: list[Any] = []
+    if not actual.empty:
+        layers.append(
+            alt.Chart(actual)
+            .mark_bar(cornerRadius=2)
             .encode(
-                x=alt.X(
-                    "start_lap:Q",
-                    title="Lap",
-                    scale=x_scale,
-                    axis=alt.Axis(grid=False, values=x_ticks, tickMinStep=1),
-                ),
+                x=x("start_lap"),
                 x2=alt.X2("end_lap:Q"),
-                y=alt.Y(
-                    "driver_code:N",
-                    title=None,
-                    sort=list(driver_order),
-                    axis=alt.Axis(
-                        grid=True,
-                        labels=False,
-                        ticks=False,
-                        domain=False,
-                    ),
-                ),
-                color=alt.Color(
-                    "compound:N",
-                    scale=alt.Scale(domain=compounds, range=colors),
-                    legend=None,
-                ),
+                y=y,
+                color=compound_color,
                 tooltip=[
                     alt.Tooltip("driver_code:N", title="Driver"),
                     alt.Tooltip("compound:N", title="Compound"),
                     alt.Tooltip("first_lap:Q", title="Start lap", format=".0f"),
-                    alt.Tooltip("last_visible_lap:Q", title="Last lap", format=".0f"),
+                    alt.Tooltip("laps_completed:Q", title="Laps completed", format=".0f"),
                 ],
             )
         )
-
-    layers: list[Any] = []
-    if not actual.empty:
-        layers.append(bar_layer(actual, recommended=False))
-    if not next_stint.empty:
-        layers.append(bar_layer(next_stint, recommended=True))
-    row_labels = pd.DataFrame(
-        {"driver_code": list(driver_order), "label_x": [-0.4] * len(driver_order)}
+    if not plan.empty:
+        layers.append(
+            alt.Chart(plan)
+            .mark_bar(
+                cornerRadius=2,
+                fillOpacity=0.18,
+                stroke=readable_on(selected_color),
+                strokeWidth=2,
+                strokeDash=[5, 3],
+            )
+            .encode(
+                x=x("start_lap"),
+                x2=alt.X2("end_lap:Q"),
+                y=y,
+                color=compound_color,
+                tooltip=[
+                    alt.Tooltip("compound:N", title="Planned compound"),
+                    alt.Tooltip("laps:Q", title="Planned laps", format=".0f"),
+                ],
+            )
+        )
+    letters_source = pd.concat(
+        [frame for frame in (actual, plan) if not frame.empty], ignore_index=True
     )
-    direct_labels = (
-        alt.Chart(row_labels)
-        .mark_text(
+    if not letters_source.empty:
+        wide = letters_source.loc[
+            (letters_source["end_lap"].astype(float) - letters_source["start_lap"].astype(float))
+            >= 2
+        ]
+        layers.append(
+            alt.Chart(wide)
+            .mark_text(color=ASPHALT, font="Saira Condensed", fontWeight=800, fontSize=11)
+            .encode(
+                x=x("mid_lap"),
+                y=alt.Y("driver_code:N", sort=order),
+                text=alt.Text("compound_letter:N"),
+            )
+        )
+    cutoff_x = cutoff_lap + 0.5
+    layers.append(
+        alt.Chart(pd.DataFrame({"lap": [cutoff_x]}))
+        .mark_rule(color=FOG, strokeDash=[2, 3], strokeWidth=1)
+        .encode(x=x("lap"))
+    )
+    layers.append(
+        alt.Chart(pd.DataFrame({"lap": [cutoff_x], "text": [f"now, after lap {cutoff_lap}"]}))
+        .mark_text(align="left", dx=4, dy=-6, baseline="bottom", color=FOG, fontSize=12)
+        .encode(x=x("lap"), y=alt.value(0), text=alt.Text("text:N"))
+    )
+    label_rows = pd.DataFrame(
+        {
+            "driver_code": order,
+            "label_x": [-0.3] * len(order),
+            "selected": [code.upper() == selected_code for code in order],
+        }
+    )
+    layers.extend(
+        _label_layers(
+            label_rows,
+            selected_color=readable_on(selected_color),
+            encode={
+                "x": x("label_x"),
+                "y": alt.Y("driver_code:N", sort=order),
+                "text": alt.Text("driver_code:N"),
+            },
             align="right",
-            dx=-4,
-            color=FOG,
-            font="Titillium Web",
-            fontSize=10,
-        )
-        .encode(
-            x=alt.X("label_x:Q", scale=x_scale, axis=None),
-            y=alt.Y("driver_code:N", sort=list(driver_order), axis=None),
-            text=alt.Text("driver_code:N"),
+            dx=-2,
+            font_size=12,
         )
     )
-    letter_backing = (
-        alt.Chart(frame)
-        .mark_point(
-            shape="square",
-            filled=True,
-            size=100,
-            color=ASPHALT,
-            strokeWidth=1,
-        )
-        .encode(
-            x=alt.X("mid_lap:Q", scale=x_scale),
-            y=alt.Y("driver_code:N", sort=list(driver_order), axis=None),
-            stroke=alt.Color(
-                "compound:N", scale=alt.Scale(domain=compounds, range=colors), legend=None
-            ),
-        )
+    height = max(260, len(order) * 19)
+    chart = alt.layer(*layers).properties(
+        height=height, padding={"left": 4, "top": 18, "right": 8, "bottom": 4}
     )
-    letters = (
-        alt.Chart(frame)
-        .mark_text(color=CHALK, font="Titillium Web", fontWeight=700, fontSize=9)
-        .encode(
-            x=alt.X("mid_lap:Q", scale=x_scale),
-            y=alt.Y("driver_code:N", sort=list(driver_order), axis=None),
-            text=alt.Text("compound_letter:N"),
-        )
-    )
-    cutoff_rule = (
-        alt.Chart(pd.DataFrame({"lap": [cutoff_lap]}))
-        .mark_rule(color=FOG, opacity=0.75, strokeWidth=0.8)
-        .encode(x=alt.X("lap:Q", scale=x_scale))
-    )
-    layers.append(cutoff_rule)
-    layers.append(direct_labels)
-    layers.append(letter_backing)
-    layers.append(letters)
-    return cast(
-        alt.LayerChart,
-        _base_chart(alt.layer(*layers).properties(height=max(260, len(driver_order) * 18))),
-    )
+    return cast(alt.LayerChart, _base_chart(chart))

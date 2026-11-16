@@ -59,8 +59,10 @@ def test_page_copy_uses_plain_language_and_has_no_middle_dot() -> None:
     assert "·" not in source
     for phrase in ("cutoff-safe", "classified denominator", "schedule horizon"):
         assert phrase not in source
-    assert "shading shows the share of simulated finishes" in source
-    assert "no strategy is available at this lap." in source
+    assert "the model has no strategy for this lap." in source
+    assert "darker means more likely" not in source
+    assert chr(0x2013) not in source
+    assert chr(0x2014) not in source
 
 
 def test_page_uses_shared_asof_replay_builder_without_results_imports() -> None:
@@ -82,26 +84,29 @@ def test_report_copy_formats_brier_scores_and_keeps_coverage_target_visible() ->
     metrics = report["metrics"]
     podium, top10 = metrics["podium_brier"], metrics["top10_brier"]
     coverage = metrics["finish_interval_90"]
+    timing = metrics["team_strategy_comparison"]["stop_timing_error_laps"]["absolute"]["mean"]
     pooled = coverage["covered"] / coverage["classified_finishers"]
-    display = app._report_display_values(report)
-    assert display["podium"] == (
-        f"Model {podium['model']['mean']:.3f} vs grid baseline "
-        f"{podium['baseline']['mean']:.3f} (lower is better)"
-    )
-    assert display["top10"] == (
-        f"Model {top10['model']['mean']:.3f} vs grid baseline "
-        f"{top10['baseline']['mean']:.3f} (lower is better)"
-    )
-    assert display["coverage"].startswith(
-        f"{coverage['coverage']['mean']:.0%} race average; {pooled:.1%} across all finishes"
-    )
-    assert "Target: 85% to 95%" in display["coverage"]
+    rendered = app._model_report_html(report)
+    assert (
+        f"Podium calls score {podium['model']['mean']:.3f} against "
+        f"{podium['baseline']['mean']:.3f} for just trusting the grid"
+    ) in rendered
+    assert (
+        f"Points calls score {top10['model']['mean']:.3f} against "
+        f"{top10['baseline']['mean']:.3f} for the grid."
+    ) in rendered
+    assert (
+        f"held the real finish {coverage['coverage']['mean']:.0%} of the time "
+        f"({coverage['covered']:,} of {coverage['classified_finishers']:,} finishes overall)"
+    ) in rendered
+    assert "It should be 85% to 95%." in rendered
+    assert f"{timing:.2f}" not in rendered  # one decimal only
+    assert f"{pooled:.1%}" not in rendered  # the race average is the only coverage figure
 
 
 def test_recommended_reason_explains_tire_pace_and_pit_loss() -> None:
     app = import_module("f1si.app")
     reason = app._strategist_reason(
-        "pit now (MEDIUM)",
         current_compound="SOFT",
         tire_age=15,
         laps_done=15,
@@ -111,9 +116,7 @@ def test_recommended_reason_explains_tire_pace_and_pit_loss() -> None:
         target_compound="MEDIUM",
         wear_rates={"SOFT": 0.20, "MEDIUM": 0.10},
     )
-    assert reason == (
-        "Box this lap: fresh Medium should make back the stop loss as the Soft loses pace."
-    )
+    assert reason == "Fresh Mediums should win back the 24 seconds a stop costs as the Softs fade."
 
 
 def test_evaluation_uses_five_explained_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -122,17 +125,18 @@ def test_evaluation_uses_five_explained_metrics(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(app.st, "html", fragments.append)
     monkeypatch.setattr(app.st, "metric", lambda *_args, **_kwargs: pytest.fail("stat card"))
 
-    app._render_report_summary(app._report_summary())
+    app.st.html(app._model_report_html(app._report_summary()))
 
     assert len(fragments) == 1
     assert "How good is this model?" in fragments[0]
     assert "Better than starting order" in fragments[0]
-    podium = app._report_summary()["metrics"]["podium_brier"]
-    assert (
-        f"model {podium['model']['mean']:.3f} versus grid baseline {podium['baseline']['mean']:.3f}"
-    ) in fragments[0]
-    assert "Target: 85% to 95%" in fragments[0]
+    assert "Slightly overconfident" in fragments[0]
+    assert "Rarely matches the pit wall" in fragments[0]
+    team = app._report_summary()["metrics"]["team_strategy_comparison"]
+    share = app._share_phrase(team["top_action_agreement"]["mean"])
+    assert f"about {share} of the {team['event_count']} real stops" in fragments[0]
     assert fragments[0].count('class="metric"') == 5
+    assert fragments[0].count('role="img"') == 5
 
 
 def test_theme_is_dark_borderless_and_uses_v2_fonts_and_palette() -> None:
@@ -205,59 +209,6 @@ def test_page_uses_tabular_numbers_and_has_no_metric_cards() -> None:
     assert "st.progress(" not in source
 
 
-def test_format_strategy_table_hides_basis_and_formats_values() -> None:
-    app = import_module("f1si.app")
-    table = app._format_strategy_table(
-        (
-            "Action",
-            "Mean finish",
-            "Spread",
-            "Worst 10% average finish",
-            "Podium chance",
-            "Top-10 chance",
-            "90% finish interval",
-        ),
-        (("stay out", 7.286, 3.141, 15.264, 0.071, 0.864, "P2-P17"),),
-    )
-    assert "Recommended" not in table.columns
-    assert "Score" not in table.columns
-    assert table.iloc[0]["Mean finish"] == "7.3"
-    assert table.iloc[0]["Podium chance"] == "7%"
-    assert table.iloc[0]["Top-10 chance"] == "86%"
-    assert table.iloc[0]["Action"] == "Stay out"
-
-
-def test_mobile_strategy_table_keeps_results_and_labels_recommendation() -> None:
-    app = import_module("f1si.app")
-    table = app._format_strategy_table(
-        (
-            "Action",
-            "Mean finish",
-            "Spread",
-            "Worst 10% average finish",
-            "Podium chance",
-            "Top-10 chance",
-            "90% finish interval",
-        ),
-        (("stay out", 7.286, 3.141, 15.264, 0.16, 0.80, "P2-P15"),),
-    )
-
-    rendered = app._strategy_table_html(table)
-    assert 'class="mobile-results"' in rendered
-    assert "Recommended: Stay out" in rendered
-    assert (
-        "Mean P7.3. Spread 3.1. Worst 10% P15.3. Podium 16%. Top 10% 80%. Range P2-P15." in rendered
-    )
-
-
-def test_compact_dotplot_labels_keep_timing_and_compound() -> None:
-    app = import_module("f1si.app")
-    assert app._dotplot_action_copy("pit now (HARD)") == "Box now H"
-    assert app._dotplot_action_copy("pit in 1 lap(s) (MEDIUM)") == "Box +1 lap M"
-    assert app._dotplot_action_copy("wait and decide next lap") == "Wait and decide next lap"
-    assert app._dotplot_action_copy("stay out") == "Stay out"
-
-
 def test_replay_uses_ten_thousand_simulations() -> None:
     app = import_module("f1si.app")
     assert app.SIMULATIONS == 10_000
@@ -281,8 +232,8 @@ def test_replay_cache_identity_includes_model_sources(
 def test_empty_copy_is_two_sentences_with_a_next_step() -> None:
     app = import_module("f1si.app")
     assert app.EMPTY_BODY == (
-        "No eligible races are available because their scheduled lap counts are missing. "
-        "Refresh the race cache, then choose a supported event."
+        "No race can be replayed: every cached race is missing its scheduled lap count. "
+        "Refresh the race cache, then reload this page."
     )
 
 
@@ -304,6 +255,16 @@ def test_safe_replay_failure_discards_exception_details() -> None:
     assert "secret detail" not in app.ERROR_COPY
 
 
+def test_safe_replay_failure_logs_the_real_exception(caplog: pytest.LogCaptureFixture) -> None:
+    app = import_module("f1si.app")
+    with caplog.at_level("ERROR", logger="f1si.app"):
+        app._safe_replay_result(lambda: (_ for _ in ()).throw(TypeError("NAType is not a lap")))
+    record = next(item for item in caplog.records if item.name == "f1si.app")
+    assert record.getMessage() == "Replay could not be built"
+    assert record.exc_info is not None
+    assert "NAType is not a lap" in str(record.exc_info[1])
+
+
 def test_replay_error_state_does_not_reuse_a_previous_selection() -> None:
     app = import_module("f1si.app")
     ready = app._safe_replay_result(lambda: {"driver": "ALO"})
@@ -312,37 +273,6 @@ def test_replay_error_state_does_not_reuse_a_previous_selection() -> None:
     )
     assert ready == {"status": "ready", "value": {"driver": "ALO"}}
     assert failed == {"status": "error", "value": None}
-
-
-def test_zero_one_and_many_action_states_have_matching_table_rows() -> None:
-    app = import_module("f1si.app")
-    columns = (
-        "Action",
-        "Mean finish",
-        "Spread",
-        "Worst 10% average finish",
-        "Podium chance",
-        "Top-10 chance",
-        "90% finish interval",
-    )
-    one = app._format_strategy_table(columns, (("stay out", 7.2, 2.0, 15.0, 0.1, 0.8, "P2-P17"),))
-    many = app._format_strategy_table(
-        columns,
-        (
-            ("stay out", 7.2, 2.0, 15.0, 0.1, 0.8, "P2-P17"),
-            ("pit now (MEDIUM)", 6.8, 2.0, 14.0, 0.2, 0.9, "P1-P16"),
-            ("pit in 2 lap(s)", 7.0, 2.0, 13.0, 0.2, 0.9, "P1-P15"),
-        ),
-    )
-    empty = app._format_strategy_table(columns, ())
-    assert app._action_heading(0) == "No strategy options available"
-    assert app._action_heading(1) == "Strategy options"
-    assert app._action_heading(3) == "Strategy options"
-    assert len(empty) == 0
-    assert len(one) == 1
-    assert len(many) == 3
-    assert "Stay out" in app._strategy_table_html(one)
-    assert "Box this lap (Medium)" in app._strategy_table_html(many)
 
 
 def test_schedule_failure_has_actionable_copy() -> None:
@@ -395,7 +325,7 @@ def _raise_missing_laps() -> int:
     raise ValueError("Scheduled race distance is unavailable")
 
 
-def test_rendered_selected_replay_contains_all_four_altair_charts(
+def test_rendered_selected_replay_shows_band_options_and_three_charts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = import_module("f1si.app")
@@ -432,6 +362,11 @@ def test_rendered_selected_replay_contains_all_four_altair_charts(
                 "90% finish interval",
             ),
             "option_quantiles": (tuple([3] * 50 + [8] * 50),),
+            "option_plans": (((16,), ("MEDIUM",)),),
+            "position": 4,
+            "stops_done": 0,
+            "tire_age": 15,
+            "pit_loss_s": 24.0,
             "selected_cutoff_mean": 7.3,
             "simulation_count": 100,
             "fan_chart_data": {
@@ -491,41 +426,19 @@ def test_rendered_selected_replay_contains_all_four_altair_charts(
         }
     )
 
-    assert len(charts) == 4
+    assert len(charts) == 3
     assert all(hasattr(chart, "to_dict") for chart in charts)
-    assert "#358c75" in str(charts[2].to_dict())
+    assert "8 in 10 races" in str(charts[2].to_dict())
+    band = next(value for value in fragments if "decision-band" in value)
+    assert "<h1>Box this lap</h1>" in band
+    assert "Alonso stops this lap for Mediums" in band
     option_html = next(value for value in fragments if 'id="options"' in value)
     assert 'class="option-row recommended"' in option_html
+    assert "Box this lap for Mediums" in option_html
     assert "Show all numbers" in option_html
     assert "Never stop" in option_html
-    assert any("Shading shows the share" in value for value in captions)
-    assert "10th" in str(charts[2].to_dict())
-
-
-def test_strategy_table_has_no_basis_column_and_uses_one_decimal_and_whole_percents() -> None:
-    app = import_module("f1si.app")
-    columns = (
-        "Action",
-        "Mean finish",
-        "Spread",
-        "Worst 10% average finish",
-        "Podium chance",
-        "Top-10 chance",
-        "90% finish interval",
-    )
-    result = {
-        "option_columns": columns,
-        "options": (("pit now (MEDIUM)", 5.26, 2.0, 10.5, 0.334, 0.806, "P1-P12"),),
-    }
-    formatted = app._format_strategy_table(result["option_columns"], result["options"])
-    assert "Basis" not in formatted.columns
-    assert formatted.iloc[0]["Mean finish"] == "5.3"
-    assert formatted.iloc[0]["Podium chance"] == "33%"
-    assert formatted.iloc[0]["Action"] == "Box this lap (Medium)"
-    html = app._strategy_table_html(formatted)
-    assert 'style="color:#4ADE80;font-weight:600"' in html
-    assert "Recommended</th>" not in html
-    assert "Score</th>" not in html
+    assert not any("<svg" in value for value in fragments)
+    assert captions == []
 
 
 def test_unavailable_cutoff_renders_one_actionable_sentence(
@@ -547,7 +460,7 @@ def test_unavailable_cutoff_renders_one_actionable_sentence(
 
     app._render_selected({"available": False})
 
-    assert "This cutoff is unavailable. Choose another lap or race." in fragments[0]
+    assert "There's no replay for this lap. Pick another lap or race." in fragments[0]
 
 
 def test_catalog_failure_does_not_show_internal_error_details(

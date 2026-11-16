@@ -162,6 +162,7 @@ Progress: [====------] 38%
 | 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
 | 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
 | 261115-166 | Merge only the user-selected Streamlit-compatible rules from the supplied F1 design brief into Phase 6 06-UI-SPEC.md. Ignore plugin and screenshot instructions. Update no app code and do not build the dashboard. Stop after the spec merge, brief summary, and a proposed post-approval build plan. | 2026-11-15 | 79da677 | Passed | [261115-166-merge-only-the-user-selected-streamlit-c](./quick/261115-166-merge-only-the-user-selected-streamlit-c/) |
+| 261116-0hq | UI design pass on the Streamlit replay page: race-strip decision band (prototype B), merged options, humanized copy, contrast to 4.5:1 text and 3:1 marks, stint crash fix | 2026-11-16 | not committed | Passed | [261116-0hq-ui-design-pass-on-the-streamlit-replay-p](./quick/261116-0hq-ui-design-pass-on-the-streamlit-replay-p/) |
 
 ## Session Continuity
 
