@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 104
+MIN_ENTRIES = 106
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -166,8 +166,8 @@ def test_free_track_decisions_exist_by_title() -> None:
 
 def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
     entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
-    phase6_ids = [f"DEC-{number:03d}" for number in range(102, 112)]
-    assert [entry_id for entry_id, _, _ in _entries()][-10:] == phase6_ids
+    phase6_ids = [f"DEC-{number:03d}" for number in range(102, 114)]
+    assert [entry_id for entry_id, _, _ in _entries()][-12:] == phase6_ids
 
     expected_titles = {
         "DEC-102": "Pre-registered Phase 6 sample and cache gate",
@@ -177,10 +177,19 @@ def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
         "DEC-109": "Use cached timing data first and OpenF1 when FastF1 access is unavailable",
         "DEC-110": "Compare conditional expected outcomes when choosing a simulated stop",
         "DEC-111": "Publish the fixed-engine Phase 6 evaluation",
+        "DEC-112": "Build mid-pit state from the started out-lap",
+        "DEC-113": "Fit and score the continuation policy on independent paths",
     }
     for entry_id, title in expected_titles.items():
         assert entries[entry_id][0] == title
-    for entry_id in ("DEC-102", "DEC-103", "DEC-104", "DEC-108", "DEC-111"):
+    for entry_id in (
+        "DEC-102",
+        "DEC-103",
+        "DEC-104",
+        "DEC-108",
+        "DEC-111",
+        "DEC-113",
+    ):
         assert "reports/backtest/phase-06.json" in entries[entry_id][1]
 
     semantics = {
@@ -205,6 +214,8 @@ def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
         "DEC-109": ("F1 TV Access", "OpenF1", "local cache"),
         "DEC-110": ("future lap noise", "conditional expected", "P7.291", "P8.477"),
         "DEC-111": ("10,404", "0.047188", "0.080481", "16.94%", "3.693 laps"),
+        "DEC-112": ("lap-15 cutoff", "1486.1 s", "1406.5 s", "tyre age 0"),
+        "DEC-113": ("two-fold", "held-out fold", "1,000", "wait"),
     }
     for entry_id, phrases in semantics.items():
         body = entries[entry_id][1].lower()

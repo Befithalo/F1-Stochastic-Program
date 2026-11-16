@@ -19,7 +19,9 @@ from f1si.synthetic import default_specs
 from tests.conftest import LONG_RACE_ID
 from tests.guards.consumers import CONSUMERS
 from tests.guards.scramble import (
+    _PARTIAL_LAP_FACTS,
     JUNK_RACE_ID,
+    _partial_lap_mask,
     assert_consumers_no_lookahead,
     assert_no_lookahead,
     scramble_future,
@@ -44,8 +46,14 @@ def _cutoff(tables: dict[str, pd.DataFrame], lap: int) -> float:
     return float(lc.loc[(lc["race_id"] == CURRENT) & (lc["lap"] == lap), "cutoff_s"].iloc[0])
 
 
-def _assert_all_different(table: str, orig: pd.DataFrame, new: pd.DataFrame) -> None:
-    """Every non-key column of every row in `new` differs from the same-key row in `orig`."""
+def _assert_all_different(
+    table: str,
+    orig: pd.DataFrame,
+    new: pd.DataFrame,
+    *,
+    partial_lap_keys: set[tuple[object, ...]] | None = None,
+) -> None:
+    """Future values differ, except start-time facts on a lap already underway."""
     o, n = _keyed(table, orig), _keyed(table, new)
     common = n.index.intersection(o.index)
     assert len(common) > 0, f"{table}: no surviving future rows to compare"
@@ -54,6 +62,12 @@ def _assert_all_different(table: str, orig: pd.DataFrame, new: pd.DataFrame) -> 
             continue
         a, b = o.loc[common, col], n.loc[common, col]
         same = (a == b).fillna(False).to_numpy(dtype=bool) | (a.isna() & b.isna()).to_numpy()
+        if partial_lap_keys and table == "laps" and col in _PARTIAL_LAP_FACTS:
+            protected = np.array(
+                [(key if isinstance(key, tuple) else (key,)) in partial_lap_keys for key in common],
+                dtype=bool,
+            )
+            same &= ~protected
         assert not same.any(), f"{table}.{col} has an unchanged future value"
 
 
@@ -75,12 +89,24 @@ def test_visible_rows_and_earlier_races_stay_identical(
             keep = orig["race_id"].isin(["2023-01", CURRENT])
         elif name == "results":
             keep = orig["race_id"] == "2023-01"
+        elif name == "laps":
+            visible = orig["visible_at_s"].notna() & (orig["visible_at_s"] <= cutoff)
+            keep = (orig["race_id"] == "2023-01") | ((orig["race_id"] == CURRENT) & visible)
         else:
             visible = orig["visible_at_s"].notna() & (orig["visible_at_s"] <= cutoff)
             keep = (orig["race_id"] == "2023-01") | ((orig["race_id"] == CURRENT) & visible)
         want = _keyed(name, orig[keep])
         got = _keyed(name, new).loc[want.index]
         pd.testing.assert_frame_equal(got, want, check_exact=True)
+        if name == "laps":
+            partial = _partial_lap_mask(orig, CURRENT, cutoff)
+            old_partial = _keyed(name, orig[partial])
+            new_partial = _keyed(name, new).loc[old_partial.index]
+            pd.testing.assert_frame_equal(
+                new_partial[list(_PARTIAL_LAP_FACTS)],
+                old_partial[list(_PARTIAL_LAP_FACTS)],
+                check_exact=True,
+            )
 
 
 def test_every_future_row_differs_and_stays_future(
@@ -111,7 +137,20 @@ def test_every_future_row_differs_and_stays_future(
         if name in ("laps", "weather"):
             assert len(orig_future) > 0  # these tables always have future rows at lap 5
         if len(orig_future) > 0 and len(survivors) > 0:
-            _assert_all_different(name, orig_future, survivors)
+            partial_keys = (
+                set(
+                    map(
+                        tuple,
+                        orig_cur.loc[
+                            _partial_lap_mask(orig_cur, CURRENT, cutoff),
+                            list(schema.TABLES[name].key),
+                        ].itertuples(index=False, name=None),
+                    )
+                )
+                if name == "laps"
+                else None
+            )
+            _assert_all_different(name, orig_future, survivors, partial_lap_keys=partial_keys)
     for name in ("entries", "laps", "results"):
         assert JUNK_RACE_ID in set(scrambled[name]["race_id"]), name
     junk_race = scrambled["races"].set_index("race_id").loc[JUNK_RACE_ID]

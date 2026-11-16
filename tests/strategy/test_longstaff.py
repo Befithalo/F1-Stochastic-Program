@@ -77,6 +77,29 @@ def test_continuation_regression_recovers_conditional_mean_and_falls_back() -> N
     np.testing.assert_allclose(fallback, 4.0)
 
 
+def test_continuation_is_fit_on_training_paths_and_scored_on_independent_paths() -> None:
+    fit_features = {16: np.zeros((4, 1), dtype=np.float64)}
+    fit_stops = {16: {"medium": np.ones(4, dtype=np.float64)}}
+    fit_terminal = np.full(4, 10.0)
+    score_features = {16: np.zeros((2, 1), dtype=np.float64)}
+    score_stops = {16: {"medium": np.full(2, 10.0)}}
+    score_terminal = np.ones(2)
+
+    values, _, _, _, choices = _backward_stop_options_with_choices(
+        score_features,
+        score_stops,
+        score_terminal,
+        fit_features=fit_features,
+        fit_stop_values=fit_stops,
+        fit_terminal_values=fit_terminal,
+    )
+
+    # The fit paths favor stopping (1 vs 10), while the disjoint score paths favor waiting
+    # (10 vs 1). The held-out policy still chooses its trained stop and scores its 10-place draw.
+    np.testing.assert_array_equal(values, np.full(2, 10.0))
+    np.testing.assert_array_equal(choices, np.full(2, "medium"))
+
+
 def test_pathwise_stopping_uses_different_cutoff_states() -> None:
     features = np.arange(4.0)[:, None]
     later_policy_values = 1.0 + 2.0 * features[:, 0]
@@ -383,6 +406,8 @@ def test_close_call_uses_paired_standard_error_with_common_random_numbers(
     box_now = np.full(n, 5.0)
     wait_draws = np.array([4.0, 6.0, 5.0, 6.0, 5.0, 6.0, 5.0, 6.0, 5.0, 6.0])
     future_branch = "pit in 1 lap(s)"
+    rngs: list[np.random.Generator] = []
+    fit_score_features: list[tuple[NDArray[np.float64], NDArray[np.float64]]] = []
 
     class PairedSimulator:
         def __init__(self, *args: object, **kwargs: object) -> None:
@@ -399,6 +424,9 @@ def test_close_call_uses_paired_standard_error_with_common_random_numbers(
             capture_actions: Sequence[str],
             position_history_driver: str | None = None,
         ) -> dict[str, Any]:
+            rngs.append(rng)
+            order = np.tile(np.array([[0, 1]], dtype=np.int64), (n, 1))
+            order[1::2] = np.array([1, 0])
             outcomes: dict[str, Any] = {}
             for name in actions:
                 sample = (
@@ -411,7 +439,7 @@ def test_close_call_uses_paired_standard_error_with_common_random_numbers(
                 checkpoints = (
                     {
                         cutoff: SimpleNamespace(
-                            order=np.tile(np.array([[0, 1]], dtype=np.int64), (n, 1)),
+                            order=order,
                             clock=np.tile(np.array([[0.0, 10.0]]), (n, 1)),
                             tire_age=np.ones((n, 2), dtype=np.int64),
                             stops_done=np.zeros((n, 2), dtype=np.int64),
@@ -434,6 +462,9 @@ def test_close_call_uses_paired_standard_error_with_common_random_numbers(
         terminal: NDArray[np.float64],
         *,
         force_stop_at_last_time: bool = False,
+        fit_features: Mapping[int, NDArray[np.float64]] | None = None,
+        fit_stop_values: Mapping[int, Mapping[str, NDArray[np.float64]]] | None = None,
+        fit_terminal_values: NDArray[np.float64] | None = None,
     ) -> tuple[
         NDArray[np.float64],
         dict[int, NDArray[np.bool_]],
@@ -441,16 +472,21 @@ def test_close_call_uses_paired_standard_error_with_common_random_numbers(
         dict[int, dict[str, NDArray[np.str_]]],
         NDArray[np.str_],
     ]:
-        choices = np.full(n, future_branch, dtype="<U64")
+        if fit_features is not None:
+            time = next(iter(features))
+            fit_score_features.append((features[time][:, 0], fit_features[time][:, 0]))
+            score_position = features[next(iter(features))][0, 0]
+            fold_offset = 0 if score_position < 0.75 else 1
+            sample = wait_draws[np.arange(fold_offset, n, 2)]
+        choices = np.full(terminal.size, future_branch, dtype="<U64")
         action_values = {
-            time: {action: wait_draws for action in actions}
-            for time, actions in stop_values.items()
+            time: {action: sample for action in actions} for time, actions in stop_values.items()
         }
         action_choices = {
             time: {action: choices for action in actions} for time, actions in stop_values.items()
         }
-        decisions = {time: np.ones(n, dtype=np.bool_) for time in stop_values}
-        return wait_draws, decisions, action_values, action_choices, choices
+        decisions = {time: np.ones(terminal.size, dtype=np.bool_) for time in stop_values}
+        return sample, decisions, action_values, action_choices, choices
 
     monkeypatch.setattr(longstaff, "NumpySimulator", PairedSimulator)
     monkeypatch.setattr(longstaff, "_backward_stop_options_with_choices", backward)
@@ -463,6 +499,10 @@ def test_close_call_uses_paired_standard_error_with_common_random_numbers(
     assert analysis.close_call_places == pytest.approx(0.4)
     assert analysis.close_call_two_se == pytest.approx(expected_two_se)
     assert analysis.waiting_tie_window_laps == (12, 16)
+    assert len(rngs) == 1
+    assert fit_score_features
+    for score_features, training_features in fit_score_features:
+        assert set(score_features).isdisjoint(training_features)
 
 
 def test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution(

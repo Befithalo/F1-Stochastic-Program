@@ -17,6 +17,13 @@ Plain-words consequence (D-01): at "lap N" the leader has completed N laps, but 
 still on its way to the line and has completed at most N-1. A strategy that needs to know where
 a rival is must work from those N-1 laps, exactly as a pit-wall engineer would at that moment.
 
+In-progress laps
+----------------
+Once a lap has started, its start time, lap number, pit-out flag, stint and compound are known.
+Those start-time facts can inform rebuilt stint, pit-event and car state before the lap ends; the
+`RaceSnapshot.laps` frame remains completed-lap-only. Timing, sectors, end-of-lap tyre life, pit
+duration and track status remain hidden until the end.
+
 Rebuilt fields (D-03)
 ---------------------
 Stints, pit events and per-car lap counts and positions are rebuilt from the visible laps only.
@@ -224,6 +231,38 @@ def _visible_rows(
     return _without_visibility(schema.normalize(table, _db.read_df(db_path, sql, params, con=con)))
 
 
+def _in_progress_laps(
+    db_path: Path, race_id: str, cutoff_s: float, con: _db.Connection
+) -> pd.DataFrame:
+    """Safe start-time facts for laps that began before the cutoff and end after it."""
+    partial = schema.normalize(
+        "laps",
+        _db.read_df(
+            db_path,
+            "SELECT * FROM laps WHERE race_id = ? AND lap_start_s IS NOT NULL "
+            "AND lap_start_s <= ? AND lap_end_s > ? ORDER BY "
+            f"{_order('laps')}",
+            [race_id, cutoff_s, cutoff_s],
+            con=con,
+        ),
+    )
+    if partial.empty:
+        return _without_visibility(partial)
+    hidden_until_end = (
+        "lap_end_s",
+        "lap_time_s",
+        "s1_s",
+        "s2_s",
+        "s3_s",
+        "is_pit_in_lap",
+        "pit_duration_s",
+        "tyre_life",
+        "track_status",
+    )
+    partial.loc[:, list(hidden_until_end)] = pd.NA
+    return _without_visibility(partial)
+
+
 def _typed(columns: Mapping[str, Any], dtypes: Mapping[str, str]) -> pd.DataFrame:
     """Build a frame with exactly `dtypes` (name -> pandas dtype), in that order."""
     return pd.DataFrame(
@@ -256,17 +295,29 @@ _CAR_DTYPES: Final = {
 }
 
 
-def rebuild_stints(laps: pd.DataFrame) -> pd.DataFrame:
+def rebuild_stints(laps: pd.DataFrame, *, cutoff_s: float | None = None) -> pd.DataFrame:
     """One row per (driver, stint) from the visible laps only.
 
-    Columns: driver_number, stint, compound, first_lap, last_visible_lap, laps_so_far (visible
-    laps in the stint), tyre_life_now (tyre life at the last visible lap of the stint). There is
-    deliberately no stint end lap or length: they would reveal laps that have not happened yet.
+    Columns: driver_number, stint, compound, first_lap, last_visible_lap, laps_so_far (completed
+    laps in the stint), tyre_life_now (tyre life at the last completed lap). A started out-lap
+    adds its new stint with zero completed laps and tyre life 0. There is deliberately no stint end
+    lap or length: they would reveal laps that have not happened yet.
     """
     vis = laps[laps["stint"].notna()].sort_values(["driver_number", "stint", "lap_number"])
     if vis.empty:
         return _typed({n: pd.Series([], dtype="object") for n in _STINT_DTYPES}, _STINT_DTYPES)
-    grouped = vis.groupby(["driver_number", "stint"], sort=True)
+    if cutoff_s is None:
+        completed = vis
+        in_progress_outlaps = vis.iloc[0:0]
+    else:
+        completed = vis[vis["lap_end_s"].notna()]
+        in_progress_outlaps = vis[
+            vis["is_pit_out_lap"].fillna(False).astype(bool)
+            & vis["lap_start_s"].notna()
+            & (pd.to_numeric(vis["lap_start_s"], errors="coerce") <= cutoff_s)
+            & vis["lap_end_s"].isna()
+        ]
+    grouped = completed.groupby(["driver_number", "stint"], sort=True)
     out = grouped.agg(
         compound=("compound", "first"),
         first_lap=("lap_number", "min"),
@@ -274,11 +325,36 @@ def rebuild_stints(laps: pd.DataFrame) -> pd.DataFrame:
         laps_so_far=("lap_number", "count"),
         tyre_life_now=("tyre_life", "last"),
     ).reset_index()
+    if not in_progress_outlaps.empty:
+        completed_keys = set(zip(out["driver_number"], out["stint"], strict=True))
+        starts: list[dict[str, Any]] = []
+        for row in in_progress_outlaps.itertuples(index=False):
+            key = (row.driver_number, row.stint)
+            if key in completed_keys:
+                continue
+            starts.append(
+                {
+                    "driver_number": row.driver_number,
+                    "stint": row.stint,
+                    "compound": row.compound,
+                    "first_lap": row.lap_number,
+                    "last_visible_lap": pd.NA,
+                    "laps_so_far": 0,
+                    "tyre_life_now": 0,
+                }
+            )
+            completed_keys.add(key)
+        if starts:
+            out = _typed({n: out[n] for n in _STINT_DTYPES}, _STINT_DTYPES)
+            started = pd.DataFrame(starts)
+            started = _typed({n: started[n] for n in _STINT_DTYPES}, _STINT_DTYPES)
+            out = pd.concat((out, started), ignore_index=True)
+            out = out.sort_values(["driver_number", "stint"]).reset_index(drop=True)
     return _typed({n: out[n] for n in _STINT_DTYPES}, _STINT_DTYPES).reset_index(drop=True)
 
 
 def rebuild_pit_events(laps: pd.DataFrame) -> pd.DataFrame:
-    """One row per stop seen so far: a visible out-lap after lap 1 (in_lap = out_lap - 1).
+    """One row per stop seen so far: a started out-lap after lap 1 (in_lap = out_lap - 1).
 
     A lap-1 out-lap is a pit-lane start, not a stop.
     """
@@ -339,6 +415,11 @@ def build_snapshot(
     )
     frames = {t: _visible_rows(db_path, t, info.race_id, cutoff_s, con) for t in _TIME_TABLES}
     laps = frames["laps"]
+    derived_laps = laps
+    if cutoff_s is not None:
+        started = _in_progress_laps(db_path, info.race_id, cutoff_s, con)
+        if not started.empty:
+            derived_laps = pd.concat((laps, started), ignore_index=True)
     return RaceSnapshot(
         race=info,
         at=at,
@@ -348,9 +429,9 @@ def build_snapshot(
         track_status=frames["track_status"],
         race_control=frames["race_control"],
         weather=frames["weather"],
-        stints=rebuild_stints(laps),
-        pit_events=rebuild_pit_events(laps),
-        cars=rebuild_cars(laps, entries),
+        stints=rebuild_stints(derived_laps, cutoff_s=cutoff_s),
+        pit_events=rebuild_pit_events(derived_laps),
+        cars=rebuild_cars(derived_laps, entries),
     )
 
 

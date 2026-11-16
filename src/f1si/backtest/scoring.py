@@ -41,7 +41,7 @@ STRATEGY_BOOTSTRAP_SEED_OFFSET = 71_633
 # the expected value in code: a hash stored only in the editable report cannot
 # establish provenance.
 PHASE_6_PROBABILITY_EVIDENCE_SHA256 = (
-    "ff713e06ddb186c075cff028251c1f28a9801fd3492104729e2b662ededd4449"
+    "f2811a89861890fceaebe5d0cada61682024c513729cd983876c68718a85adc9"
 )
 
 
@@ -361,6 +361,12 @@ def _strategy_comparison(
     bootstrap_seed = seed + STRATEGY_BOOTSTRAP_SEED_OFFSET
     summary = summarize_team_calls(matched, rng=make_rng(bootstrap_seed))
     event_count = len(stop_frame.drop_duplicates(["race_id", "driver", "in_lap"]))
+    action_counts: dict[str, int] = {}
+    for recommendation in recommendations:
+        action = str(recommendation["top_action"])
+        action_counts[action] = action_counts.get(action, 0) + 1
+    recommendation_count = len(recommendations)
+    wait_count = action_counts.get("wait and decide next lap", 0)
     summary.update(
         {
             "observed_stop_event_count": event_count,
@@ -371,6 +377,12 @@ def _strategy_comparison(
             "bootstrap_resamples": 2_000,
             "matching": "latest recommendation cutoff strictly before the observed in-lap",
             "interpretation": "retrospective comparison with observed team behavior",
+            "top_action_frequency": {
+                "recommendation_count": recommendation_count,
+                "action_counts": action_counts,
+                "wait_count": wait_count,
+                "wait_share": (wait_count / recommendation_count if recommendation_count else None),
+            },
         }
     )
     return summary
@@ -734,6 +746,10 @@ def score_registered_sample(
             "bootstrap_resamples": n_resamples,
             "risk_aversion": risk,
             "n_simulations_per_prediction": n_simulations,
+            "continuation_fit_scheme": "two-fold cross-fit on the registered path batch",
+            "continuation_fit_scoring_isolation": (
+                "each scoring fold is excluded from its regression-fit paths"
+            ),
             "aggregation": "equal race weight after within-race observation means",
             "baseline": "past-only grid-position event rates with five neutral pseudo-starts",
             "first_race_baseline": "neutral podium and top-10 rates based on field size",

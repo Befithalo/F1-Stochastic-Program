@@ -6,13 +6,15 @@ Phase 6 checks the existing cutoff-safe strategy on a fixed sample of ten races 
 
 **A calendar-fixed walk-forward sample.** The evaluation uses the first calendar rounds in each season, with four races from 2023, three from 2024, and three from 2025. Bahrain 2023 is the fixed reference race. The sample is `2023-01`, `2023-02`, `2023-03`, `2023-04`, `2024-01`, `2024-02`, `2024-03`, `2025-01`, `2025-02`, and `2025-03`. The selection does not depend on results or model performance, and 2026 stays out of the sample.
 
-**Each prediction is made from its own cutoff.** For every eligible driver and cutoff, the backtester builds an as-of snapshot and uses only completed races that occurred earlier. Final classifications are opened only in the scoring layer after predictions are frozen. This keeps the prediction process separate from its answers. The fixed-engine report contains 10,404 finite driver-cutoff predictions for Brier scoring. It averages observations within each race first, then gives each of the ten races equal weight.
+**Each prediction is made from its own cutoff.** For every eligible driver and cutoff, the backtester builds an as-of snapshot and uses only completed races that occurred earlier. Final classifications are opened only in the scoring layer after predictions are frozen. This keeps the prediction process separate from its answers. The fixed-engine report contains 10,391 finite driver-cutoff predictions for Brier scoring. It averages observations within each race first, then gives each of the ten races equal weight.
 
 **Probability scores have a past-only reference.** Podium and top-10 probabilities are scored with Brier loss against a grid-position baseline built only from earlier races. The baseline shrinks sparse grid-position rates toward five neutral pseudo-starts; for the first race it uses field-size neutral rates. The model and baseline use the same finite rows. Paired uncertainty resamples whole races, rather than treating drivers or laps from one race as independent races.
 
-**Finishing intervals include discrete endpoints.** Each 90% simulated finishing-position interval uses inclusive empirical inverted-CDF P05/P95 endpoints from the same cutoff's simulated outcomes. The report counts only classified finishers for observed coverage because the simulator has no retirement model. It records 7,667 covered finishes among 9,157 classified finishers, separately from the 10,404 finite probability-scoring predictions.
+**Finishing intervals include discrete endpoints.** Each 90% simulated finishing-position interval uses inclusive empirical inverted-CDF P05/P95 endpoints from the same cutoff's simulated outcomes. The report counts only classified finishers for observed coverage because the simulator has no retirement model. It records 7,650 covered finishes among 9,146 classified finishers, separately from the 10,391 finite probability-scoring predictions.
 
-**Observed team calls are a comparison point.** Each observed stop is matched once to the latest recommendation strictly before the stop's in-lap. The report summarizes top-action agreement and signed and absolute stop-timing error with race-clustered intervals. It describes comparison with observed team behavior and makes no superiority claim.
+**Observed team calls are a comparison point.** Each observed stop is matched once to the latest recommendation strictly before the stop's in-lap. The report summarizes top-action agreement, signed and absolute stop-timing error with race-clustered intervals, and how often each action is the top recommendation across the full prediction trace. Before the continuation-fit change, `wait and decide next lap` was the top action in 5,707 of 10,404 recommendations (54.85%); after it, wait was top in 5,624 of 10,391 (54.12%). It describes comparison with observed team behavior and makes no superiority claim.
+
+**Continuation is evaluated out of sample.** The strategy uses two-fold cross-fitting. It fits the continuation regression on one half of the seeded paths and scores the learned stopping rule on the other half, then swaps the halves. Each path's scored action is therefore evaluated by a regression that did not use that path, while the report retains all 1,000 simulations per prediction.
 
 **The tire check is a retrospective proxy.** The wear diagnostic compares the cutoff filter with a race-end pace reference after removing the evaluated driver's current stint. That remaining data are a retrospective proxy, not latent ground truth. The report also measures early-fit bias for estimates with at most eight clean laps and records how much of the same-cutoff, same-compound clean-lap evidence comes from the current stint. These observations inform the known overlap concern; they do not justify tuning the filter on the evaluation races.
 
@@ -45,7 +47,7 @@ cutoff-safe replay and seeded strategy simulations
           JSON report, README evidence, and read-only Streamlit view
 ```
 
-The published report uses 1,000 simulations per prediction, base seed 0, and risk aversion 0.5. Brier and finishing-interval summaries use 95% paired or race-cluster percentile-bootstrap intervals as appropriate; the strategy and wear sections retain their own denominators and definitions. The exact values and interval bounds are in [`reports/backtest/phase-06.json`](../../reports/backtest/phase-06.json), and the reader-facing summary is in the [README](../../README.md#phase-6-walk-forward-results).
+The published report uses 1,000 simulations per prediction, two-fold continuation cross-fitting, base seed 0, and risk aversion 0.5. Brier and finishing-interval summaries use 95% paired or race-cluster percentile-bootstrap intervals as appropriate; the strategy and wear sections retain their own denominators and definitions. The exact values and interval bounds are in [`reports/backtest/phase-06.json`](../../reports/backtest/phase-06.json), and the reader-facing summary is in the [README](../../README.md#phase-6-walk-forward-results).
 
 ## File-by-file tour
 
@@ -85,7 +87,7 @@ No. The Brier comparison is a probability score against a past-only grid baselin
 
 ### Q3. Why does interval coverage use fewer rows than Brier scoring?
 
-The probability score treats unclassified starters as negative outcomes for podium and top-10. Finishing-position coverage is defined only where a classified final position exists, so its denominator is 9,157 classified finishers rather than the 10,404 finite driver-cutoff scoring predictions.
+The probability score treats unclassified starters as negative outcomes for podium and top-10. Finishing-position coverage is defined only where a classified final position exists, so its denominator is 9,146 classified finishers rather than the 10,391 finite driver-cutoff scoring predictions.
 
 ### Q4. Is the wear proxy the tire's true wear rate?
 

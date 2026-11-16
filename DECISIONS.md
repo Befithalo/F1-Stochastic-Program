@@ -1223,3 +1223,25 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Keeping the old report beside the fixed engine; changing the registered race sample; interpreting the change in team-call agreement as evidence that model performance was tuned to observed results.
 **Consequences:** Keep the new JSON report as the source of the app and documentation values. Explain the changed scoring and classified-finisher counts and the distinct next-lap action in public copy. These ten races remain a small MVP evaluation, not evidence of future calibration or team superiority.
 **Refs:** D-05, D-06, `reports/backtest/phase-06.json`, `README.md`, `docs/explained/phase-06.md`, DEC-102, DEC-103, DEC-104, DEC-110
+
+## DEC-112 — Build mid-pit state from the started out-lap
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** At Bahrain 2023's lap-15 cutoff (1486.1 s), ALO's in-lap 14 is visible (ends at 1406.5 s) while the lap-15 out-lap is underway but has not ended. Rebuilding state from completed laps alone leaves ALO on the old compound and omits the stop.
+**Decision:** Once a lap starts, the as-of door may use its lap start, pit-out flag, stint and compound to rebuild current stints, pit events and cars. The `laps` frame remains completed-lap-only. Lap time, sectors, lap end, end-of-lap tyre life, pit duration and track status stay hidden until the lap ends. A started out-lap creates a new stint with tyre age 0 and counts the stop; `laps_done` still counts completed laps only.
+**Why:** The compound and pit exit are knowable when the out-lap starts. Keeping completion facts hidden preserves the cutoff while giving the strategy the current tyre state.
+**Alternatives rejected:** Waiting for the out-lap to finish leaves a stale compound and stop count; exposing the complete out-lap row leaks future time and tyre-life information.
+**Consequences:** As-of state and stop-event visibility can advance to the out-lap start while existing lap consumers keep completed rows only. The future-scramble guard preserves only these start-time facts on a partial lap.
+**Refs:** D-01, D-02, D-03, `src/f1si/data/_snapshot.py`, `src/f1si/state.py`, DEC-001
+
+## DEC-113 — Fit and score the continuation policy on independent paths
+
+**Date:** 2026-11-15
+**Status:** Accepted
+**Context:** The continuation regression used the same simulated paths to fit its conditional mean and score the selected wait policy. This gave the fitted action an in-sample advantage and aligned with the +2.0-lap signed timing error, positive in 9 of 10 races, and 17% action agreement in the current report.
+**Decision:** Split each seeded path batch into two folds. For each fold, fit the conditional stopping rule on the complementary paths and score the learned policy on the held-out fold; combine both held-out score samples for the report. A path never scores a policy whose continuation regression used that path. With one simulation, generate a separate fit draw because a single path cannot be partitioned.
+**Why:** A policy should be judged on outcomes not used to fit its continuation regression. Two-fold cross-fitting preserves all 1,000 registered score paths without doubling simulation work.
+**Alternatives rejected:** Fit and score on the same paths; use one fixed half for fitting and the other for scoring, reducing the reported sample size to 500.
+**Consequences:** On the original same-path run, `wait and decide next lap` was the top action in 5,707 of 10,404 recommendations (54.85%); on the two-fold cross-fit run it was top in 5,624 of 10,391 (54.12%). The recomputed report keeps the 1,000 scored paths per prediction. Signed stop-timing error is still positive in 9 of 10 races (mean +1.957 laps), and top-action agreement is 17.54%; cross-fitting removes in-sample continuation scoring, but these observed-call results remain descriptive and do not show the wait tendency has been eliminated. Metadata records the two-fold path isolation.
+**Refs:** D-02, D-05, D-06, `src/f1si/strategy/longstaff.py`, `reports/backtest/phase-06.json`, DEC-110, DEC-111

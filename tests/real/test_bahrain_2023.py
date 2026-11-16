@@ -114,6 +114,40 @@ def test_lap_cutoffs(db: Path) -> None:
     assert 5_400 < cutoffs[LAST_LAP] < 6_000
 
 
+def test_alo_mid_pit_state_after_lap_15(db: Path) -> None:
+    accessor = AsOfAccessor(db)
+    first = accessor.snapshot(AsOf(RACE_ID, 0))
+    laps_total = _race_laps_total(accessor, RACE_ID, first)
+    snapshot = accessor.snapshot(AsOf(RACE_ID, 15))
+
+    assert snapshot.cutoff_s == pytest.approx(1486.1, abs=0.1)
+    in_lap = snapshot.laps.loc[
+        (snapshot.laps["driver_number"] == 14) & (snapshot.laps["lap_number"] == 14)
+    ].iloc[0]
+    assert float(in_lap["lap_end_s"]) == pytest.approx(1406.5, abs=0.1)
+
+    assert not ((snapshot.laps["driver_number"] == 14) & (snapshot.laps["lap_number"] == 15)).any()
+    started_stint = snapshot.stints.loc[
+        (snapshot.stints["driver_number"] == 14) & (snapshot.stints["first_lap"] == 15)
+    ].iloc[0]
+    assert started_stint["compound"] == "HARD"
+    assert started_stint["laps_so_far"] == 0
+    assert started_stint["tyre_life_now"] == 0
+    assert (
+        (snapshot.pit_events["driver_number"] == 14)
+        & (snapshot.pit_events["in_lap"] == 14)
+        & (snapshot.pit_events["out_lap"] == 15)
+    ).any()
+
+    context = cli._prepare_replay_context(accessor, RACE_ID, laps_total, 15, snapshot=snapshot)
+    alo = context.state.car("ALO")
+    assert alo.laps_done == 14
+    assert alo.compound == "HARD"
+    assert alo.tire_age == 0
+    assert alo.stops_done == 1
+    assert alo.compounds_used == ("SOFT", "HARD")
+
+
 def test_results_door(db: Path) -> None:
     final = ResultsAccessor(db).final_classification(RACE_ID)
     winner = final[final["driver_code"] == "VER"]

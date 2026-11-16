@@ -78,10 +78,23 @@ def test_page_uses_shared_asof_replay_builder_without_results_imports() -> None:
 
 def test_report_copy_formats_brier_scores_and_keeps_coverage_target_visible() -> None:
     app = import_module("f1si.app")
-    display = app._report_display_values(app._report_summary())
-    assert display["podium"] == "Model 0.047 vs grid baseline 0.080 (lower is better)"
-    assert display["top10"] == "Model 0.144 vs grid baseline 0.190 (lower is better)"
-    assert display["coverage"].startswith("83% race average; 83.7% across all finishes")
+    report = app._report_summary()
+    metrics = report["metrics"]
+    podium, top10 = metrics["podium_brier"], metrics["top10_brier"]
+    coverage = metrics["finish_interval_90"]
+    pooled = coverage["covered"] / coverage["classified_finishers"]
+    display = app._report_display_values(report)
+    assert display["podium"] == (
+        f"Model {podium['model']['mean']:.3f} vs grid baseline "
+        f"{podium['baseline']['mean']:.3f} (lower is better)"
+    )
+    assert display["top10"] == (
+        f"Model {top10['model']['mean']:.3f} vs grid baseline "
+        f"{top10['baseline']['mean']:.3f} (lower is better)"
+    )
+    assert display["coverage"].startswith(
+        f"{coverage['coverage']['mean']:.0%} race average; {pooled:.1%} across all finishes"
+    )
     assert "Target: 85% to 95%" in display["coverage"]
 
 
@@ -114,7 +127,10 @@ def test_evaluation_uses_five_explained_metrics(monkeypatch: pytest.MonkeyPatch)
     assert len(fragments) == 1
     assert "How good is this model?" in fragments[0]
     assert "Better than starting order" in fragments[0]
-    assert "model 0.047 versus grid baseline 0.080" in fragments[0]
+    podium = app._report_summary()["metrics"]["podium_brier"]
+    assert (
+        f"model {podium['model']['mean']:.3f} versus grid baseline {podium['baseline']['mean']:.3f}"
+    ) in fragments[0]
     assert "Target: 85% to 95%" in fragments[0]
     assert fragments[0].count('class="metric"') == 5
 

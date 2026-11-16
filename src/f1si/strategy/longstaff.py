@@ -9,6 +9,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -94,23 +95,33 @@ def _midpoint_finish_quantiles(sample: NDArray[np.float64]) -> tuple[int, ...]:
 
 
 def _fit_continuation(
-    features: NDArray[np.float64], realized_values: NDArray[np.float64]
+    features: NDArray[np.float64],
+    realized_values: NDArray[np.float64],
+    *,
+    predict_features: NDArray[np.float64] | None = None,
 ) -> NDArray[np.float64]:
-    """Fit a linear conditional-mean basis; use the finite intercept mean when rank is poor."""
+    """Fit a conditional-mean basis and predict on the supplied paths.
+
+    `predict_features` lets the Longstaff policy score paths independent of its regression fit.
+    """
     x = np.asarray(features, dtype=np.float64)
     y = np.asarray(realized_values, dtype=np.float64)
+    predict_x = x if predict_features is None else np.asarray(predict_features, dtype=np.float64)
     if x.ndim != 2 or y.ndim != 1 or x.shape[0] != y.shape[0] or y.size == 0:
         raise ValueError("continuation regression requires aligned feature rows and values")
-    if not np.isfinite(x).all() or not np.isfinite(y).all():
+    if predict_x.ndim != 2 or predict_x.shape[1] != x.shape[1]:
+        raise ValueError("continuation prediction features must match the fitted feature columns")
+    if not np.isfinite(x).all() or not np.isfinite(y).all() or not np.isfinite(predict_x).all():
         raise ValueError("continuation regression inputs must be finite")
     design = np.column_stack((np.ones(x.shape[0]), x))
-    fallback = np.full(y.shape, float(y.mean()), dtype=np.float64)
+    prediction_design = np.column_stack((np.ones(predict_x.shape[0]), predict_x))
+    fallback = np.full(predict_x.shape[0], float(y.mean()), dtype=np.float64)
     if x.shape[0] < design.shape[1]:
         return fallback
     coefficients, _, rank, _ = np.linalg.lstsq(design, y, rcond=None)
     if rank != design.shape[1]:
         return fallback
-    prediction = design @ coefficients
+    prediction = prediction_design @ coefficients
     return np.asarray(prediction, dtype=np.float64)
 
 
@@ -147,6 +158,9 @@ def _backward_stop_options_with_choices(
     terminal_values: NDArray[np.float64],
     *,
     force_stop_at_last_time: bool = False,
+    fit_features: Mapping[int, NDArray[np.float64]] | None = None,
+    fit_stop_values: Mapping[int, Mapping[str, NDArray[np.float64]]] | None = None,
+    fit_terminal_values: NDArray[np.float64] | None = None,
 ) -> tuple[
     NDArray[np.float64],
     dict[int, NDArray[np.bool_]],
@@ -156,6 +170,13 @@ def _backward_stop_options_with_choices(
 ]:
     """Return continuation outcomes and the fixed branch chosen on each scenario path."""
     values = np.asarray(terminal_values, dtype=np.float64).copy()
+    training_features = features if fit_features is None else fit_features
+    training_stops = stop_values if fit_stop_values is None else fit_stop_values
+    training_values = np.asarray(
+        terminal_values if fit_terminal_values is None else fit_terminal_values, dtype=np.float64
+    ).copy()
+    if set(features) != set(training_features) or set(stop_values) != set(training_stops):
+        raise ValueError("fit and score paths must have the same candidate stop times")
     decisions: dict[int, NDArray[np.bool_]] = {}
     action_values: dict[int, dict[str, NDArray[np.float64]]] = {}
     action_choices: dict[int, dict[str, NDArray[np.str_]]] = {}
@@ -163,20 +184,30 @@ def _backward_stop_options_with_choices(
     last_time = max(stop_values, default=None)
     for time in sorted(stop_values, reverse=True):
         state = np.asarray(features[time], dtype=np.float64)
+        fit_state = np.asarray(training_features[time], dtype=np.float64)
         continuation = (
             np.full(values.shape, np.inf, dtype=np.float64)
             if force_stop_at_last_time and time == last_time
-            else _fit_continuation(state, values)
+            else _fit_continuation(fit_state, training_values, predict_features=state)
         )
         immediate = {
             action: np.asarray(sample, dtype=np.float64)
             for action, sample in stop_values[time].items()
         }
+        fit_immediate = {
+            action: np.asarray(sample, dtype=np.float64)
+            for action, sample in training_stops[time].items()
+        }
         if not immediate or any(sample.shape != values.shape for sample in immediate.values()):
             raise ValueError("stop and continuation outcomes must be non-empty and path-aligned")
+        if immediate.keys() != fit_immediate.keys() or any(
+            sample.shape != training_values.shape for sample in fit_immediate.values()
+        ):
+            raise ValueError("fit stop outcomes must be non-empty and path-aligned")
         names = tuple(immediate)
         expected_stop = {
-            action: _fit_continuation(state, sample) for action, sample in immediate.items()
+            action: _fit_continuation(fit_state, fit_immediate[action], predict_features=state)
+            for action in names
         }
         expected_stacked = np.column_stack(tuple(expected_stop.values()))
         best_indices = np.argmin(expected_stacked, axis=1)
@@ -185,6 +216,22 @@ def _backward_stop_options_with_choices(
         realized_stacked = np.column_stack(tuple(immediate.values()))
         best_stop_realized = realized_stacked[path_indices, best_indices]
         exercise = best_stop_expected <= continuation
+
+        fit_continuation = (
+            np.full(training_values.shape, np.inf, dtype=np.float64)
+            if force_stop_at_last_time and time == last_time
+            else _fit_continuation(fit_state, training_values, predict_features=fit_state)
+        )
+        fit_expected_stop = {
+            action: _fit_continuation(fit_state, fit_immediate[action]) for action in names
+        }
+        fit_expected_stacked = np.column_stack(tuple(fit_expected_stop.values()))
+        fit_best_indices = np.argmin(fit_expected_stacked, axis=1)
+        fit_path_indices = np.arange(fit_expected_stacked.shape[0])
+        fit_best_stop_expected = fit_expected_stacked[fit_path_indices, fit_best_indices]
+        fit_realized_stacked = np.column_stack(tuple(fit_immediate.values()))
+        fit_best_stop_realized = fit_realized_stacked[fit_path_indices, fit_best_indices]
+        fit_exercise = fit_best_stop_expected <= fit_continuation
         chosen_now = np.asarray(names, dtype="<U64")[best_indices]
         future_choices = later_choices.copy()
         action_values[time] = {
@@ -199,6 +246,7 @@ def _backward_stop_options_with_choices(
         }
         later_choices = np.where(exercise, chosen_now, future_choices).astype("<U64")
         values = np.where(exercise, best_stop_realized, values)
+        training_values = np.where(fit_exercise, fit_best_stop_realized, training_values)
         decisions[time] = exercise
     return values, decisions, action_values, action_choices, later_choices
 
@@ -301,26 +349,47 @@ class LongstaffSchwartzPolicy:
         checkpoint = _PathCheckpoint(state=state, lap=state.lap)
         future_stops = sorted(t for t in stop_laps if t > state.lap)
         capture_cutoffs = tuple(t - 1 for t in future_stops if t - 1 > state.lap)
+        # Two-fold cross-fitting uses disjoint halves of the registered path batch. The one-path
+        # edge case needs a separate fit draw because it cannot be partitioned.
+        separate_fit_batch = self._n == 1
+        if separate_fit_batch:
+            fit_rng, score_rng = make_rng(self._seed).spawn(2)
+            fit_branched = simulator._branch_paths(
+                checkpoint,
+                actions=branches,
+                n_races=self._n,
+                rng=fit_rng,
+                checkpoint_laps=capture_cutoffs,
+                capture_actions=("stay out",),
+            )
+        else:
+            fit_branched = None
+            score_rng = make_rng(self._seed)
         branched = simulator._branch_paths(
             checkpoint,
             actions=branches,
             n_races=self._n,
-            rng=make_rng(self._seed),
+            rng=score_rng,
             checkpoint_laps=capture_cutoffs,
             capture_actions=("stay out",),
             position_history_driver=driver if retain_position_history else None,
         )
+        if fit_branched is None:
+            fit_branched = branched
         column = [c.driver for c in state.cars].index(driver)
         stay_values = np.asarray(
             branched["stay out"].result.finish_positions[:, column], dtype=np.float64
         )
+        fit_stay_values = np.asarray(
+            fit_branched["stay out"].result.finish_positions[:, column], dtype=np.float64
+        )
 
-        def path_features(cutoff: int) -> NDArray[np.float64]:
+        def path_features(outcomes: Mapping[str, Any], cutoff: int) -> NDArray[np.float64]:
             """Small normalized basis from the target's aligned pre-decision path state."""
             if cutoff == state.lap:
                 checkpoint_state = None
             else:
-                checkpoint_state = branched["stay out"].checkpoints.get(cutoff)
+                checkpoint_state = outcomes["stay out"].checkpoints.get(cutoff)
             n = self._n
             if checkpoint_state is None:
                 position = float(car.position or len(state.cars))
@@ -375,12 +444,21 @@ class LongstaffSchwartzPolicy:
 
         # Reverse-time Longstaff-Schwartz: each time step regresses aligned later-policy
         # outcomes on that cutoff's pathwise state, then exercises stop-now per scenario.
-        feature_by_time = {t: path_features(t - 1) for t in future_stops}
+        feature_by_time = {t: path_features(branched, t - 1) for t in future_stops}
+        fit_feature_by_time = {t: path_features(fit_branched, t - 1) for t in future_stops}
         stop_values_by_time: dict[int, dict[str, NDArray[np.float64]]] = {}
+        fit_stop_values_by_time: dict[int, dict[str, NDArray[np.float64]]] = {}
         for stop_lap in future_stops:
             stop_values_by_time[stop_lap] = {
                 action: np.asarray(
                     branched[action].result.finish_positions[:, column], dtype=np.float64
+                )
+                for action, plan in candidates
+                if plan.stop_laps == (stop_lap,)
+            }
+            fit_stop_values_by_time[stop_lap] = {
+                action: np.asarray(
+                    fit_branched[action].result.finish_positions[:, column], dtype=np.float64
                 )
                 for action, plan in candidates
                 if plan.stop_laps == (stop_lap,)
@@ -434,14 +512,49 @@ class LongstaffSchwartzPolicy:
 
             def policy_from(start_lap: int) -> tuple[NDArray[np.float64], NDArray[np.str_]]:
                 active_times = [time for time in waiting_starts if time >= start_lap]
-                features = {time: feature_by_time[time] for time in active_times}
-                stop_values = {time: stop_values_by_time[time] for time in active_times}
-                policy_values, _, _, _, policy_choices = _backward_stop_options_with_choices(
-                    features,
-                    stop_values,
-                    stay_values,
-                    force_stop_at_last_time=not already_met_compound_rule,
+                all_indices = np.arange(self._n)
+                score_folds = (
+                    (all_indices,) if separate_fit_batch else (all_indices[::2], all_indices[1::2])
                 )
+                policy_values = np.empty(self._n, dtype=np.float64)
+                policy_choices = np.empty(self._n, dtype="<U64")
+                for score_indices in score_folds:
+                    if not score_indices.size:
+                        continue
+                    fit_indices = (
+                        all_indices
+                        if separate_fit_batch
+                        else all_indices[~np.isin(all_indices, score_indices)]
+                    )
+                    features = {time: feature_by_time[time][score_indices] for time in active_times}
+                    training_features = {
+                        time: fit_feature_by_time[time][fit_indices] for time in active_times
+                    }
+                    stop_values = {
+                        time: {
+                            action: sample[score_indices]
+                            for action, sample in stop_values_by_time[time].items()
+                        }
+                        for time in active_times
+                    }
+                    training_stop_values = {
+                        time: {
+                            action: sample[fit_indices]
+                            for action, sample in fit_stop_values_by_time[time].items()
+                        }
+                        for time in active_times
+                    }
+                    fold_values, _, _, _, fold_choices = _backward_stop_options_with_choices(
+                        features,
+                        stop_values,
+                        stay_values[score_indices],
+                        force_stop_at_last_time=not already_met_compound_rule,
+                        fit_features=training_features,
+                        fit_stop_values=training_stop_values,
+                        fit_terminal_values=fit_stay_values[fit_indices],
+                    )
+                    policy_values[score_indices] = fold_values
+                    policy_choices[score_indices] = fold_choices
                 return policy_values, policy_choices
 
             wait_sample, wait_choices = policy_from(waiting_starts[0])
