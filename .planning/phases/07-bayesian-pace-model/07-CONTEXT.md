@@ -18,13 +18,13 @@ This phase does not add a new UI or change the strategy policy. Markov regimes, 
 
 ### Training data and effect structure
 - **D-01:** Fit from only completed clean laps in earlier in-sample races plus completed clean laps in the current RaceSnapshot. Use the as-of History and snapshot supplied by the caller; never read the current race's results, later laps, or 2026 data. Join team identity through that race's entries and derive each race's regulation era from its calendar metadata.
-- **D-02:** Use an additive hierarchical model with partially pooled team/car and driver offsets, fresh-compound offsets, compound-specific tire-age wear, a shared fuel proxy by lap number, regulation-era offsets, and a race-level intercept for circuit and event conditions. Center group effects so the global intercept and nested effects are identifiable. Team name is the available car-performance proxy; do not describe it as a separately measured chassis effect.
+- **D-02:** Use an additive hierarchical model with partially pooled team/car and driver offsets, fresh-compound offsets, compound-specific tire-age wear, a shared fuel proxy by lap number, regulation-era offsets, and a race-level intercept for circuit and event conditions. Center group effects so the global intercept and nested effects are identifiable. Team name is the available car-performance proxy; do not describe it as a separately measured chassis effect. The cached 2023-2025 real data all belong to the 2022-2025 ground-effect era, so they cannot identify a real between-era contrast; retain the era term for synthetic multi-era recovery and do not unlock 2026 data.
 - **D-03:** Use the same clean-lap eligibility rules as the linear baseline so the comparison differs by model, not by data curation. Keep the linear model available as baseline and fallback.
 - **D-04:** Shrink unseen or sparse drivers, teams, compounds, and eras toward the learned population distribution. Do not silently borrow a realized future value; report when a prediction is population-prior-driven.
 
 ### Inference and PaceModel behavior
 - **D-05:** Implement the model in PyMC with explicit seeded variational inference for repeated cutoff fits, and validate its posterior recovery and uncertainty against a higher-accuracy NUTS reference run on bounded synthetic fixtures. Use convergence/loss checks; a failed fit must be reported, never replaced silently with an apparently fitted model. This is the recommended balance for walk-forward runtime and posterior quality.
-- **D-06:** PaceModel.predict returns posterior predictive mean and standard deviation: residual lap noise plus parameter uncertainty for the requested driver, compound, tire age, and lap. The caller continues to own simulation random draws.
+- **D-06:** PaceModel.predict returns the posterior mean and per-lap residual standard deviation. Expose posterior driver/team offset and compound-wear uncertainty through the fit's existing PaceModel-adjacent state fields so the simulator can draw shared race-level parameters; do not fold the same shared uncertainty into per-lap noise. The caller continues to own simulation random draws.
 - **D-07:** Keep all fitting and prediction behind the existing PaceModel seam. Replay and backtest select the model through their composition point and use the same cutoff-safe input path; policy, simulator, and scoring semantics do not change.
 
 ### Evaluation and synthetic recovery
@@ -89,7 +89,7 @@ This phase does not add a new UI or change the strategy policy. Markov regimes, 
 ### Integration Points
 - The replay builder and walk-forward backtest currently compose pace using fit_linear_pace; add a model-selection seam there without changing strategy or simulator APIs.
 - Team identifiers come from the entry rows; driver identifiers must be stable across races, while prediction inputs still use the protocol's driver number.
-- The current standard-deviation output feeds simulator lap noise. Preserve the interface and make its posterior predictive interpretation explicit.
+- The current standard-deviation output feeds independent simulator lap noise; RaceState separately carries shared driver-offset and tire-wear uncertainty. Preserve this split to avoid double counting.
 
 </code_context>
 

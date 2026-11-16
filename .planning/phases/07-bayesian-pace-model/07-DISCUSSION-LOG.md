@@ -22,7 +22,7 @@
 | Question | Options considered | Selected |
 |---|---|---|
 | Which PyMC inference route supports repeated cutoff fits? | NUTS for every fit; seeded ADVI for operational fits with NUTS reference validation; non-Bayesian approximation | ADVI with NUTS validation |
-| What should the protocol's standard deviation represent? | Residual noise only; posterior predictive uncertainty; parameter uncertainty only | Posterior predictive uncertainty |
+| What should the protocol's standard deviation represent? | Residual lap noise only; fold parameter uncertainty into every lap; parameter uncertainty only | Residual lap noise only, with shared uncertainty in RaceState |
 | How should fitting failures surface? | Silent linear fallback; explicit fit failure; clamp unsupported parameters | Explicit fit failure, with caller-controlled linear fallback |
 | How should the model integrate? | Replace PaceModel's public protocol; add a parallel strategy path; select at existing composition seams | Select at existing seams |
 
