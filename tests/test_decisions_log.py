@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 117
+MIN_ENTRIES = 118
 
 
 def _entries() -> list[tuple[str, str, str]]:

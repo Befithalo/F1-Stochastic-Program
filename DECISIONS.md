@@ -1289,3 +1289,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Replacing the linear default; caching only by race or lap; writing Bayesian results over the frozen Phase 6 report; fitting the model from current-race results.
 **Consequences:** Linear replay and scoring remain the defaults. Bayesian report selection is available for reproducible experimentation, with a separate artifact path. Future-scramble policy checks keep the real cutoff-local training-panel builder but substitute a cheap deterministic fit to bound CI resources; real ADVI convergence and recovery remain covered by the dedicated recovery tests.
 **Refs:** `src/f1si/cli.py`; `src/f1si/backtest/walk_forward.py`; `src/f1si/backtest/scoring.py`; `tests/guards/consumers.py`; DEC-116
+
+## DEC-118 — Score the locked Bayesian pace holdout once
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Phase 7 needs a real-data accuracy check after synthetic recovery and replay integration. The first three 2025 races are chronological targets with enough cached timing data for a grouped walk-forward evaluation, and all 2023–2025 rows are within the same regulation era.
+**Decision:** Before scoring, freeze 2025-01 through 2025-03, every leader-lap cutoff from pre-race lap 0 through the penultimate leader cutoff, the next-to-complete lap for each driver, the common clean-target mask, model settings, CRC32 seed derivation, paired next-lap MAE, a 500-target minimum, and a 15% reduction gate. Predict from cutoff-known compound and tyre age; only after all cutoff predictions are complete, read target laps through the as-of door and score identical finite rows. Run once; a failed gate is reported as unmet without changing the split or tuning on these races.
+**Why:** A chronological grouped split keeps each target in its race context and prevents later laps from entering its own fit. The same paired rows make the MAE comparison attributable to the pace model, while the committed lock and one-shot report guard prevent result-driven sample changes.
+**Alternatives rejected:** Select or replace races after seeing scores; use target lap fields as prediction features; let either model use a different target mask; rerun the score after adjusting model settings.
+**Consequences:** The split, cutoff ranges, clean-target rule, seed, model configuration, minimum sample and success threshold are committed in `07-05-evaluation-lock.json` before the report exists. The score will disclose per-race denominators and the single-era limitation. Failure to meet the gate is not repaired by a new holdout.
+**Refs:** `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; `src/f1si/backtest/pace_evaluation.py`; `src/f1si/pace/training.py`; `src/f1si/data/asof.py`; DEC-116, DEC-117
