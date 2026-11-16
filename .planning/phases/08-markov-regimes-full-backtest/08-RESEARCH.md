@@ -227,10 +227,10 @@ No user authentication, external API integration, secrets, or UI changes are in 
 | A2 | Existing SC-specific timing/opportunistic-stop behavior remains in scope; this phase does not invent unmeasured red-flag or wet-lap pace effects. | Architecture Pattern 3 | The five-state model could be misread as a full physical weather/red-flag model; docs must state its actual modeled effects. |
 | A3 | The 2026 complete calendar and load metadata seen during discussion still describe the authorized holdout IDs; outcomes remain unopened until the committed lock. | Pattern 4 | Catalog changes before scoring would invalidate the lock; preflight should fail rather than silently replace IDs. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. How much simulation mechanics should change for VSC and red beyond transition probabilities and the locked pit-loss map? CONTEXT.md does not lock pace compression, suspension, restart, or wet-lap effects. Recommendation: scope changes to the required transition process, regime-specific pit cost, and existing SC mechanics; state unsupported red/wet effects as limitations.
-2. How should the holdout report handle a registered race absent/incomplete in the local cache? Recommendation: preserve the locked IDs and fail preflight; never replace a race after the score lock.
+1. **(RESOLVED)** RESOLVED: Only transition probabilities, regime labels, and the locked pit-cost multipliers change. Retain existing SC mechanics. Do not invent wet-pace or red-flag suspension/restart behavior; document those as limitations.
+2. **(RESOLVED)** RESOLVED: Fail preflight on the exact frozen holdout IDs when cache data are missing or incomplete. Preserve the registered row and denominator; never substitute a race after the lock.
 
 ## Sources
 
