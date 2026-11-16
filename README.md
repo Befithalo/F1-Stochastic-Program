@@ -4,7 +4,7 @@ A Python platform that recommends F1 pit strategy as a full probability distribu
 
 ## Status
 
-Phases 1–5 provide the data layer, simulator, wear filter, and cutoff-safe strategy replay. Phase 6 adds a fixed-sample, ten-race walk-forward evaluation and a read-only Streamlit view. Its results below are an MVP measurement, not a claim of calibrated performance or superiority over teams.
+Phases 1–5 provide the data layer, simulator, wear filter, and cutoff-safe strategy replay. Phase 6 adds a fixed-sample, ten-race walk-forward evaluation and a read-only Streamlit view. Phase 7 adds an optional Bayesian pace model and a locked real-data evaluation; the 15% real-data improvement gate was not met. These results are measurements, not claims of calibrated performance or superiority over teams.
 
 ## What Phase 1 gives you
 
@@ -37,6 +37,19 @@ The team-call section is a retrospective comparison with observed team behavior.
 The wear-band diagnostic is a retrospective proxy, not latent ground truth. The filter's 1.96-standard-deviation wear band covered 6,382 of 7,659 available proxy comparisons (0.833268050659355). For estimates using at most eight clean laps, early-fit bias (cutoff posterior mean minus proxy) was -0.007208870207207395 s/lap. Current-stint clean laps made up a mean share of 0.05488478791292842 across 5,939 measurements under the same-cutoff, same-compound definition. No leave-stint-out reference could be estimated for `2023-03` or `2025-01`; these races are reported as unavailable, not misses. The filter was not tuned on these evaluation races.
 
 Fuel load and tire wear are hidden variables. The simulator uses simplified assumptions, including linear wear, the existing historical safety-car probability rather than Phase 8's Markov regime model, and no retirement model. Sparse or prior-driven replay outputs remain uncalibrated; interval coverage here describes this sample and does not establish future calibration. The complete measured report is [`reports/backtest/phase-06.json`](reports/backtest/phase-06.json), and the [Phase 6 explainer](docs/explained/phase-06.md) describes the method and file tour. Run the read-only view with `uv run streamlit run src/f1si/app.py`.
+
+## Phase 7 Bayesian pace evaluation
+
+The optional hierarchical Bayesian model passed the synthetic recovery checks, but it did not improve next-lap error on the single locked real-data holdout. Across the registered 2025-01 to 2025-03 race group, it had 1,348 paired target predictions (1,344 unique driver-target laps). Bayesian MAE was 0.5387 seconds; the linear baseline was 0.3640 seconds. The Bayesian MAE was 48.0% higher, so PAC-06 is **not met**. The first race, 2025-01, remains in the registered group and contributed zero paired targets; 2025-02 contributed 776 and 2025-03 contributed 572.
+
+| Race | Paired predictions | Unique driver-target laps | Linear MAE (s) | Bayesian MAE (s) |
+|---|---:|---:|---:|---:|
+| 2025-01 | 0 | 0 | — | — |
+| 2025-02 | 776 | 773 | 0.4160 | 0.5607 |
+| 2025-03 | 572 | 571 | 0.2936 | 0.5090 |
+| **Combined** | **1,348** | **1,344** | **0.3640** | **0.5387** |
+
+The score used 74 successful 50,000-iteration cutoff fits with no fit failures. The registered race group and metric were not changed after scoring, and the score was not rerun for tuning. All real training and target rows are from the 2022–2025 ground-effect regulation era, so the evaluation does not identify a real between-era effect. See the [complete report](reports/pace/phase-07.json), [Phase 7 explainer](docs/explained/phase-07.md), and [Phase 7 summary](docs/phases/07-bayesian-pace-model.md).
 
 Read [docs/explained/phase-05.md](docs/explained/phase-05.md) for the Phase 5 Longstaff-Schwartz and replay tour. Read [docs/explained/phase-04.md](docs/explained/phase-04.md) for the Phase 4 tour (the Kalman tyre-wear filter, its priors, real Bahrain numbers). Read [docs/explained/phase-03.md](docs/explained/phase-03.md) for the Phase 3 tour (the safety-car rate, passing, variance reduction, the simulator). Read [docs/explained/phase-02.md](docs/explained/phase-02.md) for the Phase 2 tour (interfaces, tyre wear, the pit plan). Read [docs/explained/phase-01.md](docs/explained/phase-01.md) for a plain-language tour of everything built (what, why, how the pieces connect, a file-by-file tour and interview questions). Every method choice is logged in [DECISIONS.md](DECISIONS.md).
 

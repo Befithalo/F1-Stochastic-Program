@@ -41,7 +41,7 @@ created: "2026-11-16"
 | 07-04-01 | 04 | 4 | PAC-05, RPL-01, BKT-01 | T-07-01 | Same-cutoff history and snapshot | integration | uv run pytest tests/test_cli_replay.py tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -q | Existing + TDD | pass |
 | 07-04-02 | 04 | 4 | PAC-05, RPL-01 | T-07-01 | Future scramble leaves output unchanged | guard | uv run pytest tests/guards/test_future_scramble.py -q | Existing | pass |
 | 07-05-01 | 05 | 5 | PAC-06 | T-07-01 | Lock race/sample before scoring | unit | uv run pytest tests/backtest/test_bayesian_accuracy.py -q | TDD task | pass |
-| 07-05-02 | 05 | 5 | PAC-05, PAC-06, UI-03 | — | Publish actual result and denominator | docs/evaluation | uv run pytest tests/backtest/test_bayesian_accuracy.py tests/test_decisions_log.py tests/test_docs.py -q | TDD task | pending |
+| 07-05-02 | 05 | 5 | PAC-05, PAC-06, UI-03 | — | Publish actual result and denominator; preserve an unmet PAC-06 gate | docs/evaluation | uv run pytest tests/backtest/test_bayesian_accuracy.py tests/test_decisions_log.py tests/test_docs.py -q | TDD task | pass (PAC-06 not met) |
 
 ## Wave 0 Requirements
 

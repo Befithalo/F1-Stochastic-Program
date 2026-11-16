@@ -299,7 +299,7 @@ Rework order is represented by Waves 10 and 11 above.
 - [x] 07-04-PLAN.md
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 07-05-PLAN.md
+- [x] 07-05-PLAN.md
 
 ### Phase 8: Markov Regimes & Full Backtest
 
@@ -327,5 +327,5 @@ Rework order is represented by Waves 10 and 11 above.
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
 | 6. MVP Backtest, Streamlit View & README | 12/12 | Complete    | 2026-11-16 |
-| 7. Bayesian Pace Model | 4/5 | In Progress | - |
+| 7. Bayesian Pace Model | 5/5 | In Progress | - |
 | 8. Markov Regimes & Full Backtest | 0/0 | Not started | - |

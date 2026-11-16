@@ -1311,3 +1311,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Continue in one process until host memory is exhausted; reduce the locked fit budget or change the score protocol after execution began; read a partial target score.
 **Consequences:** A cutoff worker opens only its own `AsOf` snapshot and earlier-only `History`, and it never receives target lap rows. Fits take additional process-start time; the committed evaluator records total runtime and fit failures.
 **Refs:** `src/f1si/backtest/pace_evaluation.py`; `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; DEC-118
+
+## DEC-120 — Publish the locked Bayesian pace score, including the unmet gate
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** DEC-118 fixed the first three 2025 races, paired clean next-lap MAE, a minimum of 500 targets, and a 15% improvement requirement before scoring. DEC-119 isolated each cutoff fit so the complete locked evaluation could run within available memory.
+**Decision:** Publish the completed one-shot report as measured. It contains 1,348 paired targets (1,344 unique driver-target laps), linear MAE 0.364033 seconds, Bayesian MAE 0.538745 seconds, and a -47.993% MAE reduction, meaning Bayesian MAE was 47.993% higher. The 500-target minimum passed but the 15% improvement gate did not; PAC-06 is not met. The locked 2025-01 race remains included with zero paired targets; 2025-02 contributed 776 and 2025-03 contributed 572. All 74 cutoff fits succeeded. Do not change the race group or tune and rescore this holdout.
+**Why:** Reporting the registered outcome preserves the distinction between synthetic parameter recovery and real predictive accuracy. Keeping the zero-row race visible preserves the pre-registered sample and makes the denominator auditable.
+**Alternatives rejected:** Claim that synthetic recovery establishes real predictive superiority; remove 2025-01 or select replacement races; adjust the model after the holdout score and rerun it.
+**Consequences:** README, explainer and phase summary report the measured error increase and unmet PAC-06 gate. The 2023–2025 real data all belong to one regulation era, so the evaluation does not identify a real between-era effect.
+**Refs:** reports/pace/phase-07.json; .planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json; src/f1si/backtest/pace_evaluation.py; README.md; docs/explained/phase-07.md; DEC-116, DEC-118, DEC-119
