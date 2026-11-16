@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -75,9 +76,37 @@ def test_phase_08_in_sample_lock_records_exact_calendar_and_settings() -> None:
         "base_seed": 0,
         "risk": 0.5,
     }
-    assert "target_mask" in lock
-    assert "metrics" in lock
+    assert lock["sample_boundary"]["preflight"].startswith("every listed race")
+    assert lock["randomness"]["prediction_seed"].startswith("(base_seed + crc32")
+    assert lock["randomness"]["pace_fit_seed_scope"] == (
+        "shared by all drivers at one race and cutoff"
+    )
+    assert lock["randomness"]["bootstrap_resamples"] == 2_000
+    assert len(lock["cutoff_and_target"]["target_mask"]) == 5
+    assert {
+        "podium_brier",
+        "top10_brier",
+        "paired_probability_mask",
+        "finish_interval_90",
+        "team_strategy_comparison",
+        "wear_band_retrospective_proxy",
+        "aggregation",
+        "uncertainty",
+        "empty_race_rule",
+    } == set(lock["metrics"])
     assert lock["report_schema"]["schema_version"] == 1
+    assert "per-race" in lock["report_schema"]["required_denominators"]
+    assert lock["holdout_boundary"]["race_ids"] == [
+        f"2026-{round_number:02d}" for round_number in range(9, 18)
+    ]
+    assert lock["holdout_boundary"]["score_policy"] == (
+        "score once and never tune or rescore against the holdout"
+    )
+
+    digest_payload = dict(lock)
+    del digest_payload["lock_digest"]
+    canonical = json.dumps(digest_payload, sort_keys=True, separators=(",", ":"))
+    assert lock["lock_digest"]["sha256"] == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _catalog(*, missing: tuple[str, ...] = ()) -> pd.DataFrame:
