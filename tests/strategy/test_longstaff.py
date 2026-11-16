@@ -2,7 +2,7 @@
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import fields
+from dataclasses import fields, replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -58,6 +58,14 @@ def state(lap: int = 10, laps_total: int = 16) -> RaceState:
     return RaceState(lap, laps_total, {"green": 1.0}, {"green": 20.0, "sc": 10.0}, cars)
 
 
+def state_with_two_compounds(lap: int = 10, laps_total: int = 16) -> RaceState:
+    race = state(lap, laps_total)
+    return replace(
+        race,
+        cars=(replace(race.cars[0], compounds_used=("HARD", "MEDIUM")), *race.cars[1:]),
+    )
+
+
 def test_continuation_regression_recovers_conditional_mean_and_falls_back() -> None:
     x = np.linspace(-1.0, 1.0, 40)[:, None]
     y = 7.0 + 2.5 * x[:, 0]
@@ -82,7 +90,7 @@ def test_delayed_option_does_not_use_future_finish_noise_to_choose_a_stop() -> N
     stop_values = {16: {"medium": np.array([5.0, 15.0])}}
     terminal = np.array([9.0, 9.0])
 
-    _, _, action_values, action_choices = _backward_stop_options_with_choices(
+    _, _, action_values, action_choices, _ = _backward_stop_options_with_choices(
         features, stop_values, terminal
     )
 
@@ -90,6 +98,20 @@ def test_delayed_option_does_not_use_future_finish_noise_to_choose_a_stop() -> N
     # is worse than continuation, so future realized noise must not select the lucky path.
     np.testing.assert_array_equal(action_values[16]["medium"], np.array([9.0, 9.0]))
     np.testing.assert_array_equal(action_choices[16]["medium"], np.array(["stay out", "stay out"]))
+
+
+def test_two_compound_rule_forces_a_stop_at_the_last_legal_window() -> None:
+    features = {20: np.zeros((2, 1), dtype=np.float64)}
+    stop_values = {20: {"hard": np.array([15.0, 16.0])}}
+    terminal = np.array([1.0, 2.0])
+
+    values, decisions, _, _, choices = _backward_stop_options_with_choices(
+        features, stop_values, terminal, force_stop_at_last_time=True
+    )
+
+    np.testing.assert_array_equal(values, np.array([15.0, 16.0]))
+    np.testing.assert_array_equal(decisions[20], np.array([True, True]))
+    np.testing.assert_array_equal(choices, np.array(["hard", "hard"]))
 
 
 def test_branch_paths_share_indexed_draws_and_default_result_shape() -> None:
@@ -166,9 +188,8 @@ def test_recommended_history_matches_the_pathwise_policy_finish_distribution() -
 def test_policy_ranks_stay_out_when_no_second_compound_is_available() -> None:
     race = state(lap=10, laps_total=16)
     policy = LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD",), n_simulations=12, seed=5)
-    analysis = policy.analyze(race, driver="AAA")
-    assert [option.action for option in analysis.options] == ["stay out"]
-    assert analysis.best == analysis.options[0]
+    with pytest.raises(ValueError, match="two-compound rule"):
+        policy.analyze(race, driver="AAA")
 
 
 @pytest.mark.parametrize("count", [0, -1])
@@ -177,21 +198,14 @@ def test_policy_refuses_nonpositive_sample_count_before_simulation(count: int) -
         LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=count)
 
 
-def test_policy_compares_all_seven_actions_when_they_are_legal() -> None:
+def test_policy_ranks_box_now_and_wait_once_each() -> None:
     race = state(lap=10, laps_total=40)
     policy = LongstaffSchwartzPolicy(
         FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=16, seed=2
     )
     report = policy.analyze(race, driver="AAA")
-    assert {row.action for row in report.options} == {
-        "pit now",
-        "pit in 1 lap(s)",
-        "pit in 2 lap(s)",
-        "pit in 3 lap(s)",
-        "pit in 4 lap(s)",
-        "pit in 5 lap(s)",
-        "stay out",
-    }
+    assert {row.action for row in report.options} == {"pit now", "wait and decide next lap"}
+    assert report.never_stop_allowed is False
     assert all(
         np.isfinite([row.mean_finish, row.spread, row.cvar10, row.score]).all()
         for row in report.options
@@ -203,8 +217,8 @@ def test_late_race_omits_stop_options_past_last_legal_boundary() -> None:
     policy = LongstaffSchwartzPolicy(
         FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=12, seed=4
     )
-    report = policy.analyze(race, driver="AAA")
-    assert [row.action for row in report.options] == ["stay out"]
+    with pytest.raises(ValueError, match="two-compound rule"):
+        policy.analyze(race, driver="AAA")
 
 
 def test_empty_outcome_samples_are_refused() -> None:
@@ -232,7 +246,7 @@ def test_reason_is_one_stable_score_grounded_sentence() -> None:
     )
     reason = policy.analyze(race, driver="AAA").reason
     assert reason.endswith(".")
-    assert reason.count("ranks first") == 1
+    assert reason.count("lowest risk-adjusted finish estimate") == 1
     assert "tire cliff" not in reason.lower()
     assert "future safety car" not in reason.lower()
     assert reason == policy.analyze(race, driver="AAA").reason
@@ -284,15 +298,7 @@ def test_tied_options_have_stable_action_order(monkeypatch: pytest.MonkeyPatch) 
     report = LongstaffSchwartzPolicy(
         FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=20
     ).analyze(state(lap=10, laps_total=40), driver="AAA")
-    assert [row.action for row in report.options] == [
-        "pit now",
-        "pit in 1 lap(s)",
-        "pit in 2 lap(s)",
-        "pit in 3 lap(s)",
-        "pit in 4 lap(s)",
-        "pit in 5 lap(s)",
-        "stay out",
-    ]
+    assert [row.action for row in report.options] == ["pit now", "wait and decide next lap"]
 
 
 def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -347,37 +353,116 @@ def test_ranked_options_summarize_their_own_finish_draws(monkeypatch: pytest.Mon
             return outcomes
 
     monkeypatch.setattr(longstaff, "NumpySimulator", ControlledSimulator)
-    monkeypatch.setattr(
-        longstaff,
-        "_backward_stop_options",
-        lambda features, stop_values, terminal_values: (terminal_values, {}, stop_values),
-    )
     analysis = LongstaffSchwartzPolicy(
         FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=10
     ).analyze(state(lap=10, laps_total=40), driver="AAA")
 
-    for option in analysis.options:
-        sample = samples[option.action]
-        assert option.podium_probability == pytest.approx(np.mean(sample <= 3))
-        assert option.top10_probability == pytest.approx(np.mean(sample <= 10))
-        expected = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
-        assert (option.finish_p05, option.finish_p95) == tuple(expected.astype(int))
-        quantile_levels = (np.arange(100, dtype=np.float64) + 0.5) / 100.0
-        expected_quantiles = np.quantile(sample, quantile_levels, method="inverted_cdf")
-        assert option.finish_quantiles == tuple(expected_quantiles.astype(int))
     by_action = {option.action: option for option in analysis.options}
+    option = by_action["pit now"]
+    sample = samples["pit now"]
     assert (
-        by_action["pit now"].podium_probability,
-        by_action["pit now"].top10_probability,
-        by_action["pit now"].finish_p05,
-        by_action["pit now"].finish_p95,
+        option.podium_probability,
+        option.top10_probability,
+        option.finish_p05,
+        option.finish_p95,
     ) == (0.3, 0.6, 1, 20)
-    assert (
-        by_action["pit in 1 lap(s)"].podium_probability,
-        by_action["pit in 1 lap(s)"].top10_probability,
-        by_action["pit in 1 lap(s)"].finish_p05,
-        by_action["pit in 1 lap(s)"].finish_p95,
-    ) == (0.0, 1.0, 4, 4)
+    assert option.podium_probability == pytest.approx(np.mean(sample <= 3))
+    assert option.top10_probability == pytest.approx(np.mean(sample <= 10))
+    expected = np.quantile(sample, [0.05, 0.95], method="inverted_cdf")
+    assert (option.finish_p05, option.finish_p95) == tuple(expected.astype(int))
+    quantile_levels = (np.arange(100, dtype=np.float64) + 0.5) / 100.0
+    expected_quantiles = np.quantile(sample, quantile_levels, method="inverted_cdf")
+    assert option.finish_quantiles == tuple(expected_quantiles.astype(int))
+    assert len(by_action["wait and decide next lap"].finish_quantiles) == 100
+
+
+def test_close_call_uses_paired_standard_error_with_common_random_numbers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    n = 10
+    box_now = np.full(n, 5.0)
+    wait_draws = np.array([4.0, 6.0, 5.0, 6.0, 5.0, 6.0, 5.0, 6.0, 5.0, 6.0])
+    future_branch = "pit in 1 lap(s)"
+
+    class PairedSimulator:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def _branch_paths(
+            self,
+            checkpoint: _PathCheckpoint,
+            *,
+            actions: Mapping[str, Mapping[str, Plan]],
+            n_races: int,
+            rng: np.random.Generator,
+            checkpoint_laps: Sequence[int],
+            capture_actions: Sequence[str],
+            position_history_driver: str | None = None,
+        ) -> dict[str, Any]:
+            outcomes: dict[str, Any] = {}
+            for name in actions:
+                sample = (
+                    box_now
+                    if name == "pit now"
+                    else np.full(n, 19.0)
+                    if name == "stay out"
+                    else wait_draws
+                )
+                checkpoints = (
+                    {
+                        cutoff: SimpleNamespace(
+                            order=np.tile(np.array([[0, 1]], dtype=np.int64), (n, 1)),
+                            clock=np.tile(np.array([[0.0, 10.0]]), (n, 1)),
+                            tire_age=np.ones((n, 2), dtype=np.int64),
+                            stops_done=np.zeros((n, 2), dtype=np.int64),
+                            safety_car_remaining=np.zeros(n, dtype=np.int64),
+                        )
+                        for cutoff in checkpoint_laps
+                    }
+                    if name in capture_actions
+                    else {}
+                )
+                outcomes[name] = SimpleNamespace(
+                    result=SimpleNamespace(finish_positions=np.column_stack((sample, 21 - sample))),
+                    checkpoints=checkpoints,
+                )
+            return outcomes
+
+    def backward(
+        features: Mapping[int, NDArray[np.float64]],
+        stop_values: Mapping[int, Mapping[str, NDArray[np.float64]]],
+        terminal: NDArray[np.float64],
+        *,
+        force_stop_at_last_time: bool = False,
+    ) -> tuple[
+        NDArray[np.float64],
+        dict[int, NDArray[np.bool_]],
+        dict[int, dict[str, NDArray[np.float64]]],
+        dict[int, dict[str, NDArray[np.str_]]],
+        NDArray[np.str_],
+    ]:
+        choices = np.full(n, future_branch, dtype="<U64")
+        action_values = {
+            time: {action: wait_draws for action in actions}
+            for time, actions in stop_values.items()
+        }
+        action_choices = {
+            time: {action: choices for action in actions} for time, actions in stop_values.items()
+        }
+        decisions = {time: np.ones(n, dtype=np.bool_) for time in stop_values}
+        return wait_draws, decisions, action_values, action_choices, choices
+
+    monkeypatch.setattr(longstaff, "NumpySimulator", PairedSimulator)
+    monkeypatch.setattr(longstaff, "_backward_stop_options_with_choices", backward)
+    analysis = LongstaffSchwartzPolicy(
+        FlatPace(), compounds=("HARD", "MEDIUM"), n_simulations=n
+    ).analyze(state(lap=10, laps_total=40), driver="AAA")
+
+    difference = wait_draws - box_now
+    expected_two_se = 2.0 * float(difference.std(ddof=1) / math.sqrt(n))
+    assert analysis.close_call_places == pytest.approx(0.4)
+    assert analysis.close_call_two_se == pytest.approx(expected_two_se)
+    assert analysis.waiting_tie_window_laps == (12, 16)
 
 
 def test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution(
@@ -412,7 +497,7 @@ def test_ranked_option_retains_100_midpoint_quantiles_for_known_distribution(
     monkeypatch.setattr(longstaff, "NumpySimulator", KnownDistributionSimulator)
     option = (
         LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD",), n_simulations=100, seed=3)
-        .analyze(state(lap=10, laps_total=16), driver="AAA")
+        .analyze(state_with_two_compounds(lap=12, laps_total=16), driver="AAA")
         .best
     )
 
@@ -455,7 +540,7 @@ def test_frozen_prediction_trace_carries_summaries_without_draw_arrays(
 
     monkeypatch.setattr(longstaff, "NumpySimulator", StayOutSimulator)
     report = LongstaffSchwartzPolicy(FlatPace(), compounds=("HARD",), n_simulations=10).analyze(
-        state(lap=10, laps_total=16), driver="AAA"
+        state_with_two_compounds(lap=12, laps_total=16), driver="AAA"
     )
     from f1si.backtest.walk_forward import PredictionRow
 

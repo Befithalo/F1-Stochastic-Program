@@ -78,9 +78,9 @@ def test_page_uses_shared_asof_replay_builder_without_results_imports() -> None:
 def test_report_copy_formats_brier_scores_and_keeps_coverage_target_visible() -> None:
     app = import_module("f1si.app")
     display = app._report_display_values(app._report_summary())
-    assert display["podium"] == "Model 0.050 vs grid baseline 0.082 (lower is better)"
-    assert display["top10"] == "Model 0.145 vs grid baseline 0.191 (lower is better)"
-    assert display["coverage"].startswith("83% race average; 83.4% across all finishes")
+    assert display["podium"] == "Model 0.047 vs grid baseline 0.080 (lower is better)"
+    assert display["top10"] == "Model 0.144 vs grid baseline 0.190 (lower is better)"
+    assert display["coverage"].startswith("83% race average; 83.7% across all finishes")
     assert "Target: 85% to 95%" in display["coverage"]
 
 
@@ -114,7 +114,7 @@ def test_evaluation_uses_one_results_table(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert headings == ["Ten-race evaluation"]
     assert len(tables) == 1
-    assert tables[0].iloc[0]["Result"] == "Model 0.050 vs grid baseline 0.082 (lower is better)"
+    assert tables[0].iloc[0]["Result"] == "Model 0.047 vs grid baseline 0.080 (lower is better)"
     assert "Target: 85% to 95%" in tables[0].iloc[2]["Result"]
 
 
@@ -219,7 +219,13 @@ def test_compact_dotplot_labels_keep_timing_and_compound() -> None:
     app = import_module("f1si.app")
     assert app._dotplot_action_copy("pit now (HARD)") == "Box now H"
     assert app._dotplot_action_copy("pit in 1 lap(s) (MEDIUM)") == "Box +1 lap M"
+    assert app._dotplot_action_copy("wait and decide next lap") == "Wait and decide next lap"
     assert app._dotplot_action_copy("stay out") == "Stay out"
+
+
+def test_replay_uses_ten_thousand_simulations() -> None:
+    app = import_module("f1si.app")
+    assert app.SIMULATIONS == 10_000
 
 
 def test_replay_cache_identity_includes_model_sources(
@@ -553,6 +559,10 @@ def test_fan_chart_uses_recommended_pathwise_policy_history(
         best=option,
         options=(option,),
         recommended_position_history=history,
+        close_call_places=None,
+        close_call_two_se=None,
+        waiting_tie_window_laps=(12, 16),
+        never_stop_allowed=False,
     )
     car = SimpleNamespace(
         compound="HARD",

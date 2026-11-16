@@ -166,8 +166,8 @@ def test_free_track_decisions_exist_by_title() -> None:
 
 def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
     entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
-    phase6_ids = [f"DEC-{number:03d}" for number in range(102, 111)]
-    assert [entry_id for entry_id, _, _ in _entries()][-9:] == phase6_ids
+    phase6_ids = [f"DEC-{number:03d}" for number in range(102, 112)]
+    assert [entry_id for entry_id, _, _ in _entries()][-10:] == phase6_ids
 
     expected_titles = {
         "DEC-102": "Pre-registered Phase 6 sample and cache gate",
@@ -176,10 +176,11 @@ def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
         "DEC-108": "Set the replay backtest simulation count and M5 runtime target",
         "DEC-109": "Use cached timing data first and OpenF1 when FastF1 access is unavailable",
         "DEC-110": "Compare conditional expected outcomes when choosing a simulated stop",
+        "DEC-111": "Publish the fixed-engine Phase 6 evaluation",
     }
     for entry_id, title in expected_titles.items():
         assert entries[entry_id][0] == title
-    for entry_id in ("DEC-102", "DEC-103", "DEC-104", "DEC-108"):
+    for entry_id in ("DEC-102", "DEC-103", "DEC-104", "DEC-108", "DEC-111"):
         assert "reports/backtest/phase-06.json" in entries[entry_id][1]
 
     semantics = {
@@ -200,9 +201,10 @@ def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
             "eight clean laps",
             "current stint",
         ),
-        "DEC-108": ("1,000 simulations", "50,000", "14.600 seconds", "M5"),
+        "DEC-108": ("1,000 simulations", "10,000", "50,000", "15.642 seconds", "M5"),
         "DEC-109": ("F1 TV Access", "OpenF1", "local cache"),
         "DEC-110": ("future lap noise", "conditional expected", "P7.291", "P8.477"),
+        "DEC-111": ("10,404", "0.047188", "0.080481", "16.94%", "3.693 laps"),
     }
     for entry_id, phrases in semantics.items():
         body = entries[entry_id][1].lower()

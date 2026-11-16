@@ -46,6 +46,10 @@ class StrategyAnalysis:
     options: tuple[RankedOption, ...]
     reason: str
     recommended_position_history: NDArray[np.int64] | None = None
+    close_call_places: float | None = None
+    close_call_two_se: float | None = None
+    waiting_tie_window_laps: tuple[int, int] | None = None
+    never_stop_allowed: bool = False
 
     @property
     def best(self) -> RankedOption:
@@ -131,7 +135,7 @@ def _backward_stop_options(
     dict[int, dict[str, NDArray[np.float64]]],
 ]:
     """Fit action and continuation means backward, then retain pathwise outcomes."""
-    values, decisions, action_values, _ = _backward_stop_options_with_choices(
+    values, decisions, action_values, _, _ = _backward_stop_options_with_choices(
         features, stop_values, terminal_values
     )
     return values, decisions, action_values
@@ -141,11 +145,14 @@ def _backward_stop_options_with_choices(
     features: Mapping[int, NDArray[np.float64]],
     stop_values: Mapping[int, Mapping[str, NDArray[np.float64]]],
     terminal_values: NDArray[np.float64],
+    *,
+    force_stop_at_last_time: bool = False,
 ) -> tuple[
     NDArray[np.float64],
     dict[int, NDArray[np.bool_]],
     dict[int, dict[str, NDArray[np.float64]]],
     dict[int, dict[str, NDArray[np.str_]]],
+    NDArray[np.str_],
 ]:
     """Return continuation outcomes and the fixed branch chosen on each scenario path."""
     values = np.asarray(terminal_values, dtype=np.float64).copy()
@@ -153,9 +160,14 @@ def _backward_stop_options_with_choices(
     action_values: dict[int, dict[str, NDArray[np.float64]]] = {}
     action_choices: dict[int, dict[str, NDArray[np.str_]]] = {}
     later_choices = np.full(values.shape, "stay out", dtype="<U64")
+    last_time = max(stop_values, default=None)
     for time in sorted(stop_values, reverse=True):
         state = np.asarray(features[time], dtype=np.float64)
-        continuation = _fit_continuation(state, values)
+        continuation = (
+            np.full(values.shape, np.inf, dtype=np.float64)
+            if force_stop_at_last_time and time == last_time
+            else _fit_continuation(state, values)
+        )
         immediate = {
             action: np.asarray(sample, dtype=np.float64)
             for action, sample in stop_values[time].items()
@@ -188,7 +200,7 @@ def _backward_stop_options_with_choices(
         later_choices = np.where(exercise, chosen_now, future_choices).astype("<U64")
         values = np.where(exercise, best_stop_realized, values)
         decisions[time] = exercise
-    return values, decisions, action_values, action_choices
+    return values, decisions, action_values, action_choices, later_choices
 
 
 def _score_option(values: NDArray[np.float64], risk_aversion: float = 0.5) -> float:
@@ -373,62 +385,97 @@ class LongstaffSchwartzPolicy:
                 for action, plan in candidates
                 if plan.stop_laps == (stop_lap,)
             }
-        if retain_position_history:
-            _, _, value_after_wait, choice_after_wait = _backward_stop_options_with_choices(
-                feature_by_time, stop_values_by_time, stay_values
-            )
-        else:
-            _, _, value_after_wait = _backward_stop_options(
-                feature_by_time, stop_values_by_time, stay_values
-            )
-            choice_after_wait = {}
+        already_met_compound_rule = len(already_used) >= 2
+        now_stop_lap = stop_laps[0] if stop_laps else None
+        now_candidates = [
+            (action, plan)
+            for action, plan in candidates
+            if now_stop_lap is not None and plan.stop_laps == (now_stop_lap,)
+        ]
 
-        rows: list[RankedOption] = []
-        candidate_choices: dict[str, NDArray[np.str_]] = {}
-        for action, plan in candidates:
-            stop_lap = plan.stop_laps[0]
-            sample = (
-                np.asarray(branched[action].result.finish_positions[:, column], dtype=np.float64)
-                if stop_lap <= state.lap
-                else value_after_wait[stop_lap][action]
-            )
-            if retain_position_history:
-                candidate_choices[action] = (
-                    np.full(self._n, action, dtype="<U64")
-                    if stop_lap <= state.lap
-                    else choice_after_wait[stop_lap][action]
-                )
+        def summarize(action: str, plan: Plan, sample: NDArray[np.float64]) -> RankedOption:
             tail = _cvar10(sample)
             distribution = _distribution_summary(sample)
-            rows.append(
-                RankedOption(
-                    action,
-                    plan,
-                    float(sample.mean()),
-                    float(sample.std()),
-                    tail,
-                    _score_option(sample, self._risk),
-                    *distribution,
-                    _midpoint_finish_quantiles(sample),
-                )
-            )
-        stay_plan = stay_out
-        tail = _cvar10(stay_values)
-        distribution = _distribution_summary(stay_values)
-        rows.append(
-            RankedOption(
-                "stay out",
-                stay_plan,
-                float(stay_values.mean()),
-                float(stay_values.std()),
+            return RankedOption(
+                action,
+                plan,
+                float(sample.mean()),
+                float(sample.std()),
                 tail,
-                _score_option(stay_values, self._risk),
+                _score_option(sample, self._risk),
                 *distribution,
-                _midpoint_finish_quantiles(stay_values),
+                _midpoint_finish_quantiles(sample),
             )
-        )
+
+        rows: list[RankedOption] = []
+        samples_by_action: dict[str, NDArray[np.float64]] = {}
+        choices_by_action: dict[str, NDArray[np.str_]] = {}
+        for action, plan in now_candidates:
+            sample = np.asarray(
+                branched[action].result.finish_positions[:, column], dtype=np.float64
+            )
+            rows.append(summarize(action, plan, sample))
+            samples_by_action[action] = sample
+            choices_by_action[action] = np.full(self._n, action, dtype="<U64")
+
+        waiting_starts = [
+            time
+            for time in future_stops
+            if time > (now_stop_lap if now_stop_lap is not None else state.lap)
+            and time - 1 > state.lap
+        ]
+        wait_sample: NDArray[np.float64] | None = None
+        wait_choices: NDArray[np.str_] | None = None
+        wait_plan = stay_out
+        waiting_tie_window: tuple[int, int] | None = None
+        if waiting_starts:
+            plans_by_branch = {action: plan for action, plan in candidates}
+            plans_by_branch["stay out"] = stay_out
+
+            def policy_from(start_lap: int) -> tuple[NDArray[np.float64], NDArray[np.str_]]:
+                active_times = [time for time in waiting_starts if time >= start_lap]
+                features = {time: feature_by_time[time] for time in active_times}
+                stop_values = {time: stop_values_by_time[time] for time in active_times}
+                policy_values, _, _, _, policy_choices = _backward_stop_options_with_choices(
+                    features,
+                    stop_values,
+                    stay_values,
+                    force_stop_at_last_time=not already_met_compound_rule,
+                )
+                return policy_values, policy_choices
+
+            wait_sample, wait_choices = policy_from(waiting_starts[0])
+            choice_names, choice_counts = np.unique(wait_choices, return_counts=True)
+            modal_branch = str(choice_names[int(np.argmax(choice_counts))])
+            wait_plan = plans_by_branch.get(modal_branch, stay_out)
+            wait_action = "wait and decide next lap"
+            rows.append(summarize(wait_action, wait_plan, wait_sample))
+            samples_by_action[wait_action] = wait_sample
+            choices_by_action[wait_action] = wait_choices
+
+            tied_starts: list[int] = []
+            for start_lap in waiting_starts:
+                candidate_sample, _ = policy_from(start_lap)
+                paired_difference = candidate_sample - wait_sample
+                standard_error = (
+                    float(paired_difference.std(ddof=1) / math.sqrt(self._n))
+                    if self._n > 1
+                    else 0.0
+                )
+                if abs(float(paired_difference.mean())) <= 2.0 * standard_error:
+                    tied_starts.append(start_lap)
+            if tied_starts:
+                waiting_tie_window = (min(tied_starts), max(tied_starts))
+
+        if already_met_compound_rule:
+            rows.append(summarize("stay out", stay_out, stay_values))
+            samples_by_action["stay out"] = stay_values
+            choices_by_action["stay out"] = np.full(self._n, "stay out", dtype="<U64")
         if not rows:
-            raise ValueError(f"No legal stop timing or stay-out sample is available for {driver}")
+            raise ValueError(
+                f"No legal stop action is available for {driver}; the two-compound rule "
+                "does not allow a never-stop option."
+            )
         rows.sort(
             key=lambda row: (
                 row.score,
@@ -439,11 +486,20 @@ class LongstaffSchwartzPolicy:
             )
         )
         best = rows[0]
+        close_call_places: float | None = None
+        close_call_two_se: float | None = None
+        if len(rows) > 1 and self._n > 1:
+            top = samples_by_action[rows[0].action]
+            runner_up = samples_by_action[rows[1].action]
+            paired_difference = runner_up - top
+            paired_se = float(paired_difference.std(ddof=1) / math.sqrt(self._n))
+            gap_places = abs(rows[1].mean_finish - rows[0].mean_finish)
+            if gap_places < 2.0 * paired_se:
+                close_call_places = gap_places
+                close_call_two_se = 2.0 * paired_se
         recommended_position_history: NDArray[np.int64] | None = None
         if retain_position_history:
-            selected_branches = candidate_choices.get(
-                best.action, np.full(self._n, "stay out", dtype="<U64")
-            )
+            selected_branches = choices_by_action[best.action]
             history_rows = next(
                 run.result.position_history
                 for run in branched.values()
@@ -457,12 +513,17 @@ class LongstaffSchwartzPolicy:
                 selected = selected_branches == branch_name
                 if selected.any():
                     recommended_position_history[selected] = branch_history[selected]
-        reason = (
-            f"{best.action.capitalize()} ranks first with blended score {best.score:.3f} "
-            f"(mean {best.mean_finish:.2f}, CVaR10 {best.cvar10:.2f})."
-        )
+        reason = f"{best.action.capitalize()} has the lowest risk-adjusted finish estimate."
         return StrategyAnalysis(
-            driver, state.lap, tuple(rows), reason, recommended_position_history
+            driver,
+            state.lap,
+            tuple(rows),
+            reason,
+            recommended_position_history,
+            close_call_places,
+            close_call_two_se,
+            waiting_tie_window,
+            already_met_compound_rule,
         )
 
     def decide(self, state: RaceState, *, driver: str) -> PitDecision:

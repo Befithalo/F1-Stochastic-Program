@@ -42,7 +42,7 @@ from f1si.ui_theme import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPORT_PATH = PROJECT_ROOT / "reports" / "backtest" / "phase-06.json"
-SIMULATIONS = 1_000
+SIMULATIONS = 10_000
 SEED = 0
 EMPTY_BODY = (
     "No eligible races are available because their scheduled lap counts are missing. "
@@ -127,6 +127,8 @@ def _action_copy(action: str, *, include_compound: bool = True) -> str:
     """Turn optimizer labels into short strategist language."""
     if action == "stay out":
         return "Stay out"
+    if action == "wait and decide next lap":
+        return "Wait and decide next lap"
     compound_match = re.search(r"\(([A-Z]+)\)$", action)
     compound = compound_match.group(1) if compound_match is not None else ""
     suffix = (
@@ -362,6 +364,10 @@ def _build_selected_replay(
         "option_quantiles": tuple(item.finish_quantiles for item in analysis.options),
         "selected_cutoff_mean": selected.mean_finish,
         "simulation_count": n_simulations,
+        "close_call_places": analysis.close_call_places,
+        "close_call_two_se": analysis.close_call_two_se,
+        "waiting_tie_window_laps": analysis.waiting_tie_window_laps,
+        "never_stop_allowed": analysis.never_stop_allowed,
         "fan_chart_data": fan_chart_data,
         "reason": _strategist_reason(
             selected.action,
@@ -652,6 +658,17 @@ def _render_selected(result: dict[str, Any]) -> None:
         unsafe_allow_html=True,
     )
     st.write(str(result["reason"]))
+    if result.get("close_call_places") is not None:
+        runner_up = _action_copy(str(options[1][0]))
+        places = float(result["close_call_places"])
+        st.caption(
+            f"Close call: {runner_up} is only {places:.1f} places worse on average "
+            "(less than two standard errors apart)."
+        )
+    tie_window = result.get("waiting_tie_window_laps")
+    if tie_window is not None:
+        start_lap, end_lap = tie_window
+        st.caption(f"Waiting ties from lap {start_lap} through lap {end_lap}.")
     st.caption(
         f"{result['race_name']} {result['race_season']}. Driver {result['driver']}. "
         f"After lap {result['cutoff_lap']} of {result['laps_total']}. "
@@ -767,6 +784,8 @@ def _render_selected(result: dict[str, Any]) -> None:
     st.subheader(_action_heading(len(options)))
     table = _format_strategy_table(tuple(result["option_columns"]), options)
     st.markdown(_strategy_table_html(table), unsafe_allow_html=True)
+    if not bool(result.get("never_stop_allowed")):
+        st.caption("Never stop is not allowed under the two-compound rule.")
     st.caption(f"Each option uses {int(result['simulation_count']):,} simulated races.")
 
 
