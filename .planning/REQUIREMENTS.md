@@ -38,8 +38,8 @@
 ### Regime Model
 
 - [x] **REG-01**: A per-lap safety-car probability feeds the simulator (MVP version)
-- [ ] **REG-02**: A Markov regime model (green/VSC/SC/red/wet) replaces it, with a synthetic-data test recovering its transition matrix
-- [ ] **REG-03**: Pit loss depends on regime (e.g. cheaper under SC)
+- [x] **REG-02**: A Markov regime model (green/VSC/SC/red/wet) replaces it, with a synthetic-data test recovering its transition matrix
+- [x] **REG-03**: Pit loss depends on regime (e.g. cheaper under SC)
 
 ### Simulator
 
@@ -126,8 +126,8 @@
 | UI-02 | Phase 6 | Complete |
 | PAC-05 | Phase 7 | Pending |
 | PAC-06 | Phase 7 | Pending |
-| REG-02 | Phase 8 | Pending |
-| REG-03 | Phase 8 | Pending |
+| REG-02 | Phase 8 | Complete |
+| REG-03 | Phase 8 | Complete |
 | BKT-03 | Phase 8 | Pending |
 | BKT-05 | Phase 8 | Pending |
 

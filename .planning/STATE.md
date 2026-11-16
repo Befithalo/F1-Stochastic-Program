@@ -5,16 +5,16 @@ current_phase: 8
 current_phase_name: Markov Regimes & Full Backtest
 current_plan: 10
 status: executing
-stopped_at: Phase 8 context gathered
-last_updated: "2026-11-16T19:23:19.714Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-11-16T19:51:46.599Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 8 planning complete
-state_head: 2fdb8b80717f04c034c22e447e6dc3f73ec70018
+state_head: 8ae453792f60b6466152f2b131d40963287b16f4
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 55
-  completed_plans: 49
+  completed_plans: 50
 milestone_name: milestone
 ---
 
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 Phase: 8 (Markov Regimes & Full Backtest) — READY TO EXECUTE
 Current Plan: Not started
 Total Plans in Phase: 6
-Plan: 10 of 12
+Plan: 11 of 12
 Status: Ready to execute
 Last activity: 2026-11-16 — Phase 8 planning complete
 
@@ -76,6 +76,7 @@ Progress: [====------] 38%
 | Phase 06 P07 | 7min | 2 tasks | 5 files |
 | Phase 06 P09 | 13min | 2 tasks | 5 files |
 | Phase 06 P08 | 42m | 3 tasks | 9 files |
+| Phase 08 P01 | 27min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -143,6 +144,9 @@ Progress: [====------] 38%
 - [Phase 06]: D-11's graphite dashboard was rejected after the owner inspected it; D-12 through D-15 supersede its visual choices with a light, editorial, replay-first page and an ex-ante schedule-horizon requirement. Preserve D-07/D-08 data semantics and the one-page scope.
 - [Phase 06]: Reserve purple for the recommended strategy; label any overall-best lap Best in neutral fog.
 - [Phase 06]: Retain compact same-sample finish quantiles and opt-in selected-driver history; reduce simulation history to percentile bands before UI rendering.
+- [Phase 08]: Use green, vsc, sc, red, wet order and Dirichlet(1) smoothing for race-local one-lap transitions.
+- [Phase 08]: Keep green pit loss measured; treat VSC at 0.75x and SC at 0.5x as assumptions, with red and wet at green cost.
+- [Phase 08]: Require a one-hot cutoff regime when a Markov transition matrix is supplied; legacy states without a matrix retain the existing SC path.
 
 ### Pending Todos
 
@@ -166,6 +170,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-16T12:11:52.118Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md
+Last session: 2026-11-16T19:51:45.903Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
