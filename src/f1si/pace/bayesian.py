@@ -22,9 +22,9 @@ from f1si.pace.training import BayesianTrainingPanel
 _MIN_DRIVER_LAPS = 5
 _MIN_TEAM_LAPS = 20
 _MIN_GROUP_ROWS = 30
-_MIN_ADVI_ITERATIONS = 10_000
-_ADVI_LOSS_WINDOW = 200
-_ADVI_MAX_RELATIVE_CHANGE = 0.10
+_MIN_ADVI_ITERATIONS = 50_000
+_ADVI_LOSS_WINDOW = 1_000
+_ADVI_MAX_RELATIVE_CHANGE = 0.06
 _EFFECT_NAMES = (
     "team/car",
     "driver",
@@ -47,6 +47,7 @@ class BayesianFitReport:
     driver_offsets: Mapping[int, float]
     driver_offset_se: Mapping[int, float]
     fuel_s_per_lap: float
+    intercept_s: float
     sigma_s: float
     n_rows: int
     seed: int
@@ -55,6 +56,7 @@ class BayesianFitReport:
     converged: bool
     loss_relative_change: float
     loss_window: int
+    effect_intervals_90: Mapping[str, tuple[float, float]]
     effect_names: tuple[str, ...]
     team_offsets: Mapping[str, float]
     driver_identity_offsets: Mapping[str, float]
@@ -217,6 +219,62 @@ def fit_bayesian_panel(
     )
 
 
+def _build_pymc_model(
+    *,
+    driver_idx: NDArray[np.int64],
+    team_idx: NDArray[np.int64],
+    event_idx: NDArray[np.int64],
+    era_idx: NDArray[np.int64],
+    compound_idx: NDArray[np.int64],
+    driver_count: int,
+    team_count: int,
+    event_count: int,
+    era_count: int,
+    compound_count: int,
+    lap_x: NDArray[np.float64],
+    age_x: NDArray[np.float64],
+    lap_time_s: NDArray[np.float64],
+) -> pm.Model:
+    """Build the shared operational graph for ADVI and independent NUTS diagnostics."""
+    with pm.Model() as model:
+        intercept = pm.Normal("intercept", mu=float(np.mean(lap_time_s)), sigma=5.0)
+
+        def pooled_effect(name: str, size: int, scale_prior: float) -> Any:
+            scale = pm.HalfNormal(f"{name}_scale", sigma=scale_prior)
+            raw = pm.Normal(f"{name}_raw", mu=0.0, sigma=1.0, shape=size)
+            return pm.Deterministic(
+                name,
+                scale * (raw - pt.mean(raw)),  # type: ignore[no-untyped-call]
+            )
+
+        team_effect = pooled_effect("team_effect", team_count, 0.75)
+        driver_effect = pooled_effect("driver_effect", driver_count, 0.75)
+        event_effect = pooled_effect("event_effect", event_count, 1.0)
+        era_effect = pooled_effect("era_effect", era_count, 2.0)
+        fresh_effect = pooled_effect("fresh_effect", compound_count, 0.75)
+        fuel_scaled = pm.Normal("fuel_scaled", mu=0.0, sigma=1.0)
+        wear_mean = pm.Normal("wear_mean", mu=0.08, sigma=0.10)
+        wear_scale = pm.HalfNormal("wear_scale", sigma=0.08)
+        wear_raw = pm.Normal("wear_raw", mu=0.0, sigma=1.0, shape=compound_count)
+        wear_scaled = pm.Deterministic(
+            "wear_scaled",
+            wear_mean + wear_scale * (wear_raw - pt.mean(wear_raw)),  # type: ignore[no-untyped-call]
+        )
+        residual_sd = pm.HalfNormal("residual_sd", sigma=1.0)
+        mu = (
+            intercept
+            + team_effect[team_idx]
+            + driver_effect[driver_idx]
+            + event_effect[event_idx]
+            + era_effect[era_idx]
+            + fresh_effect[compound_idx]
+            + fuel_scaled * lap_x
+            + wear_scaled[compound_idx] * age_x
+        )
+        pm.Normal("lap_time", mu=mu, sigma=residual_sd, observed=lap_time_s)
+    return model
+
+
 def _fit_arrays(
     *,
     driver_number: NDArray[np.int64],
@@ -315,42 +373,22 @@ def _fit_arrays(
     age_x = tire_age.astype(np.float64) / age_scale
 
     try:
-        with pm.Model():
-            intercept = pm.Normal("intercept", mu=float(np.mean(lap_time_s)), sigma=5.0)
-
-            def pooled_effect(name: str, size: int, scale_prior: float) -> Any:
-                scale = pm.HalfNormal(f"{name}_scale", sigma=scale_prior)
-                raw = pm.Normal(f"{name}_raw", mu=0.0, sigma=1.0, shape=size)
-                return pm.Deterministic(
-                    name,
-                    scale * (raw - pt.mean(raw)),  # type: ignore[no-untyped-call]
-                )
-
-            team_effect = pooled_effect("team_effect", len(team_levels), 0.75)
-            driver_effect = pooled_effect("driver_effect", len(driver_levels), 0.75)
-            event_effect = pooled_effect("event_effect", len(event_levels), 1.0)
-            era_effect = pooled_effect("era_effect", len(era_levels), 2.0)
-            fresh_effect = pooled_effect("fresh_effect", len(compound_levels), 0.75)
-            fuel_scaled = pm.Normal("fuel_scaled", mu=0.0, sigma=1.0)
-            wear_mean = pm.Normal("wear_mean", mu=0.08, sigma=0.10)
-            wear_scale = pm.HalfNormal("wear_scale", sigma=0.08)
-            wear_raw = pm.Normal("wear_raw", mu=0.0, sigma=1.0, shape=len(compound_levels))
-            wear_scaled = pm.Deterministic(
-                "wear_scaled",
-                wear_mean + wear_scale * (wear_raw - pt.mean(wear_raw)),  # type: ignore[no-untyped-call]
-            )
-            residual_sd = pm.HalfNormal("residual_sd", sigma=1.0)
-            mu = (
-                intercept
-                + team_effect[team_idx]
-                + driver_effect[driver_idx]
-                + event_effect[event_idx]
-                + era_effect[era_idx]
-                + fresh_effect[compound_idx]
-                + fuel_scaled * lap_x
-                + wear_scaled[compound_idx] * age_x
-            )
-            pm.Normal("lap_time", mu=mu, sigma=residual_sd, observed=lap_time_s)
+        model = _build_pymc_model(
+            driver_idx=driver_idx,
+            team_idx=team_idx,
+            event_idx=event_idx,
+            era_idx=era_idx,
+            compound_idx=compound_idx,
+            driver_count=len(driver_levels),
+            team_count=len(team_levels),
+            event_count=len(event_levels),
+            era_count=len(era_levels),
+            compound_count=len(compound_levels),
+            lap_x=lap_x,
+            age_x=age_x,
+            lap_time_s=lap_time_s,
+        )
+        with model:
             approximation = pm.fit(
                 n=iterations,
                 method="fullrank_advi",
@@ -405,6 +443,28 @@ def _fit_arrays(
         name: float(value)
         for name, value in zip(compound_levels, np.std(wear_draws, axis=0, ddof=1), strict=True)
     }
+
+    def interval(values: NDArray[np.float64]) -> tuple[float, float]:
+        bounds = np.quantile(values, [0.05, 0.95])
+        return float(bounds[0]), float(bounds[1])
+
+    effect_intervals: dict[str, tuple[float, float]] = {
+        "intercept": interval(intercept_draws),
+        "fuel_s_per_lap": interval(fuel_draws),
+        "residual_sd": interval(residual_draws),
+    }
+    for name, values in zip(team_levels, team_draws.T, strict=True):
+        effect_intervals[f"team:{name}"] = interval(values)
+    for name, values in zip(driver_levels, driver_draws.T, strict=True):
+        effect_intervals[f"driver:{name}"] = interval(values)
+    for name, values in zip(event_levels, event_draws.T, strict=True):
+        effect_intervals[f"event:{name}"] = interval(values)
+    for name, values in zip(era_levels, era_draws.T, strict=True):
+        effect_intervals[f"era:{name}"] = interval(values)
+    for name, values in zip(compound_levels, fresh_draws.T, strict=True):
+        effect_intervals[f"fresh:{name}"] = interval(values)
+    for name, values in zip(compound_levels, wear_draws.T, strict=True):
+        effect_intervals[f"wear:{name}"] = interval(values)
 
     event_position = event_levels.index(current_event_id)
     era_position = era_levels.index(current_era)
@@ -465,6 +525,7 @@ def _fit_arrays(
         driver_offsets=MappingProxyType(dict(current_driver_offsets)),
         driver_offset_se=MappingProxyType(dict(current_driver_sd)),
         fuel_s_per_lap=fuel_mean,
+        intercept_s=float(np.mean(intercept_draws)),
         sigma_s=float(np.mean(residual_draws)),
         n_rows=len(lap_time_s),
         seed=int(seed),
@@ -473,6 +534,7 @@ def _fit_arrays(
         converged=True,
         loss_relative_change=loss_relative_change,
         loss_window=loss_window,
+        effect_intervals_90=MappingProxyType(effect_intervals),
         effect_names=_EFFECT_NAMES,
         team_offsets=MappingProxyType(team_map),
         driver_identity_offsets=MappingProxyType(driver_map),
