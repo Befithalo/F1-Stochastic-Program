@@ -1322,3 +1322,36 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Claim that synthetic recovery establishes real predictive superiority; remove 2025-01 or select replacement races; adjust the model after the holdout score and rerun it.
 **Consequences:** README, explainer and phase summary report the measured error increase and unmet PAC-06 gate. The 2023–2025 real data all belong to one regulation era, so the evaluation does not identify a real between-era effect.
 **Refs:** reports/pace/phase-07.json; .planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json; src/f1si/backtest/pace_evaluation.py; README.md; docs/explained/phase-07.md; DEC-116, DEC-118, DEC-119
+
+## DEC-121 — Label regimes from cutoff-visible control and rainfall
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Phase 8 adds five-state transition inputs while replay and simulation must describe only conditions visible at the selected cutoff. Race-control timelines can include simultaneous messages, and rainfall alone must not erase a higher-priority control state.
+**Decision:** Label each observed leader lap from the latest visible track-control and rainfall rows. Resolve control events tied at the latest timestamp by red > safety car > virtual safety car > neutral; status codes 6 and 7 both mean VSC, yellow is neutral, and rainfall marks wet only when no higher-priority control state is active. Missing rainfall is not wet. Do not infer regime from tyre compound or future weather.
+**Why:** Cutoff-only inputs preserve the as-of boundary, and explicit same-time priority prevents row ordering from changing a red or safety-car state.
+**Alternatives rejected:** Use later race-control or weather rows; let rainfall override red/SC/VSC; infer wet conditions from tyres; treat yellow as an unmodelled state.
+**Consequences:** The regime vocabulary remains green, VSC, SC, red and wet. This label is a compact observation contract; it does not reconstruct hidden track conditions between observations.
+**Refs:** src/f1si/regime/markov.py; tests/regime/test_markov.py; .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md
+
+## DEC-122 — Fit race-local one-lap regime transitions with Dirichlet(1)
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Simulation requires a transition matrix learned only from races completed before the target cutoff. Joining adjacent race sequences would fabricate a transition between unrelated events, while unobserved destinations must retain finite prior mass.
+**Decision:** Count one transition for every adjacent observed leader-lap pair within each earlier completed race, keeping race sequences separate. Add exactly one pseudocount to every destination in every source row (Dirichlet(1)), then normalize each row.
+**Why:** Race-local counts preserve the unit of observation and prevent cross-race transitions. Equal pseudocounts keep zero-count destinations possible without favoring any regime.
+**Alternatives rejected:** Join the concatenated history into one sequence; use current or future race observations; use no smoothing or a destination-specific prior.
+**Consequences:** Rows remain finite and normalized even for unobserved source regimes. The prior has a larger influence when transition counts are sparse, so the matrix is not a claim of precisely measured long-run probabilities.
+**Refs:** src/f1si/regime/markov.py; tests/regime/test_markov.py; .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md
+
+## DEC-123 — Keep green pit loss measured and regime discounts explicit assumptions
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Pit-stop loss is observed under green conditions, but comparable regime-specific stop measurements are not established for the Markov simulator.
+**Decision:** Use measured green pit loss as the baseline. Set VSC cost to 0.75x and SC cost to 0.5x as explicit assumptions; set red and wet cost equal to green unless defensible measurements become available. Keep all five costs serialized with the cutoff regime and transition matrix.
+**Why:** The simulator needs a finite cost under every modeled state. A disclosed baseline and provisional multipliers make that input inspectable without presenting unsupported discounts as measurements.
+**Alternatives rejected:** Describe the VSC/SC multipliers as measured; assign unsupported red/wet discounts; omit costs for regimes and silently reuse a different state's value.
+**Consequences:** Simulated pit cost follows the current regime and the configured five-value vector. The VSC and SC multipliers remain assumptions and require later empirical validation before being described as calibrated.
+**Refs:** src/f1si/state.py; src/f1si/sim/kernel.py; src/f1si/sim/numpy_backend.py; tests/test_state_builder.py; tests/sim/test_safety_car.py

@@ -12,6 +12,7 @@ from f1si.data import _db
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, RaceSnapshot
 from f1si.pace.kalman import FilterSnapshot
 from f1si.pace.linear import fit_linear_pace
+from f1si.regime.markov import RegimeEstimate
 from f1si.state import SC_PIT_LOSS_RATIO, RaceState, build_race_state
 from tests.conftest import LONG_RACE_ID, SC_HISTORY_CURRENT_RACE_ID
 
@@ -150,6 +151,29 @@ def test_markov_state_json_round_trips_transition_and_regime_costs(long_syntheti
     assert restored.regime_transition.flags.c_contiguous
     assert not restored.regime_transition.flags.writeable
     assert restored == marked
+
+
+def test_markov_state_builder_keeps_all_regime_costs_and_visible_regime(
+    long_synthetic_db: Path,
+) -> None:
+    snapshot = _snap(long_synthetic_db, 40)
+    transition = np.full((5, 5), 0.2, dtype=np.float64)
+    estimate = RegimeEstimate(transition, np.zeros((5, 5)), 0)
+
+    state = build_race_state(
+        snapshot,
+        fit_linear_pace(snapshot),
+        laps_total=LAPS_TOTAL,
+        pit_loss_s=24.0,
+        regime_estimate=estimate,
+    )
+
+    assert dict(state.regime) == {"green": 1.0}
+    np.testing.assert_array_equal(state.regime_transition, transition)
+    np.testing.assert_array_equal(state.pit_loss_by_regime_s, [24.0, 18.0, 12.0, 24.0, 24.0])
+    restored = RaceState.from_json(state.to_json())
+    assert dict(restored.regime) == {"green": 1.0}
+    np.testing.assert_array_equal(restored.pit_loss_by_regime_s, [24.0, 18.0, 12.0, 24.0, 24.0])
 
 
 @pytest.mark.parametrize(
