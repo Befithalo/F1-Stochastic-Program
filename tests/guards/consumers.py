@@ -16,6 +16,7 @@ from f1si.cli import _replay_at_cutoff
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
+from f1si.pace.training import build_bayesian_training_panel
 from f1si.plots.stints import prepare_stint_plot_data
 from f1si.plots.wear import prepare_wear_plot_data
 from f1si.regime.sc_rate import estimate_sc_rate
@@ -67,6 +68,12 @@ def linear_fit(db_path: Path, at: AsOf) -> object:
         lap=np.array([5, 6], dtype=np.int64)[: len(driver)],
     )
     return fit.report, tuple(float(v) for v in (*mean, *sd))
+
+
+def bayesian_training_panel(db_path: Path, at: AsOf) -> object:
+    """The clean historical/current panel and category maps visible at the selected cutoff."""
+    accessor = AsOfAccessor(db_path)
+    return build_bayesian_training_panel(accessor.snapshot(at), accessor.history(at))
 
 
 def pit_loss(db_path: Path, at: AsOf) -> object:
@@ -173,6 +180,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "cars": cars,
     "stint_plot_data": stint_plot_data,
     "linear_fit": linear_fit,
+    "bayesian_training_panel": bayesian_training_panel,
     "pit_loss": pit_loss,
     "race_state": race_state,
     "race_state_filter": race_state_filter,
