@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -34,6 +35,49 @@ EXPECTED_RACES = (
     "2025-02",
     "2025-03",
 )
+
+PHASE_08_RACES = (
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+)
+
+
+def test_phase_08_in_sample_lock_records_exact_calendar_and_settings() -> None:
+    lock_path = (
+        Path(__file__).parents[2]
+        / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+    )
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+
+    assert lock["race_ids"] == list(PHASE_08_RACES)
+    assert lock["era_by_race"] == {race_id: "ground_effect_2022_2025" for race_id in PHASE_08_RACES}
+    assert lock["simulation"] == {
+        "pace_model": "linear",
+        "n_simulations": 1_000,
+        "base_seed": 0,
+        "risk": 0.5,
+    }
+    assert "target_mask" in lock
+    assert "metrics" in lock
+    assert lock["report_schema"]["schema_version"] == 1
 
 
 def _catalog(*, missing: tuple[str, ...] = ()) -> pd.DataFrame:

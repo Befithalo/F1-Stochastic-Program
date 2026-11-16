@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "race_ids": [
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2025-01",
+    "2025-02",
+    "2025-03"
+  ],
+  "era_by_race": {},
+  "simulation": {
+    "pace_model": "linear",
+    "n_simulations": 1000,
+    "base_seed": 0,
+    "risk": 0.5
+  },
+  "target_mask": {},
+  "metrics": {},
+  "report_schema": {"schema_version": 1}
+}
