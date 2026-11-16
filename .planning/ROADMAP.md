@@ -11,7 +11,7 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
 - [x] **Phase 3: Monte Carlo Simulator** - Vectorized NumPy simulator, 50,000 races under 10 s, variance reduction, constant SC probability (completed 2026-11-12)
 - [x] **Phase 4: Kalman Tire Filter** - Hidden tire wear estimated per car with uncertainty, verified on synthetic stints (completed 2026-11-13)
 - [ ] **Phase 5: Longstaff-Schwartz Strategy & Live Replay** - Ranked pit options with CVaR, risk setting, reasons, Bahrain 2023 replay end to end
-- [ ] **Phase 6: MVP Backtest, Streamlit View & README** - 10-race walk-forward backtest, team-call comparison, one-page view, README with real results
+- [x] **Phase 6: MVP Backtest, Streamlit View & README** - 10-race walk-forward backtest, team-call comparison, one-page view, README with real results (completed 2026-11-16)
 - [ ] **Phase 7: Bayesian Pace Model** - Hierarchical PyMC pace model with era effect, recovered on synthetic data, beats linear baseline
 - [ ] **Phase 8: Markov Regimes & Full Backtest** - Regime model and regime-dependent pit loss, 20-race per-era backtest, holdout touched once
 
@@ -223,12 +223,12 @@ Plans:
 
 **Carried forward:** from Phase 3, check the 90% finishing-interval coverage (ALO P3 fell outside P4-P6). From Phase 4 UAT, measure real-data coverage of the Kalman wear band across the backtest races (early as-of fit bias at lap 14, own-laps double counting in the fit prior, DEC-091) before changing the method.
 
-**Plans:** 10/12 plans executed
+**Plans:** 12/12 plans complete
 
 Plans:
 - [x] 06-09-PLAN.md — Dark graphite/slate dashboard and focused visual contract tests
 - [x] 06-08-PLAN.md — Same-sample quantile dotplot, selected-driver fan chart, brief-compliant UI, and live desktop/phone audit
-- [ ] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and final owner acceptance
+- [x] 06-10-PLAN.md — Full quality gates, exact-head Ubuntu/Windows CI, and final owner acceptance
 
 **Wave 0**
 - [x] 06-00-PLAN.md — Create the five missing backtest and app test modules before implementation verifies them
@@ -264,7 +264,7 @@ Plans:
 - [x] 06-11-PLAN.md — FastF1 scheduled-lap backfill, Bahrain replay, corrected UI, real chart/screenshots, and post-rework gates
 
 **Wave 11**
-- [ ] 06-10-PLAN.md — Final owner approval at desktop and phone widths after Plan 06-11
+- [x] 06-10-PLAN.md — Final owner approval at desktop and phone widths after Plan 06-11
 
 **UI hint**: yes
 
@@ -312,6 +312,6 @@ Rework order is represented by Waves 10 and 11 above.
 | 3. Monte Carlo Simulator | 7/7 | Complete    | 2026-11-12 |
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
-| 6. MVP Backtest, Streamlit View & README | 10/11 | In Progress | - |
+| 6. MVP Backtest, Streamlit View & README | 12/12 | Complete    | 2026-11-16 |
 | 7. Bayesian Pace Model | 0/0 | Not started | - |
 | 8. Markov Regimes & Full Backtest | 0/0 | Not started | - |

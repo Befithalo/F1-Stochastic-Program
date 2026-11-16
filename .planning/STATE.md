@@ -4,9 +4,9 @@ milestone: v1.0
 current_phase: 06
 current_phase_name: MVP Backtest, Streamlit View & README
 current_plan: 10
-status: awaiting_owner_approval
-stopped_at: Completed 06-11-PLAN.md; waiting for the Plan 06-10 owner approval checkpoint
-last_updated: "2026-11-15T10:28:48Z"
+status: ready_to_plan
+stopped_at: Phase 6 complete (12/12) — ready to discuss Phase 7
+last_updated: 2026-11-16T08:31:22.486Z
 last_activity: 2026-11-15
 last_activity_desc: Completed Plan 06-11 and exact-head Ubuntu/Windows CI; owner approval is pending
 state_head: afa2aeee9fd888bba452a0c7103fe9062531a0bb
@@ -14,7 +14,7 @@ progress:
   total_phases: 8
   completed_phases: 4
   total_plans: 44
-  completed_plans: 43
+  completed_plans: 44
 milestone_name: milestone
 ---
 
@@ -25,16 +25,16 @@ milestone_name: milestone
 See: .planning/PROJECT.md (updated 2026-10-22)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 06 — MVP Backtest, Streamlit View & README
+**Current focus:** Phase 7 — bayesian pace model
 
 ## Current Position
 
-Phase: 06 (MVP Backtest, Streamlit View & README) — OWNER ACCEPTANCE PENDING
-Current Plan: 10
+Phase: 7
+Current Plan: Not started
 Total Plans in Phase: 12
 Plan: 10 of 12
-Status: Awaiting owner approval after completed Plan 06-11
-Last activity: 2026-11-15 — Completed Phase 06 Plan 11; exact-head Ubuntu and Windows CI passed
+Status: Ready to plan
+Last activity: 2026-11-16
 
 Progress: [====------] 38%
 
@@ -42,7 +42,7 @@ Progress: [====------] 38%
 
 **Velocity:**
 
-- Total plans completed: 17
+- Total plans completed: 29
 - Average duration: -
 - Total execution time: -
 
@@ -162,7 +162,7 @@ Progress: [====------] 38%
 | 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
 | 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
 | 261115-166 | Merge only the user-selected Streamlit-compatible rules from the supplied F1 design brief into Phase 6 06-UI-SPEC.md. Ignore plugin and screenshot instructions. Update no app code and do not build the dashboard. Stop after the spec merge, brief summary, and a proposed post-approval build plan. | 2026-11-15 | 79da677 | Passed | [261115-166-merge-only-the-user-selected-streamlit-c](./quick/261115-166-merge-only-the-user-selected-streamlit-c/) |
-| 261116-0hq | UI design pass on the Streamlit replay page: race-strip decision band (prototype B), merged options, humanized copy, contrast to 4.5:1 text and 3:1 marks, stint crash fix | 2026-11-16 | not committed | Passed | [261116-0hq-ui-design-pass-on-the-streamlit-replay-p](./quick/261116-0hq-ui-design-pass-on-the-streamlit-replay-p/) |
+| 261116-0hq | UI design pass on the Streamlit replay page: race-strip decision band (prototype B), merged options, humanized copy, contrast to 4.5:1 text and 3:1 marks, stint crash fix | 2026-11-16 | 0b428bd | Passed | [261116-0hq-ui-design-pass-on-the-streamlit-replay-p](./quick/261116-0hq-ui-design-pass-on-the-streamlit-replay-p/) |
 
 ## Session Continuity
 
