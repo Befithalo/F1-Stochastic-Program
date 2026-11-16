@@ -285,7 +285,15 @@ Rework order is represented by Waves 10 and 11 above.
   3. On held-out laps the next-lap error is at least 15% lower than the per-compound linear baseline
   4. The replay and backtest run with the Bayesian model without changes outside the model swap
 
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Trace visible regime through Bahrain replay and simulation
+- [ ] 08-02-PLAN.md — Verify transition recovery, precedence, and pit-cost assumptions
+- [ ] 08-03-PLAN.md — Lock and score the exact 20-race in-sample evaluation
+- [ ] 08-04-PLAN.md — Build and guard the isolated holdout evaluator and lock
+- [ ] 08-05-PLAN.md — Score the holdout once and publish report-derived results
+- [ ] 08-06-PLAN.md — Complete decision, validation, and exact-head CI checks
 **Wave 1**
 - [x] 07-01-PLAN.md
 
