@@ -146,6 +146,8 @@ def test_markov_state_json_round_trips_transition_and_regime_costs(long_syntheti
 
     restored = RaceState.from_json(marked.to_json())
 
+    assert restored.regime_transition is not None
+    assert restored.pit_loss_by_regime_s is not None
     np.testing.assert_array_equal(restored.regime_transition, transition)
     np.testing.assert_array_equal(restored.pit_loss_by_regime_s, costs)
     assert restored.regime_transition.flags.c_contiguous
@@ -195,10 +197,10 @@ def test_markov_state_rejects_invalid_numeric_inputs(
     marked = dataclasses.replace(
         state,
         regime_transition=np.eye(5),
-        pit_loss_by_regime_s=[22.0, 16.5, 11.0, 22.0, 22.0],
+        pit_loss_by_regime_s=np.array([22.0, 16.5, 11.0, 22.0, 22.0]),
     )
     with pytest.raises(ValueError, match=message):
-        dataclasses.replace(marked, **{field: value})
+        dataclasses.replace(marked, **{field: cast(Any, value)})
 
 
 def test_markov_state_requires_a_one_hot_cutoff_regime(long_synthetic_db: Path) -> None:
@@ -212,7 +214,7 @@ def test_markov_state_requires_a_one_hot_cutoff_regime(long_synthetic_db: Path) 
             state,
             regime={"green": 0.5, "sc": 0.5},
             regime_transition=np.eye(5),
-            pit_loss_by_regime_s=[22.0, 16.5, 11.0, 22.0, 22.0],
+            pit_loss_by_regime_s=np.array([22.0, 16.5, 11.0, 22.0, 22.0]),
         )
 
 

@@ -68,9 +68,12 @@ def test_replay_state_contains_validated_five_state_markov_inputs(
     accessor = AsOfAccessor(long_synthetic_db)
     context = cli._prepare_replay_context(accessor, LONG_RACE_ID, 57, 35)
 
-    assert tuple(context.state.regime_transition.shape) == (5, 5)
-    assert context.state.regime_transition.flags.c_contiguous
+    transition = context.state.regime_transition
+    assert transition is not None
+    assert tuple(transition.shape) == (5, 5)
+    assert transition.flags.c_contiguous
     costs = context.state.pit_loss_by_regime_s
+    assert costs is not None
     assert costs.shape == (5,)
     assert costs.tolist() == pytest.approx(
         [
