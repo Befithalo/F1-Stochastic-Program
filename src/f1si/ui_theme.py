@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import re
 
-ASPHALT = "#1C1F23"
-PITWALL = "#24282D"
-RULE = "#3A4047"
-CHALK = "#ECEAE4"
-FOG = "#9BA1A8"
-RECOMMENDATION = "#B69BFF"
+ASPHALT = "#1B1D23"
+PITWALL = "#23262E"
+RULE = "#30343E"
+CHALK = "#F2F2F0"
+FOG = "#A9AEB8"
+RECOMMENDATION = "#4ADE80"
+BETTER = "#4ADE80"
+WORSE = "#FF6B6B"
+CAUTION = "#F5C518"
 
 TIRE_COLORS = {
-    "SOFT": "#FF6B6B",
-    "MEDIUM": "#FFD166",
-    "HARD": "#ECEAE4",
-    "INTERMEDIATE": "#5FD38D",
-    "WET": "#65BDFF",
+    "SOFT": "#E8323C",
+    "MEDIUM": "#F5C518",
+    "HARD": "#F2F2F0",
+    "INTERMEDIATE": "#43B047",
+    "WET": "#2F7FD6",
 }
 TIRE_LETTERS = {
     "SOFT": "S",
@@ -27,10 +30,10 @@ TIRE_LETTERS = {
 }
 TIMING_COLORS = {
     "last lap": CHALK,
-    "slower": "#FFD166",
-    "personal best": "#5FD38D",
-    "overall best": FOG,
-    "pit lane": "#65BDFF",
+    "slower": CAUTION,
+    "personal best": BETTER,
+    "overall best": "#A78BFA",
+    "pit lane": "#2F7FD6",
 }
 
 _HEX = re.compile(r"^#[0-9a-fA-F]{6}$")

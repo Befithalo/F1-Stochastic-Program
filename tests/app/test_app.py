@@ -27,6 +27,7 @@ from f1si.ui_theme import (
 
 APP_PATH = Path(__file__).resolve().parents[2] / "src" / "f1si" / "app.py"
 THEME_PATH = APP_PATH.parents[2] / ".streamlit" / "config.toml"
+CSS_PATH = APP_PATH.with_name("dashboard.css")
 
 
 def app_source() -> str:
@@ -41,25 +42,25 @@ def test_page_defaults_to_bahrain_2023_alo_after_lap_15() -> None:
     assert 'st.selectbox(\n                "Race"' in source
     assert 'st.selectbox(\n                "Driver"' in source
     assert 'st.selectbox(\n                "After lap"' in source
-    assert 'st.slider(\n                "Risk aversion"' in source
+    assert 'st.slider(\n                "Risk setting"' in source
     assert "st.form(" not in source
     assert "st.form_submit_button" not in source
 
 
-def test_race_picker_uses_short_labels_that_fit_phone_width() -> None:
+def test_race_picker_uses_full_event_name() -> None:
     app = import_module("f1si.app")
     assert app._race_label(SimpleNamespace(event_name="Bahrain Grand Prix", season=2023)) == (
-        "Bahrain GP 2023"
+        "Bahrain Grand Prix 2023"
     )
 
 
 def test_page_copy_uses_plain_language_and_has_no_middle_dot() -> None:
-    source = app_source().lower()
+    source = (app_source() + CSS_PATH.read_text(encoding="utf-8")).lower()
     assert "·" not in source
     for phrase in ("cutoff-safe", "classified denominator", "schedule horizon"):
         assert phrase not in source
-    assert "each cell shows the share of simulated finishes" in source
-    assert "no strategy options are available at this lap." in source
+    assert "shading shows the share of simulated finishes" in source
+    assert "no strategy is available at this lap." in source
 
 
 def test_page_uses_shared_asof_replay_builder_without_results_imports() -> None:
@@ -102,29 +103,30 @@ def test_recommended_reason_explains_tire_pace_and_pit_loss() -> None:
     )
 
 
-def test_evaluation_uses_one_results_table(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_evaluation_uses_five_explained_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     app = import_module("f1si.app")
-    tables: list[pd.DataFrame] = []
-    headings: list[str] = []
-    monkeypatch.setattr(app.st, "subheader", headings.append)
-    monkeypatch.setattr(app.st, "table", tables.append)
+    fragments: list[str] = []
+    monkeypatch.setattr(app.st, "html", fragments.append)
     monkeypatch.setattr(app.st, "metric", lambda *_args, **_kwargs: pytest.fail("stat card"))
 
     app._render_report_summary(app._report_summary())
 
-    assert headings == ["Ten-race evaluation"]
-    assert len(tables) == 1
-    assert tables[0].iloc[0]["Result"] == "Model 0.047 vs grid baseline 0.080 (lower is better)"
-    assert "Target: 85% to 95%" in tables[0].iloc[2]["Result"]
+    assert len(fragments) == 1
+    assert "How good is this model?" in fragments[0]
+    assert "Better than starting order" in fragments[0]
+    assert "model 0.047 versus grid baseline 0.080" in fragments[0]
+    assert "Target: 85% to 95%" in fragments[0]
+    assert fragments[0].count('class="metric"') == 5
 
 
-def test_theme_is_dark_borderless_and_uses_ibm_plex_and_team_palette() -> None:
+def test_theme_is_dark_borderless_and_uses_v2_fonts_and_palette() -> None:
     config = tomllib.loads(THEME_PATH.read_text(encoding="utf-8"))
     theme = config["theme"]
     assert theme["base"] == "dark"
-    assert theme["font"].startswith("IBM Plex Sans:https://fonts.googleapis.com/")
-    assert theme["backgroundColor"] == "#1C1F23"
-    assert theme["secondaryBackgroundColor"] == "#24282D"
+    assert theme["font"].startswith("Titillium Web:https://fonts.googleapis.com/")
+    assert theme["headingFont"].startswith("Saira Condensed:https://fonts.googleapis.com/")
+    assert theme["backgroundColor"] == "#1B1D23"
+    assert theme["secondaryBackgroundColor"] == "#23262E"
     assert theme["borderColor"] == theme["backgroundColor"]
     assert theme["dataframeBorderColor"] == theme["backgroundColor"]
     assert theme["showWidgetBorder"] is False
@@ -142,10 +144,27 @@ def test_ui_text_and_data_colors_meet_contrast_thresholds() -> None:
         "Haas F1 Team",
         "McLaren",
         "Mercedes",
-        "Red Bull Racing",
+        "Red Bull",
         "Williams",
     )
-    colors = import_module("f1si.plots.replay_charts").fastf1_team_color_map(2023, team_names)
+    team_names_2024_25 = (
+        "Red Bull Racing",
+        "Williams",
+        "RB F1 Team",
+        "McLaren",
+        "Alpine F1 Team",
+        "Aston Martin",
+        "Ferrari",
+        "Haas F1 Team",
+        "Sauber",
+        "Mercedes",
+    )
+    palette = import_module("f1si.plots.replay_charts").fastf1_team_color_map
+    colors = {
+        **palette(2023, team_names),
+        **palette(2024, team_names_2024_25),
+        **palette(2025, team_names_2024_25),
+    }
     text_colors = (CHALK, FOG, RECOMMENDATION)
     assert all(contrast_ratio(color, ASPHALT) >= 4.5 for color in text_colors)
     data_colors = (*colors.values(), *TIRE_COLORS.values(), *TIMING_COLORS.values())
@@ -153,7 +172,7 @@ def test_ui_text_and_data_colors_meet_contrast_thresholds() -> None:
 
 
 def test_page_uses_tabular_numbers_and_has_no_metric_cards() -> None:
-    source = app_source()
+    source = app_source() + CSS_PATH.read_text(encoding="utf-8")
     assert "font-variant-numeric: tabular-nums" in source
     assert 'font-feature-settings: "tnum"' in source
     assert "st.metric(" not in source
@@ -166,7 +185,7 @@ def test_page_uses_tabular_numbers_and_has_no_metric_cards() -> None:
     assert "min_value=0.0" in source
     assert "max_value=1.0" in source
     assert "min-height: 44px" in source
-    assert "Safety-car chance:" in source
+    assert "Safety car" in source
     assert "st.progress(" not in source
 
 
@@ -365,13 +384,12 @@ def test_rendered_selected_replay_contains_all_four_altair_charts(
 ) -> None:
     app = import_module("f1si.app")
     charts: list[Any] = []
-    markdown: list[str] = []
+    fragments: list[str] = []
     captions: list[str] = []
     monkeypatch.setattr(app.st, "columns", lambda *_args, **_kwargs: [nullcontext(), nullcontext()])
-    monkeypatch.setattr(app.st, "subheader", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(app.st, "write", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(app.st, "caption", lambda value, **_kwargs: captions.append(str(value)))
-    monkeypatch.setattr(app.st, "markdown", lambda value, **_kwargs: markdown.append(str(value)))
+    monkeypatch.setattr(app.st, "html", lambda value: fragments.append(str(value)))
     monkeypatch.setattr(app.st, "altair_chart", lambda chart, **_kwargs: charts.append(chart))
     monkeypatch.setattr(app.st, "dataframe", lambda *_args, **_kwargs: None)
 
@@ -382,6 +400,8 @@ def test_rendered_selected_replay_contains_all_four_altair_charts(
             "race_name": "Bahrain Grand Prix",
             "race_season": 2023,
             "driver": "ALO",
+            "driver_name": "Fernando Alonso",
+            "team_name": "Aston Martin",
             "cutoff_lap": 15,
             "laps_total": 57,
             "risk": 0.5,
@@ -457,12 +477,13 @@ def test_rendered_selected_replay_contains_all_four_altair_charts(
 
     assert len(charts) == 4
     assert all(hasattr(chart, "to_dict") for chart in charts)
-    assert "#B69BFF" in str(charts[2].to_dict())
-    assert any("Each cell shows the share" in value for value in captions)
-    assert any('class="strategy-options"' in value for value in markdown)
-    table_html = next(value for value in markdown if 'class="strategy-options"' in value)
-    assert "Recommended</th>" not in table_html
-    assert "Score</th>" not in table_html
+    assert "#358c75" in str(charts[2].to_dict())
+    option_html = next(value for value in fragments if 'id="options"' in value)
+    assert 'class="option-row recommended"' in option_html
+    assert "Show all numbers" in option_html
+    assert "Never stop" in option_html
+    assert any("Shading shows the share" in value for value in captions)
+    assert "10th" in str(charts[2].to_dict())
 
 
 def test_strategy_table_has_no_basis_column_and_uses_one_decimal_and_whole_percents() -> None:
@@ -486,7 +507,7 @@ def test_strategy_table_has_no_basis_column_and_uses_one_decimal_and_whole_perce
     assert formatted.iloc[0]["Podium chance"] == "33%"
     assert formatted.iloc[0]["Action"] == "Box this lap (Medium)"
     html = app._strategy_table_html(formatted)
-    assert 'style="color:#B69BFF;font-weight:600"' in html
+    assert 'style="color:#4ADE80;font-weight:600"' in html
     assert "Recommended</th>" not in html
     assert "Score</th>" not in html
 
@@ -495,8 +516,8 @@ def test_unavailable_cutoff_renders_one_actionable_sentence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = import_module("f1si.app")
-    writes: list[str] = []
-    monkeypatch.setattr(app.st, "write", lambda value: writes.append(str(value)))
+    fragments: list[str] = []
+    monkeypatch.setattr(app.st, "html", lambda value: fragments.append(str(value)))
     monkeypatch.setattr(
         app.st,
         "altair_chart",
@@ -510,7 +531,7 @@ def test_unavailable_cutoff_renders_one_actionable_sentence(
 
     app._render_selected({"available": False})
 
-    assert writes == ["Unavailable at this cutoff. Choose another lap or race."]
+    assert "This cutoff is unavailable. Choose another lap or race." in fragments[0]
 
 
 def test_catalog_failure_does_not_show_internal_error_details(

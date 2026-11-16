@@ -9,7 +9,7 @@ import altair as alt
 import pandas as pd
 
 from f1si.plots.simulate import FanChartData, QuantileDotplotData
-from f1si.ui_theme import ASPHALT, CHALK, FOG, RECOMMENDATION, RULE, TIRE_COLORS
+from f1si.ui_theme import ASPHALT, CHALK, FOG, RULE, TIRE_COLORS
 
 
 def _base_chart(chart: Any) -> Any:
@@ -18,8 +18,8 @@ def _base_chart(chart: Any) -> Any:
         .configure_axis(
             labelColor=FOG,
             titleColor=CHALK,
-            labelFont="IBM Plex Sans",
-            titleFont="IBM Plex Sans",
+            labelFont="Titillium Web",
+            titleFont="Titillium Web",
             labelFontSize=12,
             titleFontSize=13,
             titleFontWeight=500,
@@ -32,7 +32,9 @@ def _base_chart(chart: Any) -> Any:
     )
 
 
-def build_finish_probability_strip(data: QuantileDotplotData) -> alt.LayerChart:
+def build_finish_probability_strip(
+    data: QuantileDotplotData, *, recommended_color: str = "#4ADE80"
+) -> alt.LayerChart:
     """Show each action's share of simulated finishes at every finishing position."""
     labels = data.labels[:5]
     quantiles = data.quantiles[:5]
@@ -89,8 +91,8 @@ def build_finish_probability_strip(data: QuantileDotplotData) -> alt.LayerChart:
 
     chart = (
         alt.layer(
-            layer(True, "#382D50", RECOMMENDATION),
-            layer(False, "#30353A", "#C5C9CD"),
+            layer(True, "#8A8F99", recommended_color),
+            layer(False, "#8A8F99", "#D3D5D9"),
         )
         .resolve_scale(color="independent")
         .properties(height=max(230, len(labels) * 46))
@@ -122,8 +124,8 @@ def _spaced_labels(centers: Mapping[str, float], n_cars: int) -> dict[str, float
     return {label: value for (label, _), value in zip(ordered, slots, strict=True)}
 
 
-def build_fan_chart(data: FanChartData) -> alt.LayerChart:
-    """Build nested purple uncertainty bands and direct labels at the last race lap."""
+def build_fan_chart(data: FanChartData, *, team_color: str = "#229971") -> alt.LayerChart:
+    """Build nested team-colored uncertainty bands with direct labels at race distance."""
     frame = pd.DataFrame(
         {
             "lap": data.laps,
@@ -166,12 +168,12 @@ def build_fan_chart(data: FanChartData) -> alt.LayerChart:
             )
         )
 
-    outer = band("p10", "p90", _tint(RECOMMENDATION, 0.70))
-    middle = band("p25", "p75", _tint(RECOMMENDATION, 0.38))
-    center = band("p40", "p60", RECOMMENDATION)
+    outer = band("p10", "p90", _tint(team_color, 0.35)).encode(opacity=alt.value(0.85))
+    middle = band("p25", "p75", _tint(team_color, 0.20)).encode(opacity=alt.value(0.92))
+    center = band("p40", "p60", _tint(team_color, 0.08)).encode(opacity=alt.value(1.0))
     median = (
         alt.Chart(frame)
-        .mark_line(color=CHALK, strokeWidth=2)
+        .mark_line(color=team_color, strokeWidth=2.5)
         .encode(
             x=alt.X("lap:Q", scale=x_scale, axis=axis_x),
             y=alt.Y("p50:Q", scale=y_scale, axis=axis_y),
@@ -191,9 +193,9 @@ def build_fan_chart(data: FanChartData) -> alt.LayerChart:
         .mark_text(
             align="right",
             dx=-4,
-            font="IBM Plex Sans",
+            font="Titillium Web",
             fontSize=10,
-            color=CHALK,
+            color=FOG,
             stroke=ASPHALT,
             strokeWidth=2,
         )
@@ -263,9 +265,32 @@ def build_race_trace_chart(
             )
         )
 
-    add_lines(frame.loc[~frame["selected"]], FOG, 1.0, 0.62)
+    selected_latest = frame.loc[frame["selected"] & frame["is_latest"].astype(bool)]
+    nearest_codes: set[str] = set()
+    if not selected_latest.empty:
+        selected_gap = float(selected_latest.iloc[-1]["gap_to_leader_s"])
+        latest_gaps = frame.loc[
+            frame["is_latest"].astype(bool), ["driver_code", "gap_to_leader_s"]
+        ].drop_duplicates("driver_code")
+        ahead = latest_gaps.loc[latest_gaps["gap_to_leader_s"] < selected_gap].sort_values(
+            "gap_to_leader_s", ascending=False
+        )
+        behind = latest_gaps.loc[latest_gaps["gap_to_leader_s"] > selected_gap].sort_values(
+            "gap_to_leader_s"
+        )
+        nearest_codes = {
+            str(code).upper()
+            for code in [
+                *ahead.head(1)["driver_code"].tolist(),
+                *behind.head(1)["driver_code"].tolist(),
+            ]
+        }
+    frame["nearest"] = frame["driver_code"].astype(str).str.upper().isin(nearest_codes)
+    add_lines(frame.loc[~frame["selected"] & ~frame["nearest"]], "#7C828D", 0.9, 0.80)
+    add_lines(frame.loc[frame["nearest"]], FOG, 1.25, 0.95)
     add_lines(frame.loc[frame["selected"]], selected_color, 2.8, 1.0)
     latest = frame.loc[frame["is_latest"].astype(bool)].copy()
+    latest = latest.loc[latest["selected"] | latest["nearest"]]
     latest["label_lap"] = cutoff_lap
     latest["label_color"] = latest["selected"].map({True: selected_color, False: FOG})
     latest["point_color"] = latest["label_color"]
@@ -296,7 +321,7 @@ def build_race_trace_chart(
                 ),
                 alt.Chart(source)
                 .mark_text(
-                    align="right", dx=-4, font="IBM Plex Sans", fontSize=10, color=text_color
+                    align="right", dx=-4, font="Titillium Web", fontSize=11, color=text_color
                 )
                 .encode(
                     x=alt.X("label_lap:Q", scale=x_scale),
@@ -307,7 +332,7 @@ def build_race_trace_chart(
         )
 
     add_latest(latest.loc[~latest["selected"]], FOG, FOG)
-    add_latest(latest.loc[latest["selected"]], selected_color, selected_color)
+    add_latest(latest.loc[latest["selected"]], selected_color, CHALK)
     return cast(alt.LayerChart, _base_chart(alt.layer(*layers).properties(height=350)))
 
 
@@ -320,6 +345,7 @@ def build_stint_chart(
     selected_driver: str,
     recommended_stop_lap: int | None,
     recommended_compound: str | None,
+    selected_color: str = "#229971",
 ) -> alt.LayerChart | None:
     """Show completed stint bars and the selected driver's recommended next stint."""
     if not rows and recommended_stop_lap is None:
@@ -360,7 +386,7 @@ def build_stint_chart(
             alt.Chart(source)
             .mark_bar(
                 size=13,
-                stroke=RECOMMENDATION if recommended else None,
+                stroke=selected_color if recommended else None,
                 strokeWidth=2 if recommended else 0,
                 fillOpacity=0.48 if recommended else 1,
             )
@@ -411,7 +437,7 @@ def build_stint_chart(
             align="right",
             dx=-4,
             color=FOG,
-            font="IBM Plex Sans",
+            font="Titillium Web",
             fontSize=10,
         )
         .encode(
@@ -420,9 +446,26 @@ def build_stint_chart(
             text=alt.Text("driver_code:N"),
         )
     )
+    letter_backing = (
+        alt.Chart(frame)
+        .mark_point(
+            shape="square",
+            filled=True,
+            size=100,
+            color=ASPHALT,
+            strokeWidth=1,
+        )
+        .encode(
+            x=alt.X("mid_lap:Q", scale=x_scale),
+            y=alt.Y("driver_code:N", sort=list(driver_order), axis=None),
+            stroke=alt.Color(
+                "compound:N", scale=alt.Scale(domain=compounds, range=colors), legend=None
+            ),
+        )
+    )
     letters = (
         alt.Chart(frame)
-        .mark_text(color=ASPHALT, font="IBM Plex Sans", fontWeight=600, fontSize=9)
+        .mark_text(color=CHALK, font="Titillium Web", fontWeight=700, fontSize=9)
         .encode(
             x=alt.X("mid_lap:Q", scale=x_scale),
             y=alt.Y("driver_code:N", sort=list(driver_order), axis=None),
@@ -436,6 +479,7 @@ def build_stint_chart(
     )
     layers.append(cutoff_rule)
     layers.append(direct_labels)
+    layers.append(letter_backing)
     layers.append(letters)
     return cast(
         alt.LayerChart,

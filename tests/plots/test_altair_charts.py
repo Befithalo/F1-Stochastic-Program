@@ -65,18 +65,19 @@ def test_probability_strip_aggregates_known_quantiles_into_one_cell_per_place() 
         assert cell["probability"] == 0.1
     color_ranges = [layer["encoding"]["color"]["scale"]["range"] for layer in layers]
     assert color_ranges == [
-        ["#382D50", RECOMMENDATION],
-        ["#30353A", "#C5C9CD"],
+        ["#8A8F99", RECOMMENDATION],
+        ["#8A8F99", "#D3D5D9"],
     ]
 
 
-def test_fan_chart_uses_purple_nested_bands_labeled_at_race_finish() -> None:
+def test_fan_chart_uses_team_nested_bands_labeled_at_race_finish() -> None:
     history = np.asarray(
         [[1, 2, 3, 3, 3], [2, 4, 5, 5, 5], [3, 5, 7, 7, 7], [5, 7, 9, 9, 9]],
         dtype=np.int64,
     )
     data = prepare_fan_chart_data(history, first_lap=53, n_cars=10)
-    spec = build_fan_chart(data).to_dict()
+    team_color = "#358C75"
+    spec = build_fan_chart(data, team_color=team_color).to_dict()
     layers = spec["layer"]
     assert isinstance(layers, list)
     assert "title" not in spec
@@ -86,9 +87,11 @@ def test_fan_chart_uses_purple_nested_bands_labeled_at_race_finish() -> None:
     y_axis = layers[0]["encoding"]["y"]["axis"]
     assert y_axis["grid"] is True
     area_colors = [layer["mark"]["color"] for layer in layers if layer["mark"]["type"] == "area"]
-    assert area_colors[-1] == RECOMMENDATION
+    assert area_colors == ["#7CB4A5", "#5DA391", "#459580"]
     assert len(set(area_colors)) == 3
     assert min(contrast_ratio(color, ASPHALT) for color in area_colors) >= 3.0
+    median = next(layer for layer in layers if layer["mark"]["type"] == "line")
+    assert median["mark"]["color"] == team_color
     label_layer = next(layer for layer in layers if layer["mark"]["type"] == "text")
     labels = _inline_values(spec, label_layer)
     dash = "\N{EN DASH}"
@@ -172,6 +175,7 @@ def test_stint_chart_labels_rows_compounds_and_outlines_recommended_stint() -> N
             "mid_lap": 8,
         },
     )
+    team_color = "#358C75"
     chart = build_stint_chart(
         rows,
         cutoff_lap=15,
@@ -180,6 +184,7 @@ def test_stint_chart_labels_rows_compounds_and_outlines_recommended_stint() -> N
         selected_driver="ALO",
         recommended_stop_lap=16,
         recommended_compound="MEDIUM",
+        selected_color=team_color,
     )
     assert chart is not None
     spec = chart.to_dict()
@@ -188,7 +193,7 @@ def test_stint_chart_labels_rows_compounds_and_outlines_recommended_stint() -> N
     outlined = next(
         layer
         for layer in layers
-        if layer["mark"]["type"] == "bar" and layer["mark"].get("stroke") == RECOMMENDATION
+        if layer["mark"]["type"] == "bar" and layer["mark"].get("stroke") == team_color
     )
     outlined_rows = _inline_values(spec, outlined)
     assert outlined_rows[0]["driver_code"] == "ALO"

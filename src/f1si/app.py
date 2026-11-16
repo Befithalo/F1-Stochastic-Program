@@ -30,15 +30,7 @@ from f1si.plots.replay_charts import (
     snapshot_driver_order,
 )
 from f1si.plots.simulate import FanChartData, prepare_fan_chart_data, prepare_quantile_dotplot_data
-from f1si.ui_theme import (
-    ASPHALT,
-    CHALK,
-    FOG,
-    PITWALL,
-    RECOMMENDATION,
-    TIRE_COLORS,
-    TIRE_LETTERS,
-)
+from f1si.ui_theme import CHALK, FOG, RECOMMENDATION, TIRE_COLORS, TIRE_LETTERS
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPORT_PATH = PROJECT_ROOT / "reports" / "backtest" / "phase-06.json"
@@ -63,6 +55,35 @@ TIRE_NAMES = {
     "HARD": "Hard",
     "INTERMEDIATE": "Intermediate",
     "WET": "Full wet",
+}
+DRIVER_NAMES = {
+    "VER": "Max Verstappen",
+    "PER": "Sergio Perez",
+    "HAM": "Lewis Hamilton",
+    "RUS": "George Russell",
+    "LEC": "Charles Leclerc",
+    "SAI": "Carlos Sainz",
+    "NOR": "Lando Norris",
+    "PIA": "Oscar Piastri",
+    "ALO": "Fernando Alonso",
+    "STR": "Lance Stroll",
+    "GAS": "Pierre Gasly",
+    "OCO": "Esteban Ocon",
+    "TSU": "Yuki Tsunoda",
+    "RIC": "Daniel Ricciardo",
+    "LAW": "Liam Lawson",
+    "ALB": "Alex Albon",
+    "SAR": "Logan Sargeant",
+    "BOT": "Valtteri Bottas",
+    "ZHO": "Zhou Guanyu",
+    "HUL": "Nico Hulkenberg",
+    "MAG": "Kevin Magnussen",
+    "BEA": "Oliver Bearman",
+    "COL": "Franco Colapinto",
+    "ANT": "Kimi Antonelli",
+    "DOO": "Jack Doohan",
+    "HAD": "Isack Hadjar",
+    "BOR": "Gabriel Bortoleto",
 }
 
 
@@ -119,7 +140,7 @@ def _eligible_catalog(data_path: Path) -> pd.DataFrame:
 
 
 def _race_label(row: Any) -> str:
-    event = str(row.event_name).replace("Grand Prix", "GP")
+    event = str(row.event_name)
     return f"{event} {int(row.season)}"
 
 
@@ -257,6 +278,7 @@ def _build_selected_replay(
         snapshot.entries["driver_code"].astype(str).str.upper().eq(code)
     ]
     team_name = str(driver_entry.iloc[0]["team_name"])
+    driver_name = DRIVER_NAMES.get(code, str(driver_entry.iloc[0].get("full_name") or code).title())
     selected_color = team_colors.get(team_name, CHALK)
     driver_order = snapshot_driver_order(snapshot)
 
@@ -285,6 +307,8 @@ def _build_selected_replay(
             "race_season": int(snapshot.race.season),
             "laps_total": laps_total,
             "driver": code,
+            "driver_name": driver_name,
+            "team_name": team_name,
             "cutoff_lap": cutoff_lap,
             "risk": risk,
             "options": (),
@@ -357,6 +381,8 @@ def _build_selected_replay(
         "race_season": int(snapshot.race.season),
         "laps_total": laps_total,
         "driver": code,
+        "driver_name": driver_name,
+        "team_name": team_name,
         "cutoff_lap": cutoff_lap,
         "risk": risk,
         "option_columns": option_columns,
@@ -443,127 +469,78 @@ def _report_display_values(report: dict[str, Any]) -> dict[str, str]:
     }
 
 
-def _render_report_summary(report: dict[str, Any]) -> None:
-    display = _report_display_values(report)
-    st.subheader("Ten-race evaluation")
-    st.table(
-        pd.DataFrame(
-            [
-                ("Podium Brier score", display["podium"]),
-                ("Top-10 Brier score", display["top10"]),
-                ("90% finish coverage", display["coverage"]),
-                ("Team top-action agreement", display["team_agreement"]),
-                ("Observed stop-timing error", display["team_timing"]),
-                ("Sample", display["sample"]),
-            ],
-            columns=("Measure", "Result"),
-        )
+def _metric_html(number: str, verdict: str, meaning: str, *, caution: bool = False) -> str:
+    tone = "caution" if caution else "better"
+    return (
+        '<div class="metric"><div class="metric-number">'
+        f'{html.escape(number)}</div><div class="verdict {tone}">{html.escape(verdict)}</div>'
+        f'<p class="metric-copy">{html.escape(meaning)}</p></div>'
     )
+
+
+def _model_report_html(report: dict[str, Any]) -> str:
+    metrics = report["metrics"]
+    podium = metrics["podium_brier"]
+    top10 = metrics["top10_brier"]
+    coverage = metrics["finish_interval_90"]
+    team = metrics["team_strategy_comparison"]
+    agreement = team["top_action_agreement"]
+    timing = team["stop_timing_error_laps"]["absolute"]
+    pooled = coverage["covered"] / coverage["classified_finishers"]
+    metric_rows = [
+        _metric_html(
+            f"{podium['model']['mean']:.3f}",
+            "Better than starting order",
+            f"Podium Brier: model {podium['model']['mean']:.3f} versus grid baseline "
+            f"{podium['baseline']['mean']:.3f}; lower is better.",
+        ),
+        _metric_html(
+            f"{top10['model']['mean']:.3f}",
+            "Better than starting order",
+            f"Points Brier: model {top10['model']['mean']:.3f} versus grid baseline "
+            f"{top10['baseline']['mean']:.3f}; lower is better.",
+        ),
+        _metric_html(
+            f"{coverage['coverage']['mean']:.0%}",
+            "Below target",
+            f"The 90% finish range covered {pooled:.1%} of classified results "
+            f"({coverage['covered']:,} of {coverage['classified_finishers']:,}). "
+            "Target: 85% to 95%.",
+            caution=True,
+        ),
+        _metric_html(
+            f"{agreement['mean']:.0%}",
+            "Needs work",
+            f"Top strategy matched observed team calls in {agreement['mean']:.1%} of "
+            f"{team['event_count']} stop events.",
+            caution=True,
+        ),
+        _metric_html(
+            f"{timing['mean']:.1f} laps",
+            "Often several laps apart",
+            f"The recommended stop differed from the observed stop by {timing['mean']:.2f} "
+            "laps on average.",
+            caution=True,
+        ),
+    ]
+    sample = (
+        f"Ten races, {metrics['brier_observation_count']:,} driver and cutoff predictions, "
+        f"and {team['event_count']} observed stops."
+    )
+    return (
+        '<section class="page-section" id="model-report"><h2>How good is this model?</h2>'
+        f'<p class="section-sub">{html.escape(sample)}</p><div class="metrics">'
+        f"{''.join(metric_rows)}</div></section>"
+    )
+
+
+def _render_report_summary(report: dict[str, Any]) -> None:
+    st.html(_model_report_html(report))
 
 
 def _apply_styles() -> None:
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{ background: {ASPHALT}; color: {CHALK}; }}
-        .stApp .block-container {{ max-width: 1440px; padding-top: 28px; padding-bottom: 48px; }}
-        .stApp p, .stApp li {{ color: {CHALK}; font-size: 16px; line-height: 1.5; }}
-        .stApp h1 {{ color: {CHALK}; font-size: 28px; font-weight: 600; line-height: 1.2; }}
-        .stApp h2, .stApp h3 {{
-            color: {CHALK}; font-size: 20px; font-weight: 600; line-height: 1.2;
-        }}
-        .stApp [data-testid="stCaptionContainer"] {{
-            color: {FOG}; font-size: 14px; line-height: 1.45;
-            font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
-        }}
-        .stApp, .stApp * {{ font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }}
-        .stApp .recommended-action {{
-            color: {RECOMMENDATION}; font-size: 28px;
-            font-weight: 600; line-height: 1.2;
-        }}
-        .stApp .compound-letter {{ font-weight: 600; }}
-        .stApp [data-testid="stTable"] {{ border-color: {ASPHALT}; }}
-        .stApp [data-testid="stTable"] th, .stApp [data-testid="stTable"] td {{
-            border-color: {ASPHALT} !important; color: {CHALK};
-            white-space: normal; overflow-wrap: anywhere;
-        }}
-        .stApp [data-testid="stTable"] td {{ font-variant-numeric: tabular-nums; }}
-        .stApp [data-testid="stWidgetLabel"] p {{
-            color: {CHALK}; font-size: 14px; font-weight: 500;
-        }}
-        .stApp [data-testid="stSelectbox"] [data-baseweb="select"] > div {{
-            min-height: 44px; background: {PITWALL}; border-color: {ASPHALT}; color: {CHALK};
-        }}
-        .stApp [data-testid="stSlider"] {{ min-height: 44px; }}
-        .stApp [data-testid="stDataFrame"] {{ border-color: {ASPHALT}; }}
-        .stApp [data-testid="stDataFrame"] * {{ font-variant-numeric: tabular-nums; }}
-        .stApp table.strategy-options {{
-            width: 100%; border-collapse: collapse; table-layout: fixed;
-            font-size: 13px; font-variant-numeric: tabular-nums;
-        }}
-        .stApp table.strategy-options th, .stApp table.strategy-options td {{
-            border: 0; padding: 7px 6px; text-align: left; vertical-align: top;
-            color: {CHALK}; overflow-wrap: anywhere;
-        }}
-        .stApp table.strategy-options th {{ color: {FOG}; font-weight: 500; }}
-        .stApp table.strategy-options .mobile-results,
-        .stApp table.strategy-options .mobile-action {{ display: none; }}
-        .stApp table.strategy-options th:nth-child(1),
-        .stApp table.strategy-options td:nth-child(1) {{
-            width: 24%; white-space: nowrap; overflow-wrap: normal;
-        }}
-        .stApp table.strategy-options th:nth-child(2),
-        .stApp table.strategy-options td:nth-child(2) {{ width: 10%; }}
-        .stApp table.strategy-options th:nth-child(3),
-        .stApp table.strategy-options td:nth-child(3) {{ width: 9%; }}
-        .stApp table.strategy-options th:nth-child(4),
-        .stApp table.strategy-options td:nth-child(4) {{ width: 18%; }}
-        .stApp table.strategy-options th:nth-child(5),
-        .stApp table.strategy-options td:nth-child(5) {{ width: 12%; }}
-        .stApp table.strategy-options th:nth-child(6),
-        .stApp table.strategy-options td:nth-child(6) {{ width: 12%; }}
-        .stApp table.strategy-options th:nth-child(7),
-        .stApp table.strategy-options td:nth-child(7) {{ width: 15%; }}
-        .stApp .vega-embed .vega-actions {{ display: none !important; }}
-        .stApp [data-testid="stHeaderActionElements"] {{ display: none !important; }}
-        .stApp [data-testid="stMarkdownContainer"]:focus-visible,
-        .stApp button:focus-visible,
-        .stApp input:focus-visible,
-        .stApp [role="combobox"]:focus-visible {{
-            outline: 2px solid {CHALK}; outline-offset: 2px;
-        }}
-        .stApp .vega-embed text {{
-            font-family: "IBM Plex Sans", sans-serif;
-            font-variant-numeric: tabular-nums; font-feature-settings: "tnum";
-        }}
-        .st-key-replay-controls [data-testid="stHorizontalBlock"] {{ gap: 16px; }}
-        @media (max-width: 760px) {{
-            .stApp .block-container {{ padding: 18px 14px 32px; }}
-            .stApp table.strategy-options {{ table-layout: fixed; font-size: 13px; }}
-            .stApp table.strategy-options th:nth-child(n+2):nth-child(-n+7),
-            .stApp table.strategy-options td:nth-child(n+2):nth-child(-n+7) {{ display: none; }}
-            .stApp table.strategy-options .mobile-results {{ display: table-cell; }}
-            .stApp table.strategy-options .desktop-action {{ display: none; }}
-            .stApp table.strategy-options .mobile-action {{ display: inline; }}
-            .stApp table.strategy-options th:nth-child(1),
-            .stApp table.strategy-options td:nth-child(1) {{ width: 42%; }}
-            .stApp table.strategy-options th:nth-child(8),
-            .stApp table.strategy-options td:nth-child(8) {{ width: 58%; }}
-            .stApp table.strategy-options td:nth-child(1) {{
-                white-space: normal; overflow-wrap: break-word;
-            }}
-            .st-key-replay-controls [data-testid="stHorizontalBlock"] {{
-                flex-wrap: wrap; gap: 12px;
-            }}
-            .st-key-replay-controls [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{
-                flex: 1 1 calc(50% - 12px) !important; min-width: calc(50% - 12px) !important;
-            }}
-            .stApp .recommended-action {{ font-size: 24px; }}
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    css_path = Path(__file__).with_name("dashboard.css")
+    st.html(f"<style>{css_path.read_text(encoding='utf-8')}</style>")
 
 
 def _format_strategy_table(
@@ -639,65 +616,333 @@ def _strategy_table_html(table: pd.DataFrame) -> str:
     )
 
 
+def _position_interval(value: str, quantiles: tuple[int, ...], field_size: int) -> tuple[int, int]:
+    match = re.fullmatch(r"P?(\d+(?:\.\d+)?)(?:-|\u2013)P?(\d+(?:\.\d+)?)", value)
+    if match is not None:
+        low, high = (round(float(part)) for part in match.groups())
+        return max(1, low), min(field_size, high)
+    return quantiles[4], quantiles[94]
+
+
+def _compound_for_action(action: str, fallback: str) -> str:
+    match = re.search(r"\(([A-Z]+)\)$", action)
+    compound = match.group(1) if match is not None else fallback.upper()
+    return compound if compound in TIRE_COLORS else fallback.upper()
+
+
+def _tie_window(value: object) -> tuple[int, int] | None:
+    if isinstance(value, tuple | list) and len(value) == 2:
+        return int(value[0]), int(value[1])
+    return None
+
+
+def _option_title(action: str) -> str:
+    if action == "wait and decide next lap":
+        return "Wait and decide next lap"
+    if action == "stay out":
+        return "Never stop"
+    return _action_copy(action)
+
+
+def _option_explanation(
+    index: int, difference: float, action: str, tied: tuple[int, int] | None
+) -> str:
+    if action == "wait and decide next lap" and tied is not None:
+        return (
+            f"Stopping between laps {tied[0]} and {tied[1]} gives a similar result, "
+            "so keep the current tires and reassess next lap."
+        )
+    if index == 0:
+        return "This choice gives the strongest balance of expected result and bad-day risk."
+    return f"It finishes about {difference:.1f} places behind the recommended choice on average."
+
+
+def _option_row_html(
+    row: tuple[Any, ...],
+    quantiles: tuple[int, ...],
+    *,
+    index: int,
+    recommended_mean: float,
+    current_compound: str,
+    field_size: int,
+    tie_window: tuple[int, int] | None,
+    team_color: str,
+) -> str:
+    action = str(row[0])
+    mean, spread, bad_day, podium, points = (float(value) for value in row[1:6])
+    interval_text = str(row[6])
+    low, high = _position_interval(interval_text, quantiles, field_size)
+    difference = max(0.0, mean - recommended_mean)
+    is_recommended = index == 0
+    compound = _compound_for_action(action, current_compound)
+    tire_color = TIRE_COLORS.get(compound, FOG)
+    tire_letter = TIRE_LETTERS.get(compound, "?")
+    title = _option_title(action)
+    if is_recommended:
+        tag = '<span class="tag tag-rec">Recommended</span>'
+    else:
+        tag = f'<span class="tag tag-worse">{difference:.1f} places worse</span>'
+
+    def position(rank: float) -> float:
+        return (rank - 1) / max(1, field_size - 1) * 100
+
+    row_class = "option-row recommended" if is_recommended else "option-row"
+    explanation = _option_explanation(index, difference, action, tie_window)
+    table_row = (
+        "<tr>"
+        f"<td>{html.escape(title)}</td><td>P{mean:.1f}</td><td>{spread:.1f}</td>"
+        f"<td>P{bad_day:.1f}</td>"
+        f"<td>{podium:.0%}</td><td>{points:.0%}</td><td>P{low} to P{high}</td>"
+        "</tr>"
+    )
+    help_blurbs = (
+        "Average across simulated races",
+        "Average of the worst 1 in 10 races",
+        "Finishes in P1 to P3",
+        "Finishes in the top 10",
+    )
+    labels = ("Expected finish", "Bad-day finish", "Podium chance", "Points chance")
+    values = (f"P{mean:.1f}", f"P{bad_day:.1f}", f"{podium:.0%}", f"{points:.0%}")
+    stats = "".join(
+        f'<div class="stat"><div class="big">{value}</div>'
+        f'<div class="stat-label">{label}</div><div class="stat-help">{help_text}</div></div>'
+        for value, label, help_text in zip(values, labels, help_blurbs, strict=True)
+    )
+    return (
+        f'<article class="{row_class}" style="--team:{html.escape(team_color)}">'
+        f'<div class="tire-chips"><span class="tire-chip" style="--tire:{tire_color}" '
+        f'aria-label="{html.escape(TIRE_NAMES.get(compound, compound.title()))} tire">'
+        f'{tire_letter}</span></div><div class="option-body">'
+        f'<div class="option-title"><h3>{html.escape(title)}</h3>{tag}</div>'
+        f'<p class="option-copy">{html.escape(explanation)}</p>'
+        f'<div class="stats">{stats}</div>'
+        f'<div class="range" role="img" aria-label="Expected P{mean:.1f}; nine in ten results '
+        f'between P{low} and P{high}; bad-day average P{bad_day:.1f}">'
+        '<div class="range-track"></div>'
+        f'<div class="range-zone" style="left:0;width:{position(3):.3f}%"></div>'
+        f'<div class="range-band" style="left:{position(low):.3f}%;'
+        f'width:{max(0, position(high) - position(low)):.3f}%"></div>'
+        f'<div class="range-dot" style="left:{position(mean):.3f}%"></div>'
+        f'<div class="range-bad" style="left:{position(bad_day):.3f}%"></div>'
+        f'<span class="range-tick" style="left:{position(3):.3f}%">P3</span>'
+        f'<span class="range-tick" style="left:{position(10):.3f}%">P10</span>'
+        '<span class="range-end">P1</span><span class="range-end right">P20</span></div>'
+        f'<p class="range-text">9 in 10 simulated races finish between P{low} and P{high}.</p>'
+        '<details><summary>Show all numbers</summary><div class="table-wrap">'
+        '<table class="detail-table">'
+        "<thead><tr><th>Option</th><th>Expected finish</th><th>Spread</th><th>Bad-day finish</th>"
+        "<th>Podium chance</th><th>Points chance</th><th>9-in-10 range</th></tr></thead>"
+        f"<tbody>{table_row}</tbody></table></div></details></div></article>"
+    )
+
+
+def _decision_band_html(result: dict[str, Any], options: tuple[tuple[Any, ...], ...]) -> str:
+    selected = str(options[0][0])
+    color = html.escape(str(result.get("selected_color") or CHALK))
+    driver = html.escape(str(result["driver"]))
+    driver_name = html.escape(str(result.get("driver_name") or driver))
+    team = html.escape(str(result.get("team_name") or "the team"))
+    cutoff, total = int(result["cutoff_lap"]), int(result["laps_total"])
+    risk = float(result["risk"])
+    risk_name = "Aggressive" if risk < 0.34 else "Cautious" if risk > 0.66 else "Balanced"
+    tie_window = _tie_window(result.get("waiting_tie_window_laps"))
+    if bool(result.get("close_call_two_se")):
+        headline = "Too close to call"
+    elif selected.startswith("pit now"):
+        headline = "Box this lap"
+    elif selected.startswith("pit in 1 lap"):
+        headline = "Box next lap"
+    else:
+        headline = "Stay out for now"
+    reason = str(result.get("reason") or "Keep running and reassess at the next lap.")
+    if selected == "wait and decide next lap" and tie_window is not None:
+        reason = (
+            f"Stopping between laps {tie_window[0]} and {tie_window[1]} gives a similar result, "
+            "so keep the current tires and reassess next lap."
+        )
+    close = ""
+    if result.get("close_call_places") is not None and len(options) > 1:
+        close = (
+            f'<p class="close-call">Close call: {_action_copy(str(options[1][0]))} is only '
+            f"{float(result['close_call_places']):.1f} places worse on average.</p>"
+        )
+    compound = str(result.get("tire_compound") or "unknown").title()
+    tire_rate = result.get("tire_rate")
+    tire_sd = result.get("tire_sd")
+    tire_value = "Not available" if tire_rate is None else f"{float(tire_rate):.2f} s/lap"
+    tire_copy = (
+        f"The current {compound} tire is losing about {float(tire_rate):.2f} seconds per lap; "
+        f"wear uncertainty is {float(tire_sd):.2f} seconds per lap."
+        if tire_rate is not None and tire_sd is not None
+        else "There is not enough tire data to estimate pace loss at this lap."
+    )
+    if tie_window is None:
+        window_number, window_copy = (
+            "No tied laps",
+            "The model finds different results for each available stop choice.",
+        )
+    else:
+        window_number = f"Laps {tie_window[0]} to {tie_window[1]}"
+        window_copy = "Stops in this window give a similar expected finish."
+    sc = float(result.get("safety_car_probability") or 0.0)
+    remaining = max(0, total - cutoff)
+    event_chance = 1.0 - (1.0 - sc) ** remaining
+    reasons = (
+        ("Tyres", tire_value, tire_copy),
+        ("Pit window", window_number, window_copy),
+        (
+            "Safety car",
+            f"{sc:.1%} per lap",
+            f"Historical rate implies about a {event_chance:.0%} chance of one before the flag.",
+        ),
+    )
+    reason_html = "".join(
+        f'<div class="reason"><div class="reason-label">{html.escape(label)}</div>'
+        f'<div class="reason-number">{html.escape(number)}</div>'
+        f'<p class="reason-copy">{html.escape(copy)}</p></div>'
+        for label, number, copy in reasons
+    )
+    fallback = (
+        '<p class="close-call">The tire estimate uses limited data at this lap.</p>'
+        if bool(result.get("fallback"))
+        else ""
+    )
+    return (
+        f'<div class="decision-band" style="--team:{color}"><div class="decision-inner">'
+        f'<p class="context">{html.escape(str(result["race_name"]))} {int(result["race_season"])}, '
+        f"after lap {cutoff} of {total}, {risk_name.lower()} risk setting</p>"
+        f'<div class="driver-line"><span class="driver-code">{driver}</span>'
+        f"{driver_name}, {team}</div><h1>{headline}</h1>"
+        f'<p class="lede">{html.escape(reason)}</p>{close}{fallback}'
+        f'<div class="reasons">{reason_html}</div></div></div>'
+    )
+
+
+def _glossary_html() -> str:
+    glossary = (
+        ("Expected finish", "Average finishing position across all simulated races."),
+        ("Bad-day finish", "Average finishing position in the worst 1 in 10 simulated races."),
+        ("Podium chance", "Share of simulated races ending in P1, P2, or P3."),
+        ("Points chance", "Share of simulated races ending in the top 10."),
+        ("9-in-10 range", "Nine of every ten simulated races finish inside this interval."),
+        ("Pit window", "Laps where a stop gives about the same expected result."),
+        ("Close call", "The top two options are within two standard errors in the simulation."),
+        ("Risk setting", "Aggressive favors the average; cautious protects the bad-day result."),
+    )
+    rows = "".join(
+        f'<div class="glossary-row"><dt>{html.escape(term)}</dt>'
+        f"<dd>{html.escape(definition)}</dd></div>"
+        for term, definition in glossary
+    )
+    return (
+        '<section class="page-section" id="glossary"><h2>How to read this page</h2>'
+        f'<dl class="glossary">{rows}</dl>'
+        '<footer class="site-footer">Unofficial project, not affiliated with Formula 1. '
+        "Data: FastF1, OpenF1, and Jolpica.</footer></section>"
+    )
+
+
 def _render_selected(result: dict[str, Any]) -> None:
     if not result.get("available"):
-        st.write("Unavailable at this cutoff. Choose another lap or race.")
+        st.html(
+            '<p class="section-sub">This cutoff is unavailable. Choose another lap or race.</p>'
+        )
         return
-
-    st.subheader("Recommended strategy")
     options = tuple(result.get("options") or ())
     if not result.get("strategy_available") or not options:
-        st.write(
-            "No strategy options are available at this lap. Choose a later lap or another race."
+        st.html(
+            '<p class="section-sub">No strategy is available at this lap. '
+            "Choose another cutoff or race.</p>"
         )
         return
-
-    action = _action_copy(str(options[0][0]), include_compound=False)
-    st.markdown(
-        f'<p class="recommended-action">{html.escape(action)}</p>',
-        unsafe_allow_html=True,
-    )
-    st.write(str(result["reason"]))
-    if result.get("close_call_places") is not None:
-        runner_up = _action_copy(str(options[1][0]))
-        places = float(result["close_call_places"])
-        st.caption(
-            f"Close call: {runner_up} is only {places:.1f} places worse on average "
-            "(less than two standard errors apart)."
+    st.html(_decision_band_html(result, options))
+    team_color = str(result.get("selected_color") or CHALK)
+    current_compound = str(result.get("tire_compound") or "SOFT").upper()
+    quantiles = tuple(result.get("option_quantiles") or ())
+    option_rows = "".join(
+        _option_row_html(
+            row,
+            tuple(int(value) for value in quantile_row),
+            index=index,
+            recommended_mean=float(options[0][1]),
+            current_compound=current_compound,
+            field_size=int(result["n_cars"]),
+            tie_window=(
+                None
+                if _tie_window(result.get("waiting_tie_window_laps")) is None
+                else cast(tuple[int, int], _tie_window(result.get("waiting_tie_window_laps")))
+            ),
+            team_color=team_color,
         )
-    tie_window = result.get("waiting_tie_window_laps")
-    if tie_window is not None:
-        start_lap, end_lap = tie_window
-        st.caption(f"Waiting ties from lap {start_lap} through lap {end_lap}.")
-    st.caption(
-        f"{result['race_name']} {result['race_season']}. Driver {result['driver']}. "
-        f"After lap {result['cutoff_lap']} of {result['laps_total']}. "
-        f"Risk aversion {result['risk']:.2f}."
+        for index, (row, quantile_row) in enumerate(zip(options[:4], quantiles[:4], strict=False))
     )
-    if bool(result.get("fallback")):
-        st.caption("Uncalibrated. The model uses only the laps available at this point.")
+    never_stop = ""
+    if not bool(result.get("never_stop_allowed")):
+        never_stop = (
+            '<article class="option-row"><div></div><div class="option-body">'
+            '<div class="option-title"><h3>Never stop</h3>'
+            '<span class="tag tag-worse">Not allowed</span></div>'
+            '<p class="option-copy">A driver must use two different tire compounds '
+            "in a dry race.</p>"
+            "</div></article>"
+        )
+    options_intro = (
+        f"Best first. Each option uses {int(result['simulation_count']):,} simulated races."
+    )
+    st.html(
+        '<section class="page-section" id="options"><h2>Your options</h2>'
+        f'<p class="section-sub">{options_intro}</p>{option_rows}{never_stop}</section>'
+    )
 
-    trace_col, stint_col = st.columns((1.1, 1.0), gap="large")
+    trace_rows = cast(tuple[dict[str, object], ...], result.get("race_trace_rows") or ())
+    trace = build_race_trace_chart(
+        trace_rows,
+        selected_driver=str(result["driver"]),
+        selected_color=team_color,
+        cutoff_lap=int(result["cutoff_lap"]),
+    )
+    driver_name = str(result.get("driver_name") or result["driver"])
+    selected_trace = [
+        row
+        for row in trace_rows
+        if str(row.get("driver_code", "")).upper() == str(result["driver"]).upper()
+        and bool(row.get("is_latest"))
+    ]
+    if selected_trace:
+        gap = float(cast(Any, selected_trace[-1].get("gap_to_leader_s", 0.0)))
+        trace_takeaway = (
+            f"{driver_name} is {gap:.1f} seconds from the lead after "
+            f"lap {int(result['cutoff_lap'])}."
+        )
+    else:
+        trace_takeaway = "No completed lap times are available for this cutoff."
+    stint_rows = cast(tuple[dict[str, object], ...], result.get("stint_rows") or ())
+    selected_stints = [
+        str(row.get("compound", "")).title()
+        for row in stint_rows
+        if str(row.get("driver_code", "")).upper() == str(result["driver"]).upper()
+    ]
+    compounds = ", then ".join(selected_stints) if selected_stints else "no classified tire stints"
+    next_compound = str(result.get("recommended_compound") or "").title()
+    stint_takeaway = f"{driver_name} has run {compounds}."
+    if next_compound:
+        stint_takeaway += f" The recommended next set is {next_compound}."
+    st.html(
+        '<section class="page-section" id="race-so-far"><h2>The race so far</h2>'
+        '<div class="charts"><div><h3 class="chart-title">Gap to leader</h3>'
+        f'<p class="chart-takeaway">{html.escape(trace_takeaway)}</p></div>'
+        '<div><h3 class="chart-title">Stints so far</h3>'
+        f'<p class="chart-takeaway">{html.escape(stint_takeaway)}</p></div></div></section>'
+    )
+    trace_col, stint_col = st.columns(2, gap="large")
     with trace_col:
-        st.subheader("Gap to leader")
-        trace = build_race_trace_chart(
-            cast(tuple[dict[str, object], ...], result.get("race_trace_rows") or ()),
-            selected_driver=str(result["driver"]),
-            selected_color=str(result.get("selected_color") or CHALK),
-            cutoff_lap=int(result["cutoff_lap"]),
-        )
         if trace is None:
-            st.caption("No completed laps are visible at this cutoff.")
+            st.caption("No completed lap times are available for this cutoff.")
         else:
             st.altair_chart(trace, theme="streamlit", width="stretch")
-        st.caption(
-            "Selected driver is in team color. Other drivers are grey; teammates are dashed."
-        )
-
     with stint_col:
-        st.subheader("Stints so far")
         stint_chart = build_stint_chart(
-            cast(tuple[dict[str, object], ...], result.get("stint_rows") or ()),
+            stint_rows,
             cutoff_lap=int(result["cutoff_lap"]),
             laps_total=int(result["laps_total"]),
             driver_order=cast(tuple[str, ...], result.get("driver_order") or ()),
@@ -712,81 +957,57 @@ def _render_selected(result: dict[str, Any]) -> None:
                 if result.get("recommended_compound") is None
                 else str(result["recommended_compound"])
             ),
+            selected_color=team_color,
         )
         if stint_chart is None:
-            st.caption("No tire stints are visible at this cutoff.")
+            st.caption("No tire stint data is available at this cutoff.")
         else:
             st.altair_chart(stint_chart, theme="streamlit", width="stretch")
-        st.caption(
-            "Letters show the tire compound. A purple outline marks the recommended next stint."
+
+    fan_data = result.get("fan_chart_data")
+    if isinstance(fan_data, dict):
+        fan_data = FanChartData(**fan_data)
+    option_quantiles = tuple(result.get("option_quantiles") or ())
+    finish_chart = None
+    if len(options) == len(option_quantiles):
+        dotplot = prepare_quantile_dotplot_data(
+            tuple(_dotplot_action_copy(str(row[0])) for row in options[:4]),
+            tuple(tuple(row) for row in option_quantiles[:4]),
+            mean_finish=float(result["selected_cutoff_mean"]),
+            n_cars=int(result["n_cars"]),
+            simulation_count=int(result["simulation_count"]),
         )
-
-    dotplot_col, fan_col = st.columns((1.1, 1.0), gap="large")
-    with dotplot_col:
-        st.subheader("Finish distribution by option")
-        option_quantiles = tuple(result.get("option_quantiles") or ())
-        if len(options) == len(option_quantiles):
-            dotplot = prepare_quantile_dotplot_data(
-                tuple(_dotplot_action_copy(str(row[0])) for row in options),
-                option_quantiles,
-                mean_finish=float(result["selected_cutoff_mean"]),
-                n_cars=int(result["n_cars"]),
-                simulation_count=int(result["simulation_count"]),
-            )
-            chart = build_finish_probability_strip(dotplot)
-            st.altair_chart(chart, theme="streamlit", width="stretch")
-            st.caption("Each cell shows the share of simulated finishes in that position.")
-        else:
-            st.caption("Finish distribution is unavailable for this lap.")
-
+        finish_chart = build_finish_probability_strip(dotplot, recommended_color=team_color)
+    fan_takeaway = "Projected finishing position at the chequered flag."
+    if isinstance(fan_data, FanChartData) and fan_data.p50:
+        fan_takeaway = (
+            f"{driver_name} has a median projected finish of P{fan_data.p50[-1]:.1f} "
+            f"at lap {fan_data.laps[-1]}."
+        )
+    st.html(
+        '<section class="page-section" id="certainty"><h2>How sure are we?</h2>'
+        '<div class="charts"><div><h3 class="chart-title">Projected finish by lap</h3>'
+        f'<p class="chart-takeaway">{html.escape(fan_takeaway)}</p></div>'
+        '<div><h3 class="chart-title">Finish chances</h3>'
+        '<p class="chart-takeaway">Chance at each finishing position for the ranked options.</p>'
+        "</div></div></section>"
+    )
+    fan_col, finish_col = st.columns(2, gap="large")
     with fan_col:
-        st.subheader("Projected finish by lap")
-        fan_data = result.get("fan_chart_data")
-        if isinstance(fan_data, dict):
-            fan_data = FanChartData(**fan_data)
         if isinstance(fan_data, FanChartData):
             st.altair_chart(
-                build_fan_chart(fan_data),
+                build_fan_chart(fan_data, team_color=team_color),
                 theme="streamlit",
                 width="stretch",
             )
-            st.caption(fan_data.caption)
         else:
             st.caption("Projected finish is unavailable for this lap.")
-
-    st.subheader("Safety car and tire")
-    safety_car = float(result["safety_car_probability"])
-    st.write(
-        f"Safety-car chance: {safety_car:.1%} per lap, based on historical data at this circuit."
-    )
-    compound = str(result.get("tire_compound") or "").upper()
-    if compound in TIRE_COLORS:
-        letter = TIRE_LETTERS[compound]
-        name = TIRE_NAMES[compound]
-        color = TIRE_COLORS[compound]
-        st.markdown(
-            f'<p><span class="compound-letter" style="color:{color}">{letter}</span> '
-            f"{name} tire</p>",
-            unsafe_allow_html=True,
-        )
-    tire_rate = result.get("tire_rate")
-    tire_sd = result.get("tire_sd")
-    if tire_rate is None or tire_sd is None:
-        st.write("Tire wear uncertainty is unavailable at this lap.")
-    else:
-        st.write(
-            f"Wear estimate {float(tire_rate):.3f} seconds per lap; "
-            f"uncertainty plus or minus {float(tire_sd):.3f} seconds per lap."
-        )
-        if bool(result.get("fallback")) or result.get("tire_source") != "filter":
-            st.caption("Uncalibrated tire estimate from limited data at this lap.")
-
-    st.subheader(_action_heading(len(options)))
-    table = _format_strategy_table(tuple(result["option_columns"]), options)
-    st.markdown(_strategy_table_html(table), unsafe_allow_html=True)
-    if not bool(result.get("never_stop_allowed")):
-        st.caption("Never stop is not allowed under the two-compound rule.")
-    st.caption(f"Each option uses {int(result['simulation_count']):,} simulated races.")
+    with finish_col:
+        if finish_chart is not None:
+            st.altair_chart(finish_chart, theme="streamlit", width="stretch")
+            st.caption("Shading shows the share of simulated finishes at each position.")
+        else:
+            st.caption("Finish chances are unavailable for this lap.")
 
 
 def _render_controls(catalog: pd.DataFrame, data_path: Path) -> tuple[str, str, int, float]:
@@ -812,6 +1033,7 @@ def _render_controls(catalog: pd.DataFrame, data_path: Path) -> tuple[str, str, 
         laps_total = walk_forward._race_laps_total(accessor, str(race_id), first)
         cutoff_options = list(range(max(0, laps_total - 1)))
         driver_options = sorted({str(code).upper() for code in first.entries["driver_code"]})
+        driver_names = {code: DRIVER_NAMES.get(code, code) for code in driver_options}
         if not driver_options or not cutoff_options:
             raise ValueError("The selected race has no usable drivers or laps.")
 
@@ -825,6 +1047,7 @@ def _render_controls(catalog: pd.DataFrame, data_path: Path) -> tuple[str, str, 
             driver = st.selectbox(
                 "Driver",
                 driver_options,
+                format_func=lambda code: f"{driver_names[code]} ({code})",
                 key="phase6_driver",
             )
         with lap_col:
@@ -832,27 +1055,32 @@ def _render_controls(catalog: pd.DataFrame, data_path: Path) -> tuple[str, str, 
                 "After lap",
                 cutoff_options,
                 key="phase6_cutoff",
-                format_func=lambda lap: str(lap),
+                format_func=lambda lap: f"{lap} of {laps_total}",
             )
         if not isinstance(st.session_state.get("phase6_risk"), int | float):
             st.session_state["phase6_risk"] = 0.5
         with risk_col:
             risk = st.slider(
-                "Risk aversion",
+                "Risk setting",
                 min_value=0.0,
                 max_value=1.0,
                 step=0.05,
                 key="phase6_risk",
             )
-            st.caption("0.0 mean-focused. 1.0 tail-risk-focused.")
+            current_risk = (
+                "aggressive" if risk < 0.34 else "cautious" if risk > 0.66 else "balanced"
+            )
+            risk_labels = "".join(
+                f'<span class="{"current" if label.lower() == current_risk else ""}">{label}</span>'
+                for label in ("Aggressive", "Balanced", "Cautious")
+            )
+            st.html(f'<div class="risk-labels">{risk_labels}</div>')
     return str(race_id), str(driver), int(cutoff_lap), float(risk)
 
 
 def main() -> None:
     st.set_page_config(page_title="F1 strategy replay", layout="wide")
     _apply_styles()
-    st.title("F1 strategy replay")
-    st.caption("Read-only race strategy replay using information available at each lap.")
 
     data_path = _data_file()
     try:
@@ -884,14 +1112,11 @@ def main() -> None:
         st.write(_schedule_failure_copy(err))
     except Exception:
         _render_replay_failure()
-
     try:
-        _render_report_summary(_report_summary())
+        st.html(_model_report_html(_report_summary()))
+        st.html(_glossary_html())
     except Exception:
-        st.caption("The ten-race evaluation report is unavailable.")
-    st.caption(
-        "Unofficial project. Not affiliated with Formula 1. Data: FastF1, OpenF1, and Jolpica."
-    )
+        st.caption("The ten-race model report is unavailable.")
 
 
 if __name__ == "__main__":
