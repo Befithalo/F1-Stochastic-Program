@@ -43,6 +43,72 @@ STRATEGY_BOOTSTRAP_SEED_OFFSET = 71_633
 PHASE_6_PROBABILITY_EVIDENCE_SHA256 = (
     "f2811a89861890fceaebe5d0cada61682024c513729cd983876c68718a85adc9"
 )
+IN_SAMPLE_LOCK_SHA256 = "b13c4ba36eb3b39420407f0c5372fad2224b25eb1c4f260b43a85f78ba751a88"
+IN_SAMPLE_LOCK_PATH = (
+    Path(__file__).resolve().parents[3]
+    / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+)
+
+
+def _load_in_sample_lock(lock_path: Path = IN_SAMPLE_LOCK_PATH) -> dict[str, Any]:
+    """Read and verify the committed D-04 contract without opening race data."""
+    try:
+        value = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as err:
+        raise ValueError(f"Could not read the locked in-sample contract at {lock_path}.") from err
+    if not isinstance(value, dict):
+        raise ValueError("The locked in-sample contract must be a JSON object.")
+    digest_field = value.get("lock_digest")
+    if not isinstance(digest_field, dict) or digest_field.get("algorithm") != "sha256":
+        raise ValueError("The locked in-sample contract has no supported digest.")
+    payload = dict(value)
+    payload.pop("lock_digest", None)
+    try:
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError, OverflowError) as err:
+        raise ValueError("The locked in-sample contract is not canonical JSON.") from err
+    actual_digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    if (
+        actual_digest != IN_SAMPLE_LOCK_SHA256
+        or digest_field.get("sha256") != IN_SAMPLE_LOCK_SHA256
+    ):
+        raise ValueError("The in-sample lock digest does not match the committed contract.")
+    if value.get("race_ids") != list(REGISTERED_RACE_IDS):
+        raise ValueError("The runner calendar does not match the committed in-sample lock.")
+    if value.get("era_by_race") != {
+        race_id: "ground_effect_2022_2025" for race_id in REGISTERED_RACE_IDS
+    }:
+        raise ValueError("The in-sample lock has an invalid regulation-era mapping.")
+    return value
+
+
+def _validate_locked_settings(
+    lock: dict[str, Any],
+    *,
+    n_simulations: int,
+    risk: float,
+    seed: int,
+    n_resamples: int,
+    pace_model: str,
+) -> None:
+    expected = lock["simulation"]
+    randomness = lock["randomness"]
+    supplied = {
+        "n_simulations": n_simulations,
+        "risk": risk,
+        "base_seed": seed,
+        "pace_model": pace_model,
+        "bootstrap_resamples": n_resamples,
+    }
+    locked = {
+        **expected,
+        "bootstrap_resamples": randomness["bootstrap_resamples"],
+    }
+    if supplied != locked:
+        raise ValueError(
+            "Scoring settings differ from the committed in-sample lock: "
+            f"supplied {supplied!r}, locked {locked!r}."
+        )
 
 
 def _probability_evidence_digest(report: dict[str, Any]) -> str | None:
@@ -217,12 +283,20 @@ def _join_results_and_baseline(
 def _summarize_brier(rows: pd.DataFrame, *, seed: int, n_resamples: int) -> dict[str, Any]:
     race_losses: list[pd.DataFrame] = []
     observation_count = 0
-    for _race_id, group in rows.groupby("race_id", sort=False):
+    per_race_observation_count = {race_id: 0 for race_id in REGISTERED_RACE_IDS}
+    for race_id, group in rows.groupby("race_id", sort=False):
+        probabilities = group[
+            ["predicted_podium", "predicted_top10", "baseline_podium", "baseline_top10"]
+        ].apply(pd.to_numeric, errors="coerce")
+        candidate_mask = probabilities.notna().all(axis=1)
+        if not candidate_mask.any():
+            continue
         result = brier_scores(group, paired=True)
         if not result["model_mask"].equals(result["baseline_mask"]):
             raise ValueError("Model and baseline Brier scores do not share one mask.")
         mask = result["model_mask"].to_numpy(dtype=bool)
         observation_count += int(mask.sum())
+        per_race_observation_count[str(race_id)] = int(mask.sum())
         available = group.loc[mask, ["race_id"]].reset_index(drop=True)
         available["model_podium"] = result["model_podium_losses"]
         available["baseline_podium"] = result["baseline_podium_losses"]
@@ -256,6 +330,7 @@ def _summarize_brier(rows: pd.DataFrame, *, seed: int, n_resamples: int) -> dict
 
     return {
         "observation_count": observation_count,
+        "per_race_observation_count": per_race_observation_count,
         "podium": metric("podium", 0),
         "top10": metric("top10", 1),
     }
@@ -284,6 +359,10 @@ def _summarize_interval_coverage(
     return {
         "covered": int(covered["covered"].sum()),
         "classified_finishers": len(covered),
+        "per_race_classified_finisher_count": {
+            race_id: int((valid & rows["race_id"].eq(race_id)).sum())
+            for race_id in REGISTERED_RACE_IDS
+        },
         "coverage": summary,
         "race_cluster_95": interval,
         "convention": "inclusive empirical inverted-CDF P05/P95 endpoints",
@@ -383,9 +462,183 @@ def _strategy_comparison(
                 "wait_count": wait_count,
                 "wait_share": (wait_count / recommendation_count if recommendation_count else None),
             },
+            "per_race_denominators": {
+                race_id: {
+                    "recommendation_count": int(
+                        sum(str(item["race_id"]) == race_id for item in recommendations)
+                    ),
+                    "observed_stop_event_count": int((stop_frame["race_id"] == race_id).sum()),
+                    "matched_stop_event_count": int((matched["race_id"] == race_id).sum()),
+                }
+                for race_id in REGISTERED_RACE_IDS
+            },
         }
     )
     return summary
+
+
+def _race_and_era_denominators(
+    predictions: tuple[PredictionRow, ...],
+    brier: dict[str, Any],
+    coverage: dict[str, Any],
+    strategy: dict[str, Any],
+    wear_proxy: dict[str, Any],
+    lock: dict[str, Any],
+) -> tuple[dict[str, dict[str, int | str]], dict[str, dict[str, int]]]:
+    """Retain every locked race and aggregate explicit observation denominators by era."""
+    prediction_counts = {race_id: 0 for race_id in REGISTERED_RACE_IDS}
+    for prediction in predictions:
+        prediction_counts[prediction.race_id] += 1
+    brier_counts = brier["per_race_observation_count"]
+    interval_counts = coverage["per_race_classified_finisher_count"]
+    strategy_counts = strategy["per_race_denominators"]
+    wear_counts = wear_proxy.get("per_race_measurements", {})
+    race_denominators: dict[str, dict[str, int | str]] = {}
+    for race_id in REGISTERED_RACE_IDS:
+        race_denominators[race_id] = {
+            "era": str(lock["era_by_race"][race_id]),
+            "prediction_row_count": int(prediction_counts[race_id]),
+            "brier_observation_count": int(brier_counts.get(race_id, 0)),
+            "finish_interval_classified_finisher_count": int(interval_counts.get(race_id, 0)),
+            "strategy_recommendation_count": int(strategy_counts[race_id]["recommendation_count"]),
+            "observed_stop_event_count": int(strategy_counts[race_id]["observed_stop_event_count"]),
+            "matched_stop_event_count": int(strategy_counts[race_id]["matched_stop_event_count"]),
+            "wear_proxy_measurement_count": int(wear_counts.get(race_id, 0)),
+        }
+
+    era_summaries: dict[str, dict[str, int]] = {}
+    for era in sorted(set(lock["era_by_race"].values())):
+        members = [
+            denominators
+            for denominators in race_denominators.values()
+            if denominators["era"] == era
+        ]
+        era_summaries[era] = {
+            "race_count": len(members),
+            **{
+                name: sum(int(item[name]) for item in members)
+                for name in (
+                    "prediction_row_count",
+                    "brier_observation_count",
+                    "finish_interval_classified_finisher_count",
+                    "strategy_recommendation_count",
+                    "observed_stop_event_count",
+                    "matched_stop_event_count",
+                    "wear_proxy_measurement_count",
+                )
+            },
+        }
+    return race_denominators, era_summaries
+
+
+def verify_backtest_report(
+    report_path: Path,
+    *,
+    lock_path: Path = IN_SAMPLE_LOCK_PATH,
+) -> dict[str, Any]:
+    """Verify a saved report using only the report and the committed D-04 lock."""
+    lock = _load_in_sample_lock(lock_path)
+    try:
+        report_value = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as err:
+        raise ValueError(f"Could not read a valid backtest report at {report_path}.") from err
+    if not isinstance(report_value, dict):
+        raise ValueError("The existing backtest report must contain a JSON object.")
+    report = cast(dict[str, Any], report_value)
+    if set(report) != set(lock["report_schema"]["required_top_level_fields"]):
+        raise ValueError("The backtest report does not match the locked report schema.")
+    if report.get("schema_version") != lock["report_schema"]["schema_version"]:
+        raise ValueError("The backtest report schema version does not match the lock.")
+    if report.get("race_ids") != list(REGISTERED_RACE_IDS):
+        raise ValueError("The backtest report does not contain every locked race in order.")
+
+    metadata = report.get("metadata")
+    if not isinstance(metadata, dict):
+        raise ValueError("The backtest report metadata section is missing.")
+    expected_metadata = {
+        "base_seed": lock["simulation"]["base_seed"],
+        "risk_aversion": lock["simulation"]["risk"],
+        "n_simulations_per_prediction": lock["simulation"]["n_simulations"],
+        "pace_model": lock["simulation"]["pace_model"],
+        "bootstrap_resamples": lock["randomness"]["bootstrap_resamples"],
+        "bootstrap_seed": lock["simulation"]["base_seed"] + BOOTSTRAP_SEED_OFFSET,
+        "locked_contract_sha256": IN_SAMPLE_LOCK_SHA256,
+        "era_by_race": lock["era_by_race"],
+    }
+    mismatched = [
+        name for name, expected in expected_metadata.items() if metadata.get(name) != expected
+    ]
+    if mismatched:
+        raise ValueError(
+            "The backtest report metadata differs from the lock: " + ", ".join(mismatched)
+        )
+
+    metrics = report.get("metrics")
+    if not isinstance(metrics, dict):
+        raise ValueError("The backtest report metrics section is missing.")
+    required_metrics = {
+        "podium_brier",
+        "top10_brier",
+        "brier_observation_count",
+        "finish_interval_90",
+        "team_strategy_comparison",
+        "wear_band_retrospective_proxy",
+        "race_denominators",
+        "era_summaries",
+    }
+    if set(metrics) != required_metrics:
+        raise ValueError("The backtest report does not match the locked metrics schema.")
+    race_denominators = metrics.get("race_denominators")
+    if not isinstance(race_denominators, dict) or set(race_denominators) != set(
+        REGISTERED_RACE_IDS
+    ):
+        raise ValueError("The backtest report must retain denominators for every locked race.")
+    count_fields = (
+        "prediction_row_count",
+        "brier_observation_count",
+        "finish_interval_classified_finisher_count",
+        "strategy_recommendation_count",
+        "observed_stop_event_count",
+        "matched_stop_event_count",
+        "wear_proxy_measurement_count",
+    )
+    for race_id in REGISTERED_RACE_IDS:
+        row = race_denominators[race_id]
+        if not isinstance(row, dict) or row.get("era") != lock["era_by_race"][race_id]:
+            raise ValueError(f"The report has an invalid era or denominator row for {race_id}.")
+        for field in count_fields:
+            count = row.get(field)
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                raise ValueError(f"The report has an invalid {field} denominator for {race_id}.")
+        if row["prediction_row_count"] == 0:
+            raise ValueError(f"The report is missing frozen prediction rows for {race_id}.")
+
+    era_summaries = metrics.get("era_summaries")
+    expected_eras = set(lock["era_by_race"].values())
+    if not isinstance(era_summaries, dict) or set(era_summaries) != expected_eras:
+        raise ValueError("The backtest report must include every locked era summary.")
+    for era in expected_eras:
+        members = [row for row in race_denominators.values() if row["era"] == era]
+        summary = era_summaries[era]
+        if not isinstance(summary, dict) or summary.get("race_count") != len(members):
+            raise ValueError(f"The report has an invalid race denominator for era {era}.")
+        for field in count_fields:
+            total = sum(int(row[field]) for row in members)
+            if summary.get(field) != total:
+                raise ValueError(f"The report has an invalid {field} denominator for era {era}.")
+
+    if metrics.get("brier_observation_count") != sum(
+        int(race_denominators[race_id]["brier_observation_count"])
+        for race_id in REGISTERED_RACE_IDS
+    ):
+        raise ValueError("The report's Brier denominator disagrees with its race rows.")
+    interval = metrics.get("finish_interval_90")
+    if not isinstance(interval, dict) or interval.get("classified_finishers") != sum(
+        int(race_denominators[race_id]["finish_interval_classified_finisher_count"])
+        for race_id in REGISTERED_RACE_IDS
+    ):
+        raise ValueError("The report's interval denominator disagrees with its race rows.")
+    return report
 
 
 def score_team_strategy_sample(
@@ -698,7 +951,16 @@ def score_registered_sample(
     workers: int = 1,
     pace_model: str = "linear",
 ) -> dict[str, Any]:
-    """Preflight, freeze all predictions, then open outcomes and calculate the report."""
+    """Validate D-04, preflight, freeze predictions, then open outcomes and calculate the report."""
+    lock = _load_in_sample_lock()
+    _validate_locked_settings(
+        lock,
+        n_simulations=n_simulations,
+        risk=risk,
+        seed=seed,
+        n_resamples=n_resamples,
+        pace_model=pace_model,
+    )
     _preflight_database(db_path)
     trace = run_walk_forward(
         db_path,
@@ -737,6 +999,9 @@ def score_registered_sample(
         "bootstrap_resamples": n_resamples,
         "risk_aversion": risk,
         "n_simulations_per_prediction": n_simulations,
+        "pace_model": pace_model,
+        "locked_contract_sha256": IN_SAMPLE_LOCK_SHA256,
+        "era_by_race": lock["era_by_race"],
         "continuation_fit_scheme": "two-fold cross-fit on the registered path batch",
         "continuation_fit_scoring_isolation": (
             "each scoring fold is excluded from its regression-fit paths"
@@ -747,8 +1012,9 @@ def score_registered_sample(
         "paired_model_baseline_mask": "same finite model and baseline probabilities per row",
         "uncertainty": "paired 95% percentile bootstrap resampling whole races",
     }
-    if pace_model != "linear":
-        metadata["pace_model"] = pace_model
+    race_denominators, era_summaries = _race_and_era_denominators(
+        frozen, metrics, coverage, strategy, wear_proxy, lock
+    )
     return {
         "schema_version": 1,
         "race_ids": list(REGISTERED_RACE_IDS),
@@ -759,6 +1025,8 @@ def score_registered_sample(
             "finish_interval_90": coverage,
             "team_strategy_comparison": strategy,
             "wear_band_retrospective_proxy": wear_proxy,
+            "race_denominators": race_denominators,
+            "era_summaries": era_summaries,
         },
         "metadata": metadata,
         "carry_forward_diagnostic": diagnostic,

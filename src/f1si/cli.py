@@ -291,6 +291,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--report", action="store_true", help="score and report the full registered race sample"
     )
     backtest.add_argument(
+        "--verify-existing",
+        action="store_true",
+        help="verify an existing locked report without prediction or results access",
+    )
+    backtest.add_argument(
         "--diagnostics-only",
         action="store_true",
         help="extend a matching existing report with team-call and wear-proxy diagnostics",
@@ -299,7 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--output",
         type=Path,
         default=None,
-        help="completed report path (default: phase-06 for linear, phase-07-bayesian otherwise)",
+        help="completed report path (default: reports/backtest/phase-08.json)",
     )
     backtest.add_argument(
         "--workers",
@@ -1416,6 +1421,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("--report cannot be combined with --race, --driver, or --lap")
         if args.diagnostics_only and not args.report:
             parser.error("--diagnostics-only requires --report")
+        if args.verify_existing and not args.report:
+            parser.error("--verify-existing requires --report")
+        if args.verify_existing and args.diagnostics_only:
+            parser.error("--verify-existing cannot be combined with --diagnostics-only")
         if not args.report and any(value is None for value in single_cutoff_values):
             parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
@@ -1459,12 +1468,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "backtest":
             if args.report:
-                output: Path = args.output or Path(
-                    "reports/backtest/phase-06.json"
-                    if args.pace_model == "linear"
-                    else "reports/backtest/phase-07-bayesian.json"
-                )
                 if args.diagnostics_only:
+                    output: Path = args.output or Path(
+                        "reports/backtest/phase-06.json"
+                        if args.pace_model == "linear"
+                        else "reports/backtest/phase-07-bayesian.json"
+                    )
                     if args.pace_model != "linear":
                         raise ValueError(
                             "--pace-model bayesian cannot extend the existing Phase 6 linear report"
@@ -1493,7 +1502,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                         seed=args.seed,
                     )
                 else:
-                    from f1si.backtest.scoring import score_registered_sample
+                    from f1si.backtest.scoring import (
+                        score_registered_sample,
+                        verify_backtest_report,
+                    )
+
+                    output = args.output or Path("reports/backtest/phase-08.json")
+                    if args.verify_existing:
+                        report = verify_backtest_report(output)
+                        print(f"Verified locked backtest report at {output}")
+                        return 0
+                    if args.pace_model != "linear":
+                        raise ValueError(
+                            "The locked 2023-2025 backtest requires --pace-model linear."
+                        )
+                    if output.exists():
+                        raise ValueError(
+                            f"Refusing to overwrite existing backtest report at {output}; "
+                            "use --verify-existing to check it."
+                        )
 
                     report = score_registered_sample(
                         paths.db_path(data_dir),
@@ -1504,10 +1531,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                         pace_model=args.pace_model,
                     )
                 output.parent.mkdir(parents=True, exist_ok=True)
-                output.write_text(
-                    json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
-                    encoding="utf-8",
-                )
+                contents = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
+                if args.diagnostics_only:
+                    output.write_text(contents, encoding="utf-8")
+                else:
+                    try:
+                        with output.open("x", encoding="utf-8") as report_file:
+                            report_file.write(contents)
+                    except FileExistsError as err:
+                        raise ValueError(
+                            "Refusing to overwrite backtest report created during scoring at "
+                            f"{output}."
+                        ) from err
                 print(f"Wrote completed backtest report to {output}")
                 print(
                     "Report includes one-to-one team-stop comparisons with race-cluster "

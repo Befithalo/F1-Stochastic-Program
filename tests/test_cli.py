@@ -27,6 +27,7 @@ def test_backtest_report_parser_accepts_report_mode_and_default_output() -> None
         parsed = build_parser().parse_args(["backtest", "--report"])
     assert parsed is not None, "backtest --report must not require single-cutoff arguments"
     assert parsed.report is True
+    assert parsed.verify_existing is False
     assert parsed.output is None
     assert parsed.workers == 4
     assert parsed.pace_model == "linear"
@@ -91,8 +92,6 @@ def test_backtest_report_writes_completed_json_to_output_override(
                 str(output),
                 "--workers",
                 "2",
-                "--pace-model",
-                "bayesian",
             ]
         )
         == 0
@@ -106,15 +105,15 @@ def test_backtest_report_writes_completed_json_to_output_override(
                 "risk": 0.5,
                 "seed": 0,
                 "workers": 2,
-                "pace_model": "bayesian",
+                "pace_model": "linear",
             },
         )
     ]
     assert json.loads(output.read_text(encoding="utf-8")) == report
 
 
-def test_backtest_report_uses_model_specific_default_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_backtest_report_uses_locked_default_output_and_refuses_bayesian(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     from f1si.backtest import scoring
 
@@ -122,10 +121,11 @@ def test_backtest_report_uses_model_specific_default_output(
     monkeypatch.setattr(scoring, "score_registered_sample", lambda *_args, **_kwargs: {})
 
     assert main(["backtest", "--report"]) == 0
-    assert Path("reports/backtest/phase-06.json").is_file()
+    assert Path("reports/backtest/phase-08.json").is_file()
 
-    assert main(["backtest", "--report", "--pace-model", "bayesian"]) == 0
-    assert Path("reports/backtest/phase-07-bayesian.json").is_file()
+    assert main(["backtest", "--report", "--pace-model", "bayesian"]) == 1
+    assert "requires --pace-model linear" in capsys.readouterr().err
+    assert not Path("reports/backtest/phase-07-bayesian.json").exists()
 
 
 def test_bayesian_backtest_cannot_extend_linear_diagnostics_report(
@@ -137,19 +137,14 @@ def test_bayesian_backtest_cannot_extend_linear_diagnostics_report(
     assert "cannot extend the existing Phase 6 linear report" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("existing", [False, True])
 def test_backtest_report_incomplete_cache_writes_no_completed_report(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    existing: bool,
 ) -> None:
     from f1si.backtest import scoring
 
     output = tmp_path / "phase-06.json"
-    before = '{"complete":true}\n'
-    if existing:
-        output.write_text(before, encoding="utf-8")
 
     def incomplete(*_args: object, **_kwargs: object) -> dict[str, object]:
         raise ValueError("Backtest cache is missing complete registered races: 2024-02")
@@ -168,8 +163,70 @@ def test_backtest_report_incomplete_cache_writes_no_completed_report(
         )
         == 1
     )
-    assert (output.read_text(encoding="utf-8") == before) if existing else not output.exists()
+    assert not output.exists()
     assert "missing complete registered races" in capsys.readouterr().err
+
+
+def test_backtest_refuses_to_overwrite_existing_report_before_scoring(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-08.json"
+    before = '{"complete":true}\n'
+    output.write_text(before, encoding="utf-8")
+    monkeypatch.setattr(
+        scoring,
+        "score_registered_sample",
+        lambda *_args, **_kwargs: pytest.fail("existing report reached scoring"),
+    )
+
+    assert main(["backtest", "--report", "--output", str(output)]) == 1
+    assert output.read_text(encoding="utf-8") == before
+    assert "Refusing to overwrite existing backtest report" in capsys.readouterr().err
+
+
+def test_backtest_does_not_clobber_report_created_during_scoring(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-08.json"
+    appeared = '{"another-run":true}\n'
+
+    def score(*_args: object, **_kwargs: object) -> dict[str, object]:
+        output.write_text(appeared, encoding="utf-8")
+        return {"race_ids": []}
+
+    monkeypatch.setattr(scoring, "score_registered_sample", score)
+    assert main(["backtest", "--report", "--output", str(output)]) == 1
+    assert output.read_text(encoding="utf-8") == appeared
+    assert "created during scoring" in capsys.readouterr().err
+
+
+def test_backtest_verify_existing_uses_read_only_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from f1si.backtest import scoring
+
+    output = tmp_path / "phase-08.json"
+    output.write_text('{"verified":true}\n', encoding="utf-8")
+    calls: list[Path] = []
+
+    def verify(path: Path) -> dict[str, object]:
+        calls.append(path)
+        return {}
+
+    monkeypatch.setattr(scoring, "verify_backtest_report", verify)
+    monkeypatch.setattr(
+        scoring,
+        "score_registered_sample",
+        lambda *_args, **_kwargs: pytest.fail("verify-existing triggered scoring"),
+    )
+
+    assert main(["backtest", "--report", "--verify-existing", "--output", str(output)]) == 0
+    assert calls == [output]
+    assert "Verified locked backtest report" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

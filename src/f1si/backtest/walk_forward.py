@@ -20,12 +20,22 @@ REGISTERED_RACE_IDS: Final = (
     "2023-02",
     "2023-03",
     "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
     "2024-01",
     "2024-02",
     "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
     "2025-01",
     "2025-02",
     "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
 )
 
 
@@ -281,7 +291,7 @@ def run_walk_forward(
     workers: int = 1,
     pace_model: str = "linear",
 ) -> WalkForwardTrace:
-    """Freeze all drivers' predictions at every eligible cutoff of the ten registered races."""
+    """Freeze predictions at every eligible cutoff of the twenty registered races."""
     if not 1 <= workers <= _MAX_WORKERS:
         raise ValueError(f"workers must be between 1 and {_MAX_WORKERS}, got {workers}.")
     if pace_model not in ("linear", "bayesian"):

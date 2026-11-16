@@ -24,19 +24,6 @@ from f1si.data import asof
 from f1si.strategy.longstaff import StrategyAnalysis
 from tests.conftest import LONG_RACE_ID
 
-EXPECTED_RACES = (
-    "2023-01",
-    "2023-02",
-    "2023-03",
-    "2023-04",
-    "2024-01",
-    "2024-02",
-    "2024-03",
-    "2025-01",
-    "2025-02",
-    "2025-03",
-)
-
 PHASE_08_RACES = (
     "2023-01",
     "2023-02",
@@ -121,19 +108,19 @@ def _catalog(*, missing: tuple[str, ...] = ()) -> pd.DataFrame:
                 "load_status": "partial" if race_id in missing else "complete",
                 "out_of_sample": False,
             }
-            for race_id in EXPECTED_RACES
+            for race_id in PHASE_08_RACES
             if race_id not in missing or race_id != "2024-02"
         ]
     )
 
 
 def test_registered_sample_is_fixed_calendar_first_and_immutable() -> None:
-    assert REGISTERED_RACE_IDS == EXPECTED_RACES
+    assert REGISTERED_RACE_IDS == PHASE_08_RACES
     assert isinstance(REGISTERED_RACE_IDS, tuple)
 
 
 def test_preflight_requires_every_registered_race_complete() -> None:
-    complete = {race_id: True for race_id in EXPECTED_RACES}
+    complete = {race_id: True for race_id in PHASE_08_RACES}
     assert preflight_races(complete) == ()
     complete.pop("2024-02")
     complete["2025-02"] = False
@@ -312,7 +299,7 @@ def test_full_runner_freezes_every_driver_and_cutoff_in_order(
     trace = run_walk_forward(Path("cache.duckdb"))
     expected = [
         (race_id, lap, driver)
-        for race_id in EXPECTED_RACES
+        for race_id in PHASE_08_RACES
         for lap in range(3)
         for driver in ("AAA", "BBB")
     ]
@@ -399,7 +386,7 @@ def test_full_runner_prepares_shared_replay_context_once_per_cutoff(
     monkeypatch.setattr(walk_forward, "_predict_from_accessor", prediction)
     run_walk_forward(Path("cache.duckdb"), pace_model="bayesian")
 
-    expected_cutoffs = [(race_id, lap) for race_id in EXPECTED_RACES for lap in range(3)]
+    expected_cutoffs = [(race_id, lap) for race_id in PHASE_08_RACES for lap in range(3)]
     assert [(race_id, lap) for race_id, lap, _ in prepared] == expected_cutoffs
     assert prepared_models == ["bayesian"] * len(expected_cutoffs)
     assert len(received) == 2 * len(expected_cutoffs)
@@ -455,7 +442,7 @@ def test_serial_and_parallel_full_trace_match_exactly(tmp_path: Path) -> None:
         SyntheticRaceSpec(
             season, round_number, f"Race {season}-{round_number}", n_drivers=2, n_laps=4
         )
-        for season, rounds in ((2023, 4), (2024, 3), (2025, 3))
+        for season, rounds in ((2023, 7), (2024, 7), (2025, 6))
         for round_number in range(1, rounds + 1)
     )
     db_path = paths.db_path(tmp_path)
@@ -470,16 +457,16 @@ def test_serial_and_parallel_full_trace_match_exactly(tmp_path: Path) -> None:
     serial = run_walk_forward(db_path, n_simulations=1, risk=0.5, seed=159, workers=1)
     parallel = run_walk_forward(db_path, n_simulations=1, risk=0.5, seed=159, workers=2)
 
-    drivers = sorted({row.driver for row in serial.predictions if row.race_id == EXPECTED_RACES[0]})
+    drivers = sorted({row.driver for row in serial.predictions if row.race_id == PHASE_08_RACES[0]})
     expected = [
         (race_id, lap, driver)
-        for race_id in EXPECTED_RACES
+        for race_id in PHASE_08_RACES
         for lap in range(4)
         for driver in drivers
     ]
     actual = [(row.race_id, row.cutoff_lap, row.driver) for row in parallel.predictions]
     assert actual == expected
-    assert len(expected) == 80
+    assert len(expected) == 160
     assert parallel == serial
 
 
