@@ -1300,3 +1300,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Select or replace races after seeing scores; use target lap fields as prediction features; let either model use a different target mask; rerun the score after adjusting model settings.
 **Consequences:** The split, cutoff ranges, clean-target rule, seed, model configuration, minimum sample and success threshold are committed in `07-05-evaluation-lock.json` before the report exists. The score will disclose per-race denominators and the single-era limitation. Failure to meet the gate is not repaired by a new holdout.
 **Refs:** `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; `src/f1si/backtest/pace_evaluation.py`; `src/f1si/pace/training.py`; `src/f1si/data/asof.py`; DEC-116, DEC-117
+
+## DEC-119 — Isolate each locked cutoff fit to release inference memory
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** The pre-score execution reached about 2.5 GB of working memory while fitting repeated 50,000-step ADVI cutoffs, with less than 0.5 GB free on the host. No target laps or scores had been read.
+**Decision:** Run each locked race/cutoff Bayesian fit and its cutoff-feature predictions in a short-lived spawned worker process. Return only finite prediction means and compact convergence fields, then let the process exit before fitting the next cutoff. Keep the committed races, cutoffs, training inputs, model settings, target mask, seeds, and metric unchanged.
+**Why:** Process exit releases PyTensor and PyMC allocations between fits; compact outputs keep the evaluator parent small and preserve the one-fit-per-cutoff walk-forward method.
+**Alternatives rejected:** Continue in one process until host memory is exhausted; reduce the locked fit budget or change the score protocol after execution began; read a partial target score.
+**Consequences:** A cutoff worker opens only its own `AsOf` snapshot and earlier-only `History`, and it never receives target lap rows. Fits take additional process-start time; the committed evaluator records total runtime and fit failures.
+**Refs:** `src/f1si/backtest/pace_evaluation.py`; `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; DEC-118

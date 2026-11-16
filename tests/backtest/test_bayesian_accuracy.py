@@ -14,6 +14,7 @@ import pytest
 from f1si.backtest import pace_evaluation
 from f1si.backtest.pace_evaluation import (
     LOCKED_RACES,
+    _CutoffFitResult,
     _eligible_cutoffs,
     _fit_seed,
     _pair_predictions,
@@ -23,7 +24,7 @@ from f1si.backtest.pace_evaluation import (
     _TargetFeatures,
     run_locked_evaluation,
 )
-from f1si.data.asof import RaceEnd, RaceSnapshot
+from f1si.data.asof import AsOf, RaceEnd, RaceSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK_PATH = ROOT / ".planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json"
@@ -133,6 +134,74 @@ def test_one_shot_command_refuses_existing_report_and_verifies_without_scoring(
     assert verified["lock_sha256"] == digest
 
 
+def test_isolated_fit_worker_reopens_only_the_requested_cutoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    at = AsOf("2025-02", 9)
+    snapshot = object()
+    history = SimpleNamespace(as_of=at)
+    requested: list[AsOf] = []
+    fitted: list[tuple[object, int]] = []
+
+    class FakeAccessor:
+        def __init__(self, _db_path: Path) -> None:
+            pass
+
+        def snapshot(self, requested_at: AsOf) -> object:
+            requested.append(requested_at)
+            return snapshot
+
+        def history(self, requested_at: AsOf) -> object:
+            assert requested_at == at
+            return history
+
+    class FakeFit:
+        report = SimpleNamespace(n_rows=700, loss_relative_change=0.03, final_loss=77.0)
+
+        def predict(self, **_kwargs: object) -> tuple[np.ndarray, np.ndarray]:
+            return np.asarray([88.0]), np.asarray([0.4])
+
+    class FakeConnection:
+        result: object | None = None
+        closed = False
+
+        def send(self, value: object) -> None:
+            self.result = value
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(pace_evaluation, "AsOfAccessor", FakeAccessor)
+
+    def build_panel(received_snapshot: object, received_history: object) -> str:
+        assert received_snapshot is snapshot
+        assert received_history is history
+        return "cutoff-panel"
+
+    def fit_panel(panel: object, *, seed: int) -> FakeFit:
+        fitted.append((panel, seed))
+        return FakeFit()
+
+    monkeypatch.setattr(pace_evaluation, "build_bayesian_training_panel", build_panel)
+    monkeypatch.setattr(pace_evaluation, "_fit_bayesian", fit_panel)
+    connection = FakeConnection()
+    feature = _TargetFeatures("2025-02", 9, 14, 10, "MEDIUM", 5, 2)
+
+    pace_evaluation._fit_cutoff_worker(
+        str(tmp_path / "cache.duckdb"),
+        "2025-02",
+        9,
+        441,
+        (feature,),
+        connection,  # type: ignore[arg-type]
+    )
+
+    assert requested == [at]
+    assert fitted == [("cutoff-panel", 441)]
+    assert connection.result == _CutoffFitResult((88.0,), 700, 0.03, 77.0)
+    assert connection.closed
+
+
 def test_locked_runner_fits_every_cutoff_before_opening_target_laps(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -195,24 +264,24 @@ def test_locked_runner_fits_every_cutoff_before_opening_target_laps(
         lambda snapshot: (_TargetFeatures(str(snapshot.race.race_id), 0, 1, 2, "SOFT", 2, 1),),
     )
     monkeypatch.setattr(pace_evaluation, "fit_linear_pace", lambda _snapshot: FakeFit(91.0))
+
+    def fit_cutoff(
+        race_id: str,
+        cutoff_lap: int,
+        seed: int,
+        features: tuple[_TargetFeatures, ...],
+    ) -> _CutoffFitResult:
+        assert cutoff_lap == 0
+        assert seed >= 0
+        assert tuple(feature.race_id for feature in features) == (race_id,)
+        fit_races.append(race_id)
+        return _CutoffFitResult((89.5,), 100, 0.02, 123.0)
+
     monkeypatch.setattr(
         pace_evaluation,
-        "build_bayesian_training_panel",
-        lambda snapshot, history: (
-            snapshot.race.race_id,
-            history.as_of.race_id,
-            history.as_of.lap,
-        ),
+        "_fit_cutoff_isolated",
+        lambda _db, race, lap, seed, features: fit_cutoff(race, lap, seed, features),
     )
-
-    def fit_bayesian(panel: tuple[str, str, int], *, seed: int) -> FakeFit:
-        assert panel[0] == panel[1]
-        assert panel[2] == 0
-        assert seed >= 0
-        fit_races.append(panel[0])
-        return FakeFit(89.5)
-
-    monkeypatch.setattr(pace_evaluation, "_fit_bayesian", fit_bayesian)
     report = run_locked_evaluation(
         db_path=tmp_path / "fixture.duckdb",
         lock_path=lock_copy,

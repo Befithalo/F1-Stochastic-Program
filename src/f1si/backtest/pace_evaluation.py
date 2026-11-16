@@ -12,6 +12,7 @@ import gc
 import hashlib
 import json
 import math
+import multiprocessing
 import os
 import sys
 import tempfile
@@ -20,6 +21,7 @@ import zlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from multiprocessing.connection import Connection
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +61,15 @@ class _Prediction:
     features: _TargetFeatures
     linear_mean_s: float
     bayesian_mean_s: float
+
+
+@dataclass(frozen=True)
+class _CutoffFitResult:
+    prediction_means_s: tuple[float | None, ...]
+    n_rows: int | None
+    loss_relative_change: float | None
+    final_loss: float | None
+    error: str | None = None
 
 
 def _read_lock(lock_path: Path) -> tuple[dict[str, Any], str]:
@@ -208,6 +219,76 @@ def _fit_bayesian(panel: object, *, seed: int) -> object:
     return fit_bayesian_panel(panel, seed=seed)  # type: ignore[arg-type]
 
 
+def _fit_cutoff_worker(
+    db_path: str,
+    race_id: str,
+    cutoff_lap: int,
+    seed: int,
+    features: tuple[_TargetFeatures, ...],
+    connection: Connection,
+) -> None:
+    """Refit one cutoff in a short-lived process so PyTensor releases memory on exit."""
+    try:
+        accessor = AsOfAccessor(Path(db_path))
+        at = AsOf(race_id, cutoff_lap)
+        snapshot = accessor.snapshot(at)
+        history = accessor.history(at)
+        panel = build_bayesian_training_panel(snapshot, history)
+        fit = _fit_bayesian(panel, seed=seed)
+        means = tuple(_predict_one(fit, feature) for feature in features)
+        report = fit.report  # type: ignore[attr-defined]
+        result = _CutoffFitResult(
+            prediction_means_s=means,
+            n_rows=int(report.n_rows),
+            loss_relative_change=float(report.loss_relative_change),
+            final_loss=float(report.final_loss),
+        )
+    except Exception as err:
+        result = _CutoffFitResult((), None, None, None, str(err))
+    try:
+        connection.send(result)
+    finally:
+        connection.close()
+
+
+def _fit_cutoff_isolated(
+    db_path: Path,
+    race_id: str,
+    cutoff_lap: int,
+    seed: int,
+    features: tuple[_TargetFeatures, ...],
+) -> _CutoffFitResult:
+    """Spawn and join one isolated Bayesian fit worker for a race/cutoff."""
+    context = multiprocessing.get_context("spawn")
+    receive, send = context.Pipe(duplex=False)
+    process = context.Process(
+        target=_fit_cutoff_worker,
+        args=(str(db_path), race_id, cutoff_lap, seed, features, send),
+        name=f"f1si-pace-{race_id}-{cutoff_lap}",
+    )
+    process.start()
+    send.close()
+    try:
+        result = receive.recv()
+    except EOFError as err:
+        process.join()
+        exit_code = process.exitcode
+        process.close()
+        raise RuntimeError(
+            f"Bayesian worker exited without a result (exit code {exit_code})"
+        ) from err
+    finally:
+        receive.close()
+    process.join()
+    exit_code = process.exitcode
+    process.close()
+    if exit_code != 0:
+        raise RuntimeError(f"Bayesian worker exited with code {exit_code}")
+    if not isinstance(result, _CutoffFitResult):
+        raise RuntimeError("Bayesian worker returned an invalid result")
+    return result
+
+
 def _fit_seed(lock: dict[str, Any], race_id: str, cutoff_lap: int) -> int:
     base_seed = int(lock["randomness"]["base_seed"])
     return (base_seed + zlib.crc32(f"{race_id}:pace:{cutoff_lap}".encode())) & 0x7FFFFFFF
@@ -349,32 +430,57 @@ def run_locked_evaluation(
                 continue
             baseline_prediction_cutoffs += 1
 
-            history = accessor.history(at)
-            panel = build_bayesian_training_panel(snapshot, history)
+            fit_features = tuple(
+                feature for feature in features if feature.driver_number in linear_predictions
+            )
             fit_attempts += 1
             seed = _fit_seed(lock, race_id, cutoff_lap)
             try:
-                bayesian_fit = _fit_bayesian(panel, seed=seed)
-            except (ValueError, FloatingPointError) as err:
+                fit_result = _fit_cutoff_isolated(db_path, race_id, cutoff_lap, seed, fit_features)
+            except (RuntimeError, ValueError, FloatingPointError) as err:
                 fit_failures.append(
                     {"race_id": race_id, "cutoff_lap": cutoff_lap, "reason": str(err)}
                 )
                 if progress:
                     progress(f"  lap {cutoff_lap}: Bayesian fit failed: {err}")
-                del panel, history, linear_fit
                 gc.collect()
                 continue
-            report = bayesian_fit.report  # type: ignore[attr-defined]
-            fit_changes.append(float(report.loss_relative_change))
-            fit_losses.append(float(report.final_loss))
+            if fit_result.error is not None:
+                fit_failures.append(
+                    {
+                        "race_id": race_id,
+                        "cutoff_lap": cutoff_lap,
+                        "reason": fit_result.error,
+                    }
+                )
+                if progress:
+                    progress(f"  lap {cutoff_lap}: Bayesian fit failed: {fit_result.error}")
+                gc.collect()
+                continue
+            if (
+                fit_result.n_rows is None
+                or fit_result.loss_relative_change is None
+                or fit_result.final_loss is None
+                or len(fit_result.prediction_means_s) != len(fit_features)
+            ):
+                fit_failures.append(
+                    {
+                        "race_id": race_id,
+                        "cutoff_lap": cutoff_lap,
+                        "reason": "Bayesian worker returned incomplete fit diagnostics",
+                    }
+                )
+                gc.collect()
+                continue
+            fit_changes.append(fit_result.loss_relative_change)
+            fit_losses.append(fit_result.final_loss)
             cutoff_predictions = 0
-            for feature in features:
-                linear_mean = linear_predictions.get(feature.driver_number)
-                if linear_mean is None:
-                    continue
-                bayesian_mean = _predict_one(bayesian_fit, feature)
+            for feature, bayesian_mean in zip(
+                fit_features, fit_result.prediction_means_s, strict=True
+            ):
                 if bayesian_mean is None:
                     continue
+                linear_mean = linear_predictions[feature.driver_number]
                 predictions_by_race[race_id].append(
                     _Prediction(feature, linear_mean, bayesian_mean)
                 )
@@ -383,10 +489,10 @@ def run_locked_evaluation(
                 bayesian_prediction_cutoffs += 1
             if progress and (cutoff_lap % 5 == 0 or cutoff_lap == cutoffs[-1]):
                 progress(
-                    f"  lap {cutoff_lap}: fit rows={report.n_rows}; "
+                    f"  lap {cutoff_lap}: fit rows={fit_result.n_rows}; "
                     f"shared predictor candidates={cutoff_predictions}"
                 )
-            del bayesian_fit, panel, history, linear_fit
+            del linear_fit
             gc.collect()
 
     # Only after every cutoff fit and prediction is finished do we open target lap times.
