@@ -19,6 +19,7 @@ dependencies = [
   "streamlit>=1.67,<2",
   "altair>=6,<7",
   "fastf1>=3.8.3,<4",
+  "pymc>=6.4,<7",
 ]
 
 [project.scripts]
