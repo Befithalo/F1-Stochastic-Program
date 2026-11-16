@@ -1,7 +1,7 @@
 # Phase 8: Markov Regimes & Full Backtest - Pattern Map
 
-**Mapped:** 2026-11-16  
-**Files analyzed:** 17 source, test, and guard paths named in the context/research  
+**Mapped:** 2026-11-16
+**Files analyzed:** 17 source, test, and guard paths named in the context/research
 **Analogs found:** 16 / 17 (the dedicated holdout evaluator has no existing implementation)
 
 ## File Classification
@@ -101,17 +101,17 @@ Use a synthetic transition sequence with a seeded NumPy generator for recovery a
 
 ### Cutoff visibility and data access
 
-**Sources:** `src/f1si/data/asof.py:86-121`, `tests/guards/consumers.py:28-35,243-278`  
+**Sources:** `src/f1si/data/asof.py:86-121`, `tests/guards/consumers.py:28-35,243-278`
 Model functions consume snapshots/history values; only replay/backtest/evaluation composition owns accessors. Register each new accessor consumer for future-scramble coverage.
 
 ### Reproducible stochastic simulation
 
-**Sources:** `src/f1si/sim/numpy_backend.py:335-339,397-425`, `tests/sim/test_safety_car.py:37-56`  
+**Sources:** `src/f1si/sim/numpy_backend.py:335-339,397-425`, `tests/sim/test_safety_car.py:37-56`
 Generate explicit seeded uniform blocks in Python, pass numeric arrays into Numba, and assert measurable costs/trajectories with deterministic fixtures.
 
 ### Fail-closed evaluation
 
-**Sources:** `src/f1si/backtest/pace_evaluation.py:75-131`, `tests/backtest/test_walk_forward.py:58-76,187-194,409-418`  
+**Sources:** `src/f1si/backtest/pace_evaluation.py:75-131`, `tests/backtest/test_walk_forward.py:58-76,187-194,409-418`
 Validate frozen IDs/settings before scoring; fail before predictions on incomplete samples; keep prediction and final-result scoring in separate modules.
 
 ## No Analog Found
@@ -122,6 +122,6 @@ Validate frozen IDs/settings before scoring; fail before predictions on incomple
 
 ## Metadata
 
-**Analog search scope:** `src/f1si/{regime,state,sim,cli,backtest,data}` and `tests/{regime,sim,backtest,guards}`  
-**Tracked-source check:** all analogs named above are tracked files (`git ls-files -- <path>` returned a path).  
+**Analog search scope:** `src/f1si/{regime,state,sim,cli,backtest,data}` and `tests/{regime,sim,backtest,guards}`
+**Tracked-source check:** all analogs named above are tracked files (`git ls-files -- <path>` returned a path).
 **Pattern extraction date:** 2026-11-16
