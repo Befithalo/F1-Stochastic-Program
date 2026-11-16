@@ -55,7 +55,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Final
+from typing import Any, Final, Protocol
 
 import numpy as np
 import pandas as pd
@@ -63,7 +63,6 @@ from numpy.typing import NDArray
 
 from f1si.data.asof import RaceSnapshot
 from f1si.pace.kalman import FilterSnapshot
-from f1si.pace.linear import LinearPaceFit
 
 _CODE: Final = re.compile(r"^[A-Z]{3}$")
 _CAR_KEYS: Final = (
@@ -88,6 +87,20 @@ _WEAR_SOURCES: Final = ("fit", "filter")
 _STATE_KEYS: Final = ("lap", "laps_total", "regime", "pit_loss_s", "cars", "sc_laps_elapsed")
 _OPTIONAL_STATE_KEYS: Final = ("sc_laps_elapsed",)
 SC_PIT_LOSS_RATIO: Final = 0.5
+
+
+class PaceStateFit(Protocol):
+    """Fit summaries consumed by the pure RaceState builder."""
+
+    def wear_rate(self, compound: str) -> float | None: ...
+
+    def wear_se(self, compound: str) -> float | None: ...
+
+    def pace_offset(self, driver_number: int) -> float | None: ...
+
+    def pace_offset_se(self, driver_number: int) -> float | None: ...
+
+
 """SC pit loss as a fraction of the green value: a placeholder until Phase 8 (REG-03, D-04)."""
 _OPTIONAL_FLOATS: Final = (
     "gap_ahead_s",
@@ -487,7 +500,7 @@ def _safety_car_state(snapshot: RaceSnapshot, lap: int) -> tuple[bool, int]:
 
 def build_race_state(
     snapshot: RaceSnapshot,
-    fit: LinearPaceFit,
+    fit: PaceStateFit,
     *,
     laps_total: int,
     pit_loss_s: float,
