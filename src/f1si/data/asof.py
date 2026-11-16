@@ -15,9 +15,13 @@ only the replay or backtest driver holds the `AsOfAccessor`, so model code canno
 N+3. The import ban and the future-scramble test enforce this (tests/guards).
 
 Cutoffs. "Lap N" means the moment the race leader completed lap N, read from the precomputed
-`lap_cutoffs` table. A row is visible iff `visible_at_s IS NOT NULL AND visible_at_s <= cutoff`.
-At lap N the leader therefore shows N laps and every other running car N-1; lap 0 shows only
-pre-race facts (entries, weather and race-control messages up to lights out).
+`lap_cutoffs` table. Completed rows are visible iff
+`visible_at_s IS NOT NULL AND visible_at_s <= cutoff`. For rebuilt stint, pit-event and car state,
+a started but unfinished lap contributes only its start-time facts (lap start, pit-out flag, stint
+and compound); the `laps` frame stays completed-lap-only, and its time, sectors, end-of-lap tyre
+life, pit duration and track status stay hidden. At lap N the leader therefore shows N completed
+laps and every other running car at most N-1; lap 0 shows only pre-race facts (entries, weather and
+race-control messages up to lights out).
 
 `RACE_END` shows every row of the race through the same door, still without results.
 """

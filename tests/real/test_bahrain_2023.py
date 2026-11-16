@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import itertools
 from datetime import UTC, datetime
+from importlib import import_module
 from pathlib import Path
 from typing import Any, cast
 
@@ -25,6 +26,8 @@ from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
 from f1si.data.loader import backfill_scheduled_laps, load_races
 from f1si.data.results import ResultsAccessor
 from f1si.data.sources.openf1 import OpenF1Source
+from f1si.interfaces import Plan
+from f1si.plots.replay_charts import prepare_stint_bar_data
 from f1si.plots.stints import build_figure, prepare_stint_plot_data, render_stint_plot
 from f1si.rng import make_rng
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
@@ -113,6 +116,62 @@ def test_lap_cutoffs(db: Path) -> None:
     assert 5_400 < cutoffs[LAST_LAP] < 6_000
 
 
+def test_alo_mid_pit_state_after_lap_15(db: Path) -> None:
+    accessor = AsOfAccessor(db)
+    first = accessor.snapshot(AsOf(RACE_ID, 0))
+    laps_total = _race_laps_total(accessor, RACE_ID, first)
+    snapshot = accessor.snapshot(AsOf(RACE_ID, 15))
+
+    assert snapshot.cutoff_s == pytest.approx(1486.1, abs=0.1)
+    in_lap = snapshot.laps.loc[
+        (snapshot.laps["driver_number"] == 14) & (snapshot.laps["lap_number"] == 14)
+    ].iloc[0]
+    assert float(in_lap["lap_end_s"]) == pytest.approx(1406.5, abs=0.1)
+
+    assert not ((snapshot.laps["driver_number"] == 14) & (snapshot.laps["lap_number"] == 15)).any()
+    started_stint = snapshot.stints.loc[
+        (snapshot.stints["driver_number"] == 14) & (snapshot.stints["first_lap"] == 15)
+    ].iloc[0]
+    assert started_stint["compound"] == "HARD"
+    assert started_stint["laps_so_far"] == 0
+    assert started_stint["tyre_life_now"] == 0
+    assert (
+        (snapshot.pit_events["driver_number"] == 14)
+        & (snapshot.pit_events["in_lap"] == 14)
+        & (snapshot.pit_events["out_lap"] == 15)
+    ).any()
+
+    context = cli._prepare_replay_context(accessor, RACE_ID, laps_total, 15, snapshot=snapshot)
+    alo = context.state.car("ALO")
+    assert alo.laps_done == 14
+    assert alo.compound == "HARD"
+    assert alo.tire_age == 0
+    assert alo.stops_done == 1
+    assert alo.compounds_used == ("SOFT", "HARD")
+
+
+def test_alo_stint_chart_and_replay_after_lap_15(db: Path) -> None:
+    """The started Hard out-lap draws from the stop to the cutoff, and the page replay builds."""
+    accessor = AsOfAccessor(db)
+    rows = prepare_stint_bar_data(accessor.snapshot(AsOf(RACE_ID, 15)))
+    alo = [row for row in rows if row["driver_code"] == "ALO"]
+
+    assert [row["compound"] for row in alo] == ["SOFT", "HARD"]
+    assert (alo[0]["start_lap"], alo[0]["end_lap"]) == (0.5, 14.5)
+    assert (alo[1]["start_lap"], alo[1]["end_lap"]) == (14.5, 15.5)
+    assert alo[1]["laps_completed"] == 0
+    assert alo[1]["in_progress"] is True
+    assert max(cast(float, row["end_lap"]) for row in rows) == 15.5
+
+    app = import_module("f1si.app")
+    replay = app._build_selected_replay(RACE_ID, "ALO", 15, 0.5, 200, 0, str(db), "test")
+    assert replay["strategy_available"] is True
+    assert replay["tire_compound"] == "HARD"
+    assert any(
+        row["driver_code"] == "ALO" and row["compound"] == "HARD" for row in replay["stint_rows"]
+    )
+
+
 def test_results_door(db: Path) -> None:
     final = ResultsAccessor(db).final_classification(RACE_ID)
     winner = final[final["driver_code"] == "VER"]
@@ -128,7 +187,7 @@ def test_as_of_rule_on_real_data(db: Path) -> None:
     assert int((laps_done <= 14).sum()) == len(laps_done) - 1
 
 
-def test_lap_15_replay_ranks_stay_out_and_every_legal_box_timing(db: Path) -> None:
+def test_lap_15_replay_ranks_only_distinct_live_choices(db: Path) -> None:
     accessor = AsOfAccessor(db)
     first = accessor.snapshot(AsOf(RACE_ID, 0))
     laps_total = _race_laps_total(accessor, RACE_ID, first)
@@ -139,17 +198,19 @@ def test_lap_15_replay_ranks_stay_out_and_every_legal_box_timing(db: Path) -> No
     )
 
     assert cutoff.analysis is not None
-    timing_actions = {row.action.split(" (", maxsplit=1)[0] for row in cutoff.analysis.options}
-    assert timing_actions == {
+    # ALO's out-lap 15 has started on Hards (DEC-112), so Soft and Hard are both used: never
+    # stopping again is legal, and a second stop may fit any of the three dry compounds.
+    actions = [row.action for row in cutoff.analysis.options]
+    assert len(actions) == len(set(actions))
+    assert set(actions) == {
+        "pit now (HARD)",
+        "pit now (MEDIUM)",
+        "pit now (SOFT)",
         "stay out",
-        "pit now",
-        "pit in 1 lap(s)",
-        "pit in 2 lap(s)",
-        "pit in 3 lap(s)",
-        "pit in 4 lap(s)",
-        "pit in 5 lap(s)",
+        "wait and decide next lap",
     }
-    assert cutoff.analysis.best.plan.stop_laps == (16,)
+    assert cutoff.analysis.never_stop_allowed is True
+    assert cutoff.analysis.waiting_tie_window_laps is not None
 
     simulator = NumpySimulator(
         context.model,
@@ -161,7 +222,7 @@ def test_lap_15_replay_ranks_stay_out_and_every_legal_box_timing(db: Path) -> No
         context.state,
         n_races=1000,
         rng=make_rng(0),
-        plans={"ALO": cutoff.analysis.best.plan},
+        plans={"ALO": Plan((16,), ("HARD",), 0.0)},
         position_history_driver="ALO",
     )
     driver_index = [car.driver for car in context.state.cars].index("ALO")
@@ -169,36 +230,32 @@ def test_lap_15_replay_ranks_stay_out_and_every_legal_box_timing(db: Path) -> No
     assert (simulation.stop_laps[:, driver_index, 0] == 16).all()
 
 
-def test_bahrain_lap_15_top_classified_forecasts_are_within_five_places(db: Path) -> None:
-    """Check the five best classified forecasts after building every forecast cutoff-safely."""
+@pytest.mark.parametrize(
+    "driver",
+    [
+        "VER",
+        "PER",
+        "ALO",
+        "SAI",
+        "HAM",
+    ],
+)
+def test_bahrain_actual_top_five_forecasts_are_within_five_places(db: Path, driver: str) -> None:
+    """Check the fixed actual top five without using results as model inputs."""
     accessor = AsOfAccessor(db)
     first = accessor.snapshot(AsOf(RACE_ID, 0))
     laps_total = _race_laps_total(accessor, RACE_ID, first)
     snapshot = accessor.snapshot(AsOf(RACE_ID, 15))
     context = cli._prepare_replay_context(accessor, RACE_ID, laps_total, 15, snapshot=snapshot)
 
-    # Build every model prediction before opening the actual classification. The model-ranked
-    # sample is selected first; drivers who retired are excluded because retirements are not
-    # simulated and therefore have no comparable predicted finishing place.
-    predicted_mean: dict[str, float] = {}
-    for car in context.state.cars:
-        code = car.driver
-        outcome = cli._replay_at_cutoff(
-            accessor, RACE_ID, laps_total, code, 15, 1000, 0.5, 0, prepared_context=context
-        )
-        assert outcome.analysis is not None
-        predicted_mean[code] = outcome.analysis.best.mean_finish
-
+    forecast = cli._replay_at_cutoff(
+        accessor, RACE_ID, laps_total, driver, 15, 1000, 0.5, 0, prepared_context=context
+    )
+    assert forecast.analysis is not None
     actual = ResultsAccessor(db).final_classification(RACE_ID)
-    classified = actual.loc[actual["final_position"].notna()].set_index("driver_code")
-    forecast_order = sorted(predicted_mean, key=predicted_mean.__getitem__)
-    top_five_codes = [code for code in forecast_order if code in classified.index][:5]
-    assert len(top_five_codes) == 5
-    errors = {
-        code: abs(predicted_mean[code] - float(cast(Any, classified.loc[code, "final_position"])))
-        for code in top_five_codes
-    }
-    assert all(error <= 5.0 for error in errors.values()), errors
+    classified = actual.set_index("driver_code")
+    actual_position = float(cast(Any, classified.loc[driver, "final_position"]))
+    assert abs(forecast.analysis.best.mean_finish - actual_position) <= 5.0
 
 
 def test_stint_plot(db: Path, tmp_path: Path) -> None:

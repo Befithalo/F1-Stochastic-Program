@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<!--
+  PROTOTYPE, throwaway (quick task 261116-0hq, step 3).
+  Question: what should the decision band and an option row look like?
+  Two structurally different variants on one page, switched with ?variant=A or ?variant=B,
+  the floating bar at the bottom, or the left and right arrow keys.
+  Numbers: Bahrain 2023, Alonso, after lap 15 of 57, risk 0.50, 10,000 simulated races, seed 0,
+  from f1si.app._build_selected_replay on the working tree with the mid-pit-stop fix.
+  Open the file directly in a browser; nothing to install.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decision band prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@700;800&family=Titillium+Web:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --tarmac:#1B1D23; --pitlane:#23262E; --kerb:#30343E; --chalk:#F2F2F0; --fog:#A9AEB8; --soft-text:#DADDE2;
+  --team:#358C75; --better:#4ADE80; --worse:#FF6B6B; --caution:#F5C518;
+  --soft:#E8323C; --medium:#F5C518; --hard:#F2F2F0;
+  --head:"Saira Condensed", "Arial Narrow", sans-serif;
+  --body:"Titillium Web", system-ui, sans-serif;
+  --band:color-mix(in srgb, var(--team) 22%, var(--tarmac));
+  --team-fill:color-mix(in srgb, var(--team) 70%, #000);
+  --line:rgba(255,255,255,.14);
+}
+* { box-sizing:border-box; }
+html { background:var(--tarmac); color:var(--chalk); font:16px/1.5 var(--body);
+  font-variant-numeric:tabular-nums; -webkit-font-smoothing:antialiased; }
+body { margin:0; background:var(--tarmac); padding-bottom:96px; }
+.wrap { max-width:1180px; margin:0 auto; padding:0 32px; }
+h1, h2, h3, .big { font-family:var(--head); font-weight:800; letter-spacing:0; margin:0; }
+:focus-visible { outline:3px solid var(--chalk); outline-offset:2px; }
+svg { max-width:100%; height:auto; }
+
+/* real page context: the controls row above the band */
+.controls { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:24px; padding:24px 0 28px; }
+.controls label { display:block; color:var(--fog); font-size:14px; margin-bottom:6px; }
+.controls .fake { height:44px; display:flex; align-items:center; padding:0 12px; background:var(--pitlane);
+  border:1px solid var(--kerb); border-radius:4px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.controls input[type=range] { width:100%; accent-color:var(--team); margin:12px 0 0; }
+.risk { display:flex; justify-content:space-between; font-size:14px; color:var(--fog); }
+.risk b { color:var(--chalk); font-weight:600; }
+
+.code { display:inline-grid; place-items:center; background:var(--team-fill); color:#fff; font:800 18px var(--head);
+  padding:2px 10px; border-radius:3px; }
+.driver { display:flex; align-items:center; gap:12px; font-size:20px; font-weight:600; }
+.context { color:var(--fog); margin:0 0 16px; }
+.chip { display:inline-grid; place-items:center; width:38px; height:38px; border-radius:50%; border:4px solid var(--c);
+  font:800 16px var(--head); color:var(--chalk); flex:none; }
+.chip.sm { width:26px; height:26px; border-width:3px; font-size:13px; }
+.tag { font-size:14px; font-weight:700; padding:2px 10px; border-radius:3px; }
+.tag.rec { background:var(--team-fill); color:#fff; }
+.va { fill:var(--fog); font:13px var(--body); }
+.vt { fill:var(--chalk); font:700 14px var(--body); }
+.cap { color:var(--fog); font-size:14px; margin:6px 0 0; }
+section.after { padding:72px 0 0; }
+section.after h2 { font-size:40px; line-height:1; margin:0 0 6px; }
+.sub { color:var(--fog); margin:0 0 24px; }
+
+/* ---------- Variant A: headline and three reasons ---------- */
+.A .band { background:var(--band); border-top:6px solid var(--team); }
+.A .decision { padding-top:40px; padding-bottom:48px; }
+.A h1 { font-size:clamp(56px, 9vw, 104px); line-height:.92; margin:16px 0 18px; }
+.A .lede { font-size:20px; max-width:760px; margin:0; }
+.A .reasons { display:grid; grid-template-columns:repeat(3, 1fr); margin-top:40px; border-top:1px solid var(--line); }
+.A .reason { padding:24px 24px 0 0; }
+.A .reason + .reason { padding-left:24px; border-left:1px solid var(--line); }
+.A .rl { color:var(--fog); }
+.A .rnum { font:800 44px/1.05 var(--head); margin:4px 0 6px; }
+.A .rnum small { font-size:22px; font-weight:700; margin-left:6px; }
+.A .reason p { margin:0; font-size:15px; color:var(--soft-text); max-width:34ch; }
+.A .vis { margin-top:14px; }
+
+.A .option { display:grid; grid-template-columns:96px 1fr; padding:28px 24px 28px 0;
+  border-left:6px solid var(--team); background:color-mix(in srgb, var(--team) 8%, transparent);
+  border-top:1px solid var(--kerb); border-bottom:1px solid var(--kerb); }
+.A .chips { padding-left:24px; }
+.A .otitle { display:flex; align-items:center; flex-wrap:wrap; gap:12px; }
+.A .otitle h3 { font-size:28px; line-height:1.1; }
+.A .owhy { margin:6px 0 18px; color:var(--soft-text); max-width:720px; }
+.A .stats { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:24px; max-width:860px; }
+.A .big { font-size:44px; line-height:1; }
+.A .slabel { font-weight:600; margin-top:4px; }
+.A .shelp { color:var(--fog); font-size:14px; line-height:1.35; margin-top:2px; }
+.A .key { display:flex; align-items:center; gap:8px; color:var(--fog); font-size:13px; margin-top:10px; }
+.A .range { position:relative; height:48px; max-width:860px; margin-top:22px; }
+.A .range > * { position:absolute; }
+.A .track { left:0; right:0; top:10px; height:4px; background:var(--kerb); border-radius:2px; }
+.A .zone { top:10px; height:4px; background:var(--chalk); opacity:.5; border-radius:2px; }
+.A .rband { top:7px; height:10px; border-radius:5px; background:color-mix(in srgb, var(--team) 80%, var(--chalk) 0%); }
+.A .dot { top:3px; width:18px; height:18px; margin-left:-9px; border-radius:50%; background:var(--chalk); border:3px solid var(--tarmac); }
+.A .bad { top:-1px; width:4px; height:26px; margin-left:-2px; background:var(--worse); border-radius:2px; }
+.A .tick { top:24px; transform:translateX(-50%); font-size:13px; color:var(--fog); }
+.A .end { top:24px; font-size:13px; color:var(--fog); }
+.A .end.r { right:0; }
+.A .rangetext { margin:0; color:var(--fog); font-size:15px; }
+.A .next { margin:18px 0 0; font-size:15px; }
+.A .next b { color:var(--worse); font-weight:700; }
+
+/* ---------- Variant B: race strip ---------- */
+.B .band { background:var(--band); border-top:6px solid var(--team); }
+.B .decision { padding-top:36px; padding-bottom:40px; display:grid; grid-template-columns:minmax(0, 1.15fr) minmax(0, 1fr); gap:24px 56px; }
+.B h1 { font-size:clamp(52px, 7.4vw, 92px); line-height:.92; margin:14px 0 16px; text-wrap:balance; }
+.B .lede { font-size:19px; margin:0; max-width:36ch; }
+.B .facts { display:flex; flex-wrap:wrap; gap:8px 28px; margin:22px 0 0; padding:0; list-style:none; }
+.B .facts li { display:flex; align-items:baseline; gap:8px; }
+.B .facts b { font:800 28px/1 var(--head); }
+.B .facts span { color:var(--soft-text); font-size:15px; }
+.B .dist h2 { font-size:26px; line-height:1.1; margin-bottom:2px; }
+.B .dist .cap { margin:0 0 10px; }
+.B .strip { grid-column:1 / -1; border-top:1px solid var(--line); padding-top:22px; }
+.B .strip h2 { font-size:26px; line-height:1.1; margin-bottom:2px; }
+.B svg { display:block; width:100%; height:auto; overflow:visible; }
+
+.B .option { padding:28px 0; border-top:1px solid var(--kerb); border-bottom:1px solid var(--kerb); }
+.B .ohead { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:16px; }
+.B .ohead h3 { font-size:28px; line-height:1.1; }
+.B .ohead .why { color:var(--soft-text); margin:2px 0 0; }
+.B .nums { display:grid; grid-template-columns:repeat(4, auto) 1fr; gap:0 36px; align-items:end; margin-top:20px; }
+.B .nums .big { font-size:40px; line-height:1; }
+.B .nums .l { color:var(--fog); font-size:14px; }
+.B .cellwrap { position:relative; margin-top:20px; }
+.B .cells { display:grid; grid-template-columns:repeat(20, minmax(0, 1fr)); gap:2px; }
+.B .exp { position:absolute; top:-8px; bottom:-8px; width:3px; margin-left:-1.5px; background:var(--chalk); border-radius:2px; }
+.B .cells div { height:34px; border-radius:2px; background:color-mix(in srgb, var(--team) var(--p), var(--kerb)); position:relative; }
+.B .axis { display:grid; grid-template-columns:repeat(20, minmax(0, 1fr)); gap:2px; margin-top:8px; font-size:13px; color:var(--fog); }
+.B .axis span { text-align:center; overflow:visible; white-space:nowrap; }
+.B .stripcap { display:none; }
+.B .brackets { display:grid; grid-template-columns:repeat(20, minmax(0, 1fr)); gap:4px 2px; margin-top:6px; font-size:13px; color:var(--fog); white-space:nowrap; }
+.B .brackets .pod { grid-column:1 / span 3; border-top:2px solid var(--chalk); padding-top:2px; }
+.B .brackets .pts { grid-row:2; grid-column:1 / span 10; border-top:2px solid var(--fog); padding-top:2px; }
+.B .vs { display:flex; flex-wrap:wrap; gap:6px 24px; margin-top:18px; font-size:15px; color:var(--soft-text); }
+.B .vs b { color:var(--worse); }
+
+/* prototype chrome: switcher and data panel */
+.switcher { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); display:flex; align-items:center; gap:4px;
+  background:#FFFFFF; color:#111; border-radius:999px; padding:6px; box-shadow:0 6px 24px rgba(0,0,0,.45); z-index:10;
+  font:600 14px system-ui, sans-serif; }
+.switcher button { border:0; background:#ECECEC; color:#111; width:36px; height:36px; border-radius:50%; font-size:18px; cursor:pointer; }
+.switcher span { padding:0 14px; white-space:nowrap; }
+.protodata { max-width:1180px; margin:72px auto 0; padding:0 32px; color:var(--fog); font-size:14px; }
+.protodata summary { cursor:pointer; font-weight:600; }
+.protodata table { border-collapse:collapse; margin-top:8px; }
+.protodata td { padding:4px 16px 4px 0; border-bottom:1px solid var(--kerb); }
+[hidden] { display:none !important; }
+
+@media (max-width: 760px) {
+  .wrap, .protodata { padding:0 16px; }
+  .controls { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+  .controls > div:last-child { grid-column:1 / -1; }
+  .A .reasons { grid-template-columns:1fr; }
+  .A .reason, .A .reason + .reason { padding:20px 0 0; border-left:0; }
+  .A .reason + .reason { border-top:1px solid var(--line); margin-top:20px; }
+  .A .option { grid-template-columns:1fr; padding:24px 16px 24px 12px; }
+  .A .chips { padding:0 0 12px; }
+  .A .stats { grid-template-columns:1fr 1fr; gap:16px; }
+  .B .decision { grid-template-columns:1fr; }
+  .B .ohead { grid-template-columns:auto 1fr; }
+  .B .ohead .tag { grid-column:1 / -1; justify-self:start; }
+  .B .nums { grid-template-columns:1fr 1fr; gap:16px; }
+  .B .nums > :last-child { display:none; }
+  .B .axis span:not(.k) { visibility:hidden; }
+  .B #stripB .inbar { display:none; }
+  .B .stripcap { display:block; }
+  section.after h2 { font-size:34px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="controls" aria-label="Replay settings">
+    <div><label>Race</label><div class="fake">Bahrain Grand Prix 2023</div></div>
+    <div><label>Driver</label><div class="fake">Fernando Alonso (ALO)</div></div>
+    <div><label>After lap</label><div class="fake">15 of 57</div></div>
+    <div><label for="risk">Risk setting</label><input id="risk" type="range" min="0" max="1" step="0.05" value="0.5" disabled>
+      <div class="risk"><span>Aggressive</span><b>Balanced</b><span>Cautious</span></div></div>
+  </div>
+</div>
+
+<!-- ======================= VARIANT A ======================= -->
+<div class="variant A" data-variant="A" data-name="Headline and three reasons">
+  <div class="band">
+    <div class="wrap decision">
+      <p class="context">Bahrain Grand Prix 2023, after lap 15 of 57, balanced risk setting</p>
+      <div class="driver"><span class="code">ALO</span> Fernando Alonso, Aston Martin, running 4th</div>
+      <h1>Stay out to the flag</h1>
+      <p class="lede">He boxed for Hards at the end of lap 14 and has now used two compounds, so he doesn't need to stop again. Another stop costs more than a place on average.</p>
+      <div class="reasons">
+        <div class="reason"><div class="rl">Tyres</div>
+          <div class="rnum">0 laps<small>on Hards</small></div>
+          <p>New Hards fitted at the end of lap 14. They are too new to measure wear yet.</p>
+          <svg class="vis" viewBox="0 0 300 54" width="300" role="img" aria-label="Softs for laps 1 to 14, Hards from lap 15">
+            <rect x="0" y="6" width="196" height="18" rx="3" fill="var(--soft)"/>
+            <rect x="198" y="6" width="14" height="18" rx="3" fill="var(--hard)"/>
+            <rect x="212" y="6" width="88" height="18" rx="3" fill="none" stroke="var(--hard)" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="0" y="44" class="va">Lap 1</text><text x="205" y="44" class="va" text-anchor="middle">15</text><text x="300" y="44" class="va" text-anchor="end">57</text>
+            <text x="98" y="20" class="vt" text-anchor="middle" fill="#1B1D23" style="fill:#1B1D23">S</text>
+          </svg>
+          <p class="cap">Softs for 14 laps, then Hards. Dashed: the laps left.</p></div>
+        <div class="reason"><div class="rl">Pit stops</div>
+          <div class="rnum">None needed</div>
+          <p>Softs and Hards are both used, so the two-compound rule is met. A stop now would cost about 24 seconds.</p>
+          <div class="vis" style="display:flex;gap:10px;align-items:center">
+            <span class="chip sm" style="--c:var(--soft)">S</span><span class="chip sm" style="--c:var(--hard)">H</span>
+            <span style="color:var(--better);font-weight:700">Rule met</span></div></div>
+        <div class="reason"><div class="rl">Safety car</div>
+          <div class="rnum">1.0%<small>per lap</small></div>
+          <p>Over the 42 laps left, about 1 in 3 races see one. A stop under a safety car costs about 12 seconds, half the usual loss.</p>
+          <svg class="vis" width="254" height="20" viewBox="0 0 254 20" role="img" aria-label="About 34 in 100 races see a safety car before the flag" data-dots="10" data-fill="3.4" data-color="var(--caution)"></svg></div>
+      </div>
+    </div>
+  </div>
+  <main class="wrap">
+    <section class="after" aria-labelledby="optsA">
+      <h2 id="optsA">Your options</h2>
+      <p class="sub">Best first. Each option comes from 10,000 simulated races from this lap to the flag.</p>
+      <article class="option">
+        <div class="chips"><span class="chip" style="--c:var(--hard)">H</span></div>
+        <div>
+          <div class="otitle"><h3>Stay out on Hards</h3><span class="tag rec">Recommended</span></div>
+          <p class="owhy">No more stops. Waiting a lap and deciding then gives the same result.</p>
+          <div class="stats">
+            <div><div class="big">P7.5</div><div class="slabel">Expected finish</div><div class="shelp">Average across all simulated races</div>
+              <div class="key"><svg width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="var(--chalk)"/></svg>white dot on the bar</div></div>
+            <div><div class="big">P17.0</div><div class="slabel">Bad-day finish</div><div class="shelp">Average of the worst 1 in 10 races</div>
+              <div class="key"><svg width="8" height="16" aria-hidden="true"><line x1="4" x2="4" y1="2" y2="14" stroke="var(--worse)" stroke-width="3" stroke-linecap="round"/></svg>red line on the bar</div></div>
+            <div><div class="big">19%</div><div class="slabel">Podium chance</div><div class="shelp">Races finishing P1 to P3</div>
+              <svg width="214" height="16" viewBox="0 0 214 16" style="margin-top:10px" role="img" aria-label="About 2 in 10 races end on the podium" data-dots="10" data-fill="1.9" data-color="var(--chalk)" data-r="6.5" data-step="22"></svg></div>
+            <div><div class="big">76%</div><div class="slabel">Points chance</div><div class="shelp">Races finishing P1 to P10</div>
+              <svg width="214" height="16" viewBox="0 0 214 16" style="margin-top:10px" role="img" aria-label="About 8 in 10 races score points" data-dots="10" data-fill="7.6" data-color="var(--team)" data-r="6.5" data-step="22"></svg></div>
+          </div>
+          <div class="range" aria-hidden="true">
+            <div class="track"></div>
+            <div class="zone" style="left:0;width:10.53%"></div>
+            <div class="rband" style="left:5.26%;width:78.95%"></div>
+            <div class="bad" style="left:84.13%"></div>
+            <div class="dot" style="left:34.45%"></div>
+            <span class="tick" style="left:10.53%">P3</span><span class="tick" style="left:47.37%">P10</span>
+            <span class="end">P1</span><span class="end r">P20</span>
+          </div>
+          <p class="rangetext">9 in 10 simulated races finish between P2 and P17.</p>
+          <p class="next">Next best: box again for Hards, <b>1.1 places worse</b> on average.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+</div>
+
+<!-- ======================= VARIANT B ======================= -->
+<div class="variant B" data-variant="B" data-name="Race strip" hidden>
+  <div class="band">
+    <div class="wrap decision">
+      <div>
+        <p class="context">Bahrain Grand Prix 2023, after lap 15 of 57, balanced risk setting</p>
+        <div class="driver"><span class="code">ALO</span> Fernando Alonso, Aston Martin</div>
+        <h1>Stay out to the flag</h1>
+        <p class="lede">Fresh Hards and both compounds used: no stop is needed, and another one costs more than a place.</p>
+        <ul class="facts">
+          <li><b>4th</b><span>now, 27.5 s off the lead</span></li>
+          <li><b>P7.5</b><span>expected finish</span></li>
+          <li><b>76%</b><span>points chance</span></li>
+        </ul>
+      </div>
+      <div class="dist">
+        <h2>Where he finishes if he stays out</h2>
+        <p class="cap">Share of 10,000 simulated races ending in each position</p>
+        <svg viewBox="0 0 340 186" role="img" aria-label="Finish distribution if Alonso stays out: most likely P4, 19 percent podium, 76 percent points" id="distB"></svg>
+      </div>
+      <div class="strip">
+        <h2>His race: one stop done, none to come</h2>
+        <p class="cap" style="margin:0 0 12px">Laps 1 to 57. Solid: run so far. Dashed: the plan.</p>
+        <svg viewBox="0 0 1000 96" role="img" aria-label="Softs for laps 1 to 14, a 24 second stop, Hards from lap 15 to the flag at lap 57; safety car chance 1 percent per lap" id="stripB"></svg>
+        <p class="cap stripcap">Softs for laps 1 to 14, a 24-second stop, then Hards for the last 42 laps with no further stop. Safety car: 1.0% per lap, about 1 in 3 races before the flag.</p>
+      </div>
+    </div>
+  </div>
+  <main class="wrap">
+    <section class="after" aria-labelledby="optsB">
+      <h2 id="optsB">Your options</h2>
+      <p class="sub">Best first. Each option comes from 10,000 simulated races from this lap to the flag.</p>
+      <article class="option">
+        <div class="ohead">
+          <span class="chip" style="--c:var(--hard)">H</span>
+          <div><h3>Stay out on Hards</h3><p class="why">No more stops. Waiting a lap and deciding then gives the same result.</p></div>
+          <span class="tag rec">Recommended</span>
+        </div>
+        <div class="nums">
+          <div><div class="big">P7.5</div><div class="l">Expected finish</div></div>
+          <div><div class="big">P17.0</div><div class="l">Bad-day finish</div></div>
+          <div><div class="big">19%</div><div class="l">Podium chance</div></div>
+          <div><div class="big">76%</div><div class="l">Points chance</div></div>
+          <div></div>
+        </div>
+        <div class="cellwrap"><div class="exp" style="left:calc((7.54 - 0.5) / 20 * 100%)" title="Expected P7.5"></div><div class="cells" id="cellsB" role="img" aria-label="Chance of each finishing position: P1 4%, P2 6%, P3 9%, P4 11%, P5 10%, P6 10%, P7 8%, P8 7%, P9 6%, P10 5%, P11 to P13 4% each, P14 to P18 2% each, P19 and P20 1% each"></div></div>
+        <div class="brackets"><span class="pod">Podium 19%</span><span class="pts">Points (P1 to P10) 76%</span></div>
+        <div class="axis" id="axisB"></div>
+        <div class="vs"><span>Box again for Hards: <b>1.1 places worse</b></span><span>for Mediums: <b>2.7 worse</b></span><span>for Softs: <b>4.1 worse</b></span></div>
+      </article>
+    </section>
+  </main>
+</div>
+
+<details class="protodata">
+  <summary>Prototype data (real model output)</summary>
+  <table>
+    <tr><td>Source</td><td>f1si.app._build_selected_replay("2023-01", "ALO", 15, risk 0.5, 10,000 races, seed 0)</td></tr>
+    <tr><td>State after lap 15</td><td>4th, 14 laps done, Hard, tyre age 0, 1 stop, compounds Soft and Hard; tyre wear not measured (fallback)</td></tr>
+    <tr><td>Stay out (= wait and decide)</td><td>expected P7.54, bad-day P16.99, podium 19.5%, points 76.0%, 9-in-10 P2 to P17</td></tr>
+    <tr><td>Box again, Hard</td><td>P8.61 (1.06 worse), bad-day P17.56, podium 11.8%, points 68.8%</td></tr>
+    <tr><td>Box again, Medium</td><td>P10.20 (2.65 worse), bad-day P19.45, podium 12.4%, points 54.6%</td></tr>
+    <tr><td>Box again, Soft</td><td>P11.69 (4.14 worse), bad-day P19.96, podium 7.8%, points 44.2%</td></tr>
+    <tr><td>Safety car</td><td>1.0% per lap; 34% chance in the 42 laps left</td></tr>
+    <tr><td>Stop cost</td><td>24.0 s green flag, 12.0 s under safety car</td></tr>
+    <tr><td>Gap</td><td>27.5 s to VER after lap 14; STR 0.2 s ahead, LEC 2.3 s behind</td></tr>
+    <tr><td>Close call</td><td>none (gap to the next option exceeds 2 standard errors)</td></tr>
+    <tr><td>Pit window</td><td>model tie window laps 17 to 20, but the plan has no stop, so both variants show "none needed"</td></tr>
+  </table>
+</details>
+
+<nav class="switcher" aria-label="Prototype variant">
+  <button type="button" id="prev" aria-label="Previous variant">&larr;</button>
+  <span id="label">A</span>
+  <button type="button" id="next" aria-label="Next variant">&rarr;</button>
+</nav>
+
+<script>
+// Finish distribution if he stays out: share of races (percent) at P1..P20.
+const DIST = [4, 6, 9, 11, 10, 10, 8, 7, 6, 5, 4, 4, 4, 2, 2, 2, 2, 2, 1, 1];
+const EXPECTED = 7.54;
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs, parent, text) => {
+  const node = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  if (parent) parent.appendChild(node);
+  return node;
+};
+
+// Partial-fill dot rows: data-dots circles, data-fill of them filled.
+let clipId = 0;
+document.querySelectorAll("svg[data-dots]").forEach((svg) => {
+  const n = +svg.dataset.dots, fill = +svg.dataset.fill, color = svg.dataset.color;
+  const r = +(svg.dataset.r || 8.5), step = +(svg.dataset.step || 26), d = r * 2 + 3;
+  for (let i = 0; i < n; i++) {
+    const cx = r + 1.5 + i * step, cy = svg.viewBox.baseVal.height / 2;
+    el("circle", { cx, cy, r, fill: "none", stroke: "#4A4F5A", "stroke-width": 1.5 }, svg);
+    const part = Math.max(0, Math.min(1, fill - i));
+    if (part > 0) {
+      const id = "c" + clipId++;
+      const cp = el("clipPath", { id }, svg);
+      el("rect", { x: cx - r - 1.5, y: 0, width: d * part, height: svg.viewBox.baseVal.height }, cp);
+      el("circle", { cx, cy, r, fill: color, "clip-path": `url(#${id})` }, svg);
+    }
+  }
+});
+
+// Variant B: finish histogram.
+(() => {
+  const svg = document.getElementById("distB");
+  const left = 4, bw = 14, gap = 3, base = 118, scale = 9;
+  DIST.forEach((p, i) => {
+    const x = left + i * (bw + gap), h = p * scale;
+    el("rect", { x, y: base - h, width: bw, height: h, rx: 2, fill: i < 10 ? "var(--team)" : "#5B616D" }, svg);
+    if (i === 3) el("text", { x: x + bw / 2, y: base - h - 6, "text-anchor": "middle", class: "vt" }, svg, p + "%");
+  });
+  const ex = left + (EXPECTED - 1) * (bw + gap) + bw / 2;
+  el("line", { x1: ex, x2: ex, y1: 6, y2: base + 4, stroke: "var(--chalk)", "stroke-width": 2, "stroke-dasharray": "3 3" }, svg);
+  el("text", { x: ex + 6, y: 14, class: "va" }, svg, "expected P7.5");
+  [[1, "P1"], [10, "P10"], [20, "P20"]].forEach(([pos, t]) =>
+    el("text", { x: left + (pos - 1) * (bw + gap) + bw / 2, y: base + 18, "text-anchor": "middle", class: "va" }, svg, t));
+  el("line", { x1: left, x2: left + 3 * (bw + gap) - gap, y1: base + 30, y2: base + 30, stroke: "var(--chalk)", "stroke-width": 2 }, svg);
+  el("text", { x: left, y: base + 46, class: "va" }, svg, "Podium (P1 to P3): 19%");
+  el("line", { x1: left, x2: left + 10 * (bw + gap) - gap, y1: base + 54, y2: base + 54, stroke: "var(--fog)", "stroke-width": 2 }, svg);
+  el("text", { x: left, y: base + 70, class: "va" }, svg, "Points (P1 to P10): 76%");
+})();
+
+// Variant B: lap strip 1..57. Lap k spans [k - 0.5, k + 0.5]; "now" is after lap 15, x(15.5).
+(() => {
+  const svg = document.getElementById("stripB");
+  const X = (v) => 10 + ((v - 0.5) / 57) * 980;
+  el("rect", { x: X(0.5), y: 14, width: X(14.5) - X(0.5) - 2, height: 26, rx: 3, fill: "var(--soft)" }, svg);
+  el("text", { x: (X(0.5) + X(14.5)) / 2, y: 32, "text-anchor": "middle", class: "vt inbar", style: "fill:#1B1D23" }, svg, "Softs, laps 1 to 14");
+  el("rect", { x: X(14.5), y: 14, width: X(15.5) - X(14.5), height: 26, rx: 3, fill: "var(--hard)" }, svg);
+  el("rect", { x: X(15.5) + 2, y: 15, width: X(57.5) - X(15.5) - 3, height: 24, rx: 3, fill: "color-mix(in srgb, var(--team) 18%, transparent)", stroke: "var(--hard)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+  el("text", { x: (X(15.5) + X(57.5)) / 2, y: 32, "text-anchor": "middle", class: "vt inbar" }, svg, "Hards to the flag, 42 laps, no stop");
+  el("line", { x1: X(14.5), x2: X(14.5), y1: 4, y2: 50, stroke: "var(--chalk)", "stroke-width": 2 }, svg);
+  el("text", { x: X(14.5) - 6, y: 62, "text-anchor": "end", class: "va inbar" }, svg, "stop, 24 s");
+  el("line", { x1: X(15.5), x2: X(15.5), y1: 4, y2: 50, stroke: "var(--fog)", "stroke-dasharray": "2 3" }, svg);
+  el("text", { x: X(15.5) + 6, y: 62, class: "va inbar" }, svg, "now, after lap 15");
+  [[1, "Lap 1"], [57, "57"]].forEach(([lap, t], i) =>
+    el("text", { x: i ? X(57.5) : X(0.5), y: 86, "text-anchor": i ? "end" : "start", class: "va inbar" }, svg, t));
+  el("text", { x: X(36.5), y: 86, "text-anchor": "middle", class: "va inbar" }, svg, "Safety car: 1.0% per lap, about 1 in 3 races before the flag");
+})();
+
+// Variant B: option cells, one per finishing position.
+(() => {
+  const cells = document.getElementById("cellsB"), axis = document.getElementById("axisB");
+  const max = Math.max(...DIST);
+  DIST.forEach((p, i) => {
+    const c = document.createElement("div");
+    c.style.setProperty("--p", Math.round(15 + (85 * p) / max) + "%");
+    c.title = `P${i + 1}: ${p}% of races`;
+    cells.appendChild(c);
+    const s = document.createElement("span");
+    s.textContent = "P" + (i + 1);
+    if ([1, 3, 10, 20].includes(i + 1)) s.className = "k";
+    axis.appendChild(s);
+  });
+})();
+
+// Variant switcher: ?variant=, arrows, keyboard.
+const variants = [...document.querySelectorAll(".variant")];
+const keys = variants.map((v) => v.dataset.variant);
+function show(key) {
+  const k = keys.includes(key) ? key : keys[0];
+  variants.forEach((v) => (v.hidden = v.dataset.variant !== k));
+  const v = variants.find((x) => x.dataset.variant === k);
+  document.getElementById("label").textContent = `${k} (${v.dataset.name})`;
+  const url = new URL(location.href);
+  url.searchParams.set("variant", k);
+  history.replaceState(null, "", url);
+  return k;
+}
+let current = show(new URLSearchParams(location.search).get("variant") || "A");
+const step = (d) => (current = show(keys[(keys.indexOf(current) + d + keys.length) % keys.length]));
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest("input, textarea, [contenteditable]")) return;
+  if (e.key === "ArrowLeft") step(-1);
+  if (e.key === "ArrowRight") step(1);
+});
+</script>
+</body>
+</html>

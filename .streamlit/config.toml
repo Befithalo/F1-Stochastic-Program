@@ -1,14 +1,15 @@
 [theme]
 base = "dark"
-primaryColor = "#9BA1A8"
-backgroundColor = "#1C1F23"
-secondaryBackgroundColor = "#24282D"
-textColor = "#ECEAE4"
-font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
-borderColor = "#1C1F23"
-dataframeBorderColor = "#1C1F23"
+primaryColor = "#A9AEB8"
+backgroundColor = "#1B1D23"
+secondaryBackgroundColor = "#23262E"
+textColor = "#F2F2F0"
+font = "Titillium Web:https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&display=swap"
+headingFont = "Saira Condensed:https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@800&display=swap"
+borderColor = "#1B1D23"
+dataframeBorderColor = "#1B1D23"
 showWidgetBorder = false
-chartCategoricalColors = ["#c92d4b", "#5e8faa", "#2293d1", "#358c75", "#f91536", "#b6babd", "#f58020", "#6cd3bf", "#3671c6", "#37bedd"]
+chartCategoricalColors = ["#E8323C", "#F5C518", "#F2F2F0", "#43B047", "#2F7FD6", "#4ADE80", "#FF6B6B", "#A9AEB8", "#707782", "#30343E"]
 
 [client]
 toolbarMode = "minimal"

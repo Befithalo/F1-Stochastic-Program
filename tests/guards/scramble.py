@@ -4,8 +4,10 @@ How scrambling proves a negative. If a consumer's output cannot change when the 
 the output cannot depend on the future. `scramble_future` takes every table, keeps everything
 that is knowable at an `AsOf` point byte-identical, and replaces everything else with garbage:
 
-* Visible rows of the current race (``visible_at_s <= cutoff``), all rows of earlier races and
-  the calendar rows of earlier races are left untouched.
+* Completed visible rows of the current race (``visible_at_s <= cutoff``), all rows of earlier
+  races and the calendar rows of earlier races are left untouched. A started current lap keeps
+  only its start-time facts (lap start, pit-out, stint and compound); its completion facts remain
+  future.
 * Future rows are: later races (calendar, entries, time rows, results), the current race's rows
   that become visible only after the cutoff (or never mid-race), and the current race's results.
   Future rows keep their key columns and get a different value in every other column; time
@@ -38,7 +40,7 @@ import dataclasses
 import tempfile
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 import numpy as np
 import pandas as pd
@@ -56,6 +58,7 @@ _TIME_TABLES: Final = tuple(n for n, s in schema.TABLES.items() if s.visibility 
 _DROP_FRACTION: Final = 0.2
 _NA_FRACTION: Final = 0.2
 _JUNK_ROWS_PER_TABLE: Final = 2
+_PARTIAL_LAP_FACTS: Final = ("lap_start_s", "is_pit_out_lap", "stint", "compound")
 
 
 class LookaheadDetected(AssertionError):  # noqa: N818 - name fixed by the plan
@@ -145,6 +148,15 @@ def _sync_visibility(table: str, df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _partial_lap_mask(df: pd.DataFrame, race_id: str, cutoff_s: float) -> pd.Series:
+    """Rows whose lap has started but has not ended at the current cutoff."""
+    return (
+        (df["race_id"].astype(str) == race_id)
+        & pd.to_numeric(df["lap_start_s"], errors="coerce").le(cutoff_s)
+        & pd.to_numeric(df["lap_end_s"], errors="coerce").gt(cutoff_s)
+    ).fillna(False)
+
+
 def _drop_some(df: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
     if df.empty:
         return df
@@ -210,10 +222,13 @@ def scramble_future(
             future = is_later | is_current
         else:
             future = is_later.copy()
+            partial_lap = pd.Series(False, index=df.index)
             if cutoff_s is not None:
                 vis = df[schema.VISIBILITY_COLUMN]
                 late = vis.isna() | (vis > cutoff_s)
                 future = future | (is_current & late.fillna(True).astype(bool))
+                if name == "laps":
+                    partial_lap = _partial_lap_mask(df, current, cutoff_s)
 
         keep = df[~future]
         fut = df[future]
@@ -226,7 +241,19 @@ def scramble_future(
                 at_distance = fut[is_current.loc[fut.index] & (fut["lap_number"] == max_lap)]
                 distance_row = at_distance.iloc[:1]
                 fut = fut.drop(index=distance_row.index)
-            fut = _concat([distance_row, _drop_some(fut, rng)])
+            if name == "laps" and cutoff_s is not None:
+                partial_keys = set(
+                    map(
+                        tuple,
+                        df.loc[partial_lap, list(spec.key)].itertuples(index=False, name=None),
+                    )
+                )
+                fut_keys = list(map(tuple, fut[list(spec.key)].itertuples(index=False, name=None)))
+                keep_partial = fut.loc[[key in partial_keys for key in fut_keys]]
+                drop_candidates = fut.loc[[key not in partial_keys for key in fut_keys]]
+                fut = _concat([distance_row, keep_partial, _drop_some(drop_candidates, rng)])
+            else:
+                fut = _concat([distance_row, _drop_some(fut, rng)])
 
         extra: list[pd.DataFrame] = []
         if spec.visibility == "time" and cutoff_s is not None:
@@ -243,7 +270,23 @@ def scramble_future(
             template["load_status"] = "complete"
         fut = _concat([fut, template])
 
+        partial_facts: dict[tuple[object, ...], dict[str, object]] = {}
+        if name == "laps" and cutoff_s is not None and bool(partial_lap.any()):
+            for fact_row in df.loc[partial_lap, [*spec.key, *_PARTIAL_LAP_FACTS]].itertuples(
+                index=False, name=None
+            ):
+                key = tuple(fact_row[: len(spec.key)])
+                partial_facts[key] = dict(
+                    zip(_PARTIAL_LAP_FACTS, fact_row[len(spec.key) :], strict=True)
+                )
         fut = _scramble_columns(name, fut, rng, protected=protected)
+        if partial_facts:
+            for row_index, current_row in fut.iterrows():
+                key = tuple(current_row[column] for column in spec.key)
+                values = partial_facts.get(key)
+                if values is not None:
+                    for column, value in values.items():
+                        fut.at[row_index, column] = cast(Any, value)
         if spec.visibility == "time":
             fut = _sync_visibility(name, fut)
             if cutoff_s is not None and not fut.empty:

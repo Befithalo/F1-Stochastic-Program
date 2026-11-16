@@ -21,20 +21,20 @@ Phases 1–5 provide the data layer, simulator, wear filter, and cutoff-safe str
 
 ## Phase 6 walk-forward results
 
-The pre-registered sample uses the first calendar rounds available in a 4/3/3 split, with Bahrain 2023 fixed as the reference race. The ten races are `2023-01`, `2023-02`, `2023-03`, `2023-04`, `2024-01`, `2024-02`, `2024-03`, `2025-01`, `2025-02`, and `2025-03`. The evaluation uses 1000 simulations per prediction, base seed 0, and risk aversion 0.5. The 2026 races are excluded.
+The pre-registered sample uses the first calendar rounds available in a 4/3/3 split, with Bahrain 2023 fixed as the reference race. The ten races are `2023-01`, `2023-02`, `2023-03`, `2023-04`, `2024-01`, `2024-02`, `2024-03`, `2025-01`, `2025-02`, and `2025-03`. Each prediction uses 1,000 simulations, base seed 0, and risk aversion 0.5. The continuation regression uses two-fold cross-fitting: each scoring fold is excluded from its regression-fit paths. The 2026 races are excluded.
 
-For each eligible cutoff, the scoring set contains 10,942 driver-cutoff observations. Results first average observations within each race and then weight the ten races equally. Brier-score comparisons use the same finite model/baseline rows. The baseline uses only earlier races, five neutral pseudo-starts, and field-size neutral rates for the first race. Intervals below are paired 95% percentile-bootstrap intervals over 10 whole-race clusters (2,000 resamples); negative model-minus-baseline differences favor the model on Brier score.
+The fixed-engine run produced 10,391 finite driver-cutoff predictions for Brier scoring. Results first average observations within each race, then give the ten races equal weight. Brier comparisons use the same finite model and baseline rows. The baseline uses only earlier races, five neutral pseudo-starts, and field-size neutral rates for the first race. Intervals below are paired 95% percentile-bootstrap intervals over 10 whole-race clusters (2,000 resamples); negative differences favor the model.
 
 | Outcome | Model Brier | Past-only grid baseline Brier | Model minus baseline (mean; 95% race-cluster interval) |
 |---|---:|---:|---:|
-| Podium | 0.04996303890335588 | 0.08173654492348711 | -0.031773506020131244 [-0.05672358543556256, -0.005363629173093326] |
-| Top 10 | 0.14533417363917167 | 0.1909038082417302 | -0.04556963460255854 [-0.08052476306631937, -0.010127941480180428] |
+| Podium | 0.047577115412777045 | 0.08039264027755422 | -0.03281552486477717 [-0.05659808575571115, -0.007513405355438941] |
+| Top 10 | 0.14461052617055442 | 0.1899145165444817 | -0.04530399037392725 [-0.08394133716127004, -0.00723574000178926] |
 
-The inclusive empirical inverted-CDF P05/P95 endpoints form each simulated 90% finishing-position interval. Among 9,602 classified finishers, 8,004 fell inside their interval: coverage 0.8295398500926574, with a 95% race-cluster interval of [0.7607601520282031, 0.8843303002979427] over 10 races. Unclassified starters are excluded from this coverage denominator because the simulator does not model retirements.
+The inclusive empirical inverted-CDF P05/P95 endpoints form each simulated 90% finishing-position interval. Among 9,146 classified finishers, 7,650 fell inside their interval: coverage 0.8321320371253993, with a 95% race-cluster interval of [0.7607317538579549, 0.8887111448658811]. Unclassified starters are excluded because the simulator does not model retirements.
 
-The team-call section is a retrospective comparison with observed team behavior. No superiority claim is made. It matched 388 of 388 observed pit-stop events across 10 races, using the latest recommendation strictly before each in-lap. Top-action agreement was 0.7899209298533085 [0.7041475831091105, 0.8696134672582672] (mean; 95% race-cluster interval). Signed stop-timing error is planned stop lap minus observed in-lap: its mean was 1.076021920859382 laps [0.5541985817086437, 1.583301885476808]. Mean absolute timing error was 1.4024312868817512 laps [0.9634773987831265, 1.836237109317411]. Both timing intervals are 95% race-cluster intervals over 10 races.
+The team-call section is a retrospective comparison with observed team behavior. No superiority claim is made. It matched 388 of 388 observed pit stops across 10 races. Top-action agreement was 0.17538471772651862 [0.0674825915707056, 0.3080644630651049] (mean; 95% race-cluster interval). Signed timing error (planned stop lap minus observed in-lap) averaged 1.957219052615472 laps [-0.10449789603689873, 3.2388810987605736]; mean absolute timing error was 3.659534286401295 laps [2.9675666163901457, 4.650973476402823]. The top action was `wait and decide next lap` in 5,707/10,404 recommendations (54.85%) before the continuation-fit change and 5,624/10,391 (54.12%) after it. The result preserves a distinct next-lap policy while fitting continuation values on paths independent from those scored.
 
-The wear-band diagnostic is a retrospective proxy, not latent ground truth. The filter's 1.96-standard-deviation (nominal 95%) wear band covered 6,398 of 7,678 available proxy comparisons (0.8332899192498047). For estimates using at most eight clean laps, the report's early-fit bias (cutoff posterior mean minus proxy) was -0.006948225533989541 s/lap. Current-stint clean laps made up a mean share of 0.05490457502513985 across 5,958 measurements under the report's same-cutoff, same-compound definition. No leave-stint-out reference could be estimated for `2023-03` or `2025-01`; these races are reported as unavailable rather than treated as misses. The filter was not tuned on these evaluation races.
+The wear-band diagnostic is a retrospective proxy, not latent ground truth. The filter's 1.96-standard-deviation wear band covered 6,382 of 7,659 available proxy comparisons (0.833268050659355). For estimates using at most eight clean laps, early-fit bias (cutoff posterior mean minus proxy) was -0.007208870207207395 s/lap. Current-stint clean laps made up a mean share of 0.05488478791292842 across 5,939 measurements under the same-cutoff, same-compound definition. No leave-stint-out reference could be estimated for `2023-03` or `2025-01`; these races are reported as unavailable, not misses. The filter was not tuned on these evaluation races.
 
 Fuel load and tire wear are hidden variables. The simulator uses simplified assumptions, including linear wear, the existing historical safety-car probability rather than Phase 8's Markov regime model, and no retirement model. Sparse or prior-driven replay outputs remain uncalibrated; interval coverage here describes this sample and does not establish future calibration. The complete measured report is [`reports/backtest/phase-06.json`](reports/backtest/phase-06.json), and the [Phase 6 explainer](docs/explained/phase-06.md) describes the method and file tour. Run the read-only view with `uv run streamlit run src/f1si/app.py`.
 
@@ -48,6 +48,7 @@ uv run pre-commit install
 uv run f1si --data-dir data/demo load --source synthetic   # offline demo with fake races
 uv run f1si --data-dir data/demo races
 uv run f1si load                                           # real races, about 15 minutes the first time
+uv run f1si backfill-scheduled-laps                        # FastF1 scheduled lap counts; the backtest and page need them
 uv run f1si races
 uv run f1si plot bahrain-2023                              # writes reports\bahrain-2023.png
 uv run f1si wear bahrain-2023                              # writes reports\wear-bahrain-2023.png
@@ -57,9 +58,11 @@ uv run f1si simulate bahrain-2023 --driver ALO             # hindsight simulatio
 uv run f1si simulate bahrain-2023 --driver ALO --lap 30    # simulation using only data up to lap 30
 uv run f1si wear-filter bahrain-2023 --driver ALO           # as-of wear-rate band, writes reportswear-filter-bahrain-2023-ALO.png
 uv run f1si wear-filter bahrain-2023 --driver ALO --lap 30   # replay stopped at lap 30
+uv run f1si backtest --report                              # score the ten registered races, writes reports\backtest\phase-06.json
+uv run streamlit run src/f1si/app.py                       # the replay page
 uv run pytest
 ```
 
 ## Data and credits
 
-The current loader uses OpenF1 (openf1.org; personal, non-commercial use) for timing and race data and the Jolpica F1 API (Ergast-compatible) for calendar, grid, results, and pit-stop facts. FastF1 was the original planned source; it is MIT-licensed, but DEC-005 records why the current loader uses OpenF1 and Jolpica instead. This project is not affiliated with Formula 1. Source terms still apply; raw data is never committed or republished.
+The loader uses OpenF1 (openf1.org; personal, non-commercial use) for timing and race data and the Jolpica F1 API (Ergast-compatible) for calendar, grid, results, and pit-stop facts (DEC-005). FastF1 (MIT-licensed) supplies each race's scheduled lap count through `f1si backfill-scheduled-laps`, which the backtest and the replay page need, and the team colors on the page. Fresh FastF1 timing downloads may require an F1 TV Access, Pro, or Premium account (DEC-107); verified cached counts keep working without one. This project is not affiliated with Formula 1. Source terms still apply; raw data is never committed or republished.

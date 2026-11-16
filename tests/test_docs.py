@@ -232,6 +232,25 @@ def test_phase6_published_results_match_completed_report_and_disclosures() -> No
     readme = README.read_text(encoding="utf-8")
     explainer = _text(PHASE6)
     metrics = report["metrics"]
+    strategy = metrics["team_strategy_comparison"]
+    action_frequency = strategy["top_action_frequency"]
+
+    assert action_frequency["recommendation_count"] == sum(
+        action_frequency["action_counts"].values()
+    )
+    assert action_frequency["wait_count"] == action_frequency["action_counts"].get(
+        "wait and decide next lap", 0
+    )
+    assert action_frequency["wait_share"] == pytest.approx(
+        action_frequency["wait_count"] / action_frequency["recommendation_count"]
+    )
+    assert report["metadata"]["continuation_fit_scheme"] == (
+        "two-fold cross-fit on the registered path batch"
+    )
+    assert (
+        "excluded from its regression-fit paths"
+        in report["metadata"]["continuation_fit_scoring_isolation"]
+    )
 
     for race_id in report["race_ids"]:
         assert race_id in readme

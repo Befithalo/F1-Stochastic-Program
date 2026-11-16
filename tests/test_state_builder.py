@@ -2,10 +2,12 @@
 
 import dataclasses
 from pathlib import Path
+from typing import Any, cast
 
 import pandas as pd
 import pytest
 
+from f1si.data import _db
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, RaceSnapshot
 from f1si.pace.kalman import FilterSnapshot
 from f1si.pace.linear import fit_linear_pace
@@ -66,6 +68,62 @@ def test_mid_race(long_synthetic_db: Path) -> None:
     assert set(state.pit_loss_s) == {"green", "sc"}
     assert state.pit_loss_s["sc"] == 0.5 * state.pit_loss_s["green"]
     assert state.sc_laps_elapsed == 0
+
+
+def test_started_pit_outlap_is_new_compound_age_zero_and_counted(
+    long_synthetic_db: Path,
+) -> None:
+    laps = _db.read_table(long_synthetic_db, "laps", race_id=LONG_RACE_ID)
+    cutoffs = _db.read_table(long_synthetic_db, "lap_cutoffs", race_id=LONG_RACE_ID)
+    candidate: tuple[int, int, int, float, str] | None = None
+    for cutoff in cutoffs.itertuples(index=False):
+        in_progress = laps[
+            laps["is_pit_out_lap"].fillna(False)
+            & (laps["lap_start_s"] <= cutoff.cutoff_s)
+            & (laps["lap_end_s"] > cutoff.cutoff_s)
+        ]
+        if not in_progress.empty:
+            row = in_progress.iloc[0]
+            candidate = (
+                int(cast(Any, cutoff.lap)),
+                int(row["driver_number"]),
+                int(row["lap_number"]),
+                float(cast(Any, cutoff.cutoff_s)),
+                str(row["compound"]),
+            )
+            break
+    assert candidate is not None, "synthetic race should include a cutoff inside a pit out-lap"
+    lap, driver_number, out_lap_number, _cutoff_s, compound = candidate
+
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf(LONG_RACE_ID, lap))
+    assert not (
+        (snapshot.laps["driver_number"] == driver_number)
+        & (snapshot.laps["lap_number"] == out_lap_number)
+    ).any()
+    started_stint = snapshot.stints.loc[
+        (snapshot.stints["driver_number"] == driver_number)
+        & (snapshot.stints["first_lap"] == out_lap_number)
+    ].iloc[0]
+    assert started_stint["compound"] == compound
+    assert started_stint["laps_so_far"] == 0
+    assert started_stint["tyre_life_now"] == 0
+    assert (
+        (snapshot.pit_events["driver_number"] == driver_number)
+        & (snapshot.pit_events["out_lap"] == out_lap_number)
+    ).any()
+    fit = fit_linear_pace(snapshot)
+    state = build_race_state(
+        snapshot,
+        fit,
+        laps_total=int(cutoffs["lap"].max()),
+        pit_loss_s=22.0,
+    )
+    car = next(car for car in state.cars if car.driver_number == driver_number)
+
+    assert car.laps_done == out_lap_number - 1
+    assert car.compound == compound
+    assert car.tire_age == 0
+    assert car.stops_done >= 1
 
 
 def test_last_lap_round_trips(long_synthetic_db: Path) -> None:

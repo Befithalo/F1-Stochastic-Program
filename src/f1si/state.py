@@ -504,9 +504,10 @@ def build_race_state(
         (D-05). `pit_loss_s` is {"green": pit_loss_s, "sc": SC_PIT_LOSS_RATIO * pit_loss_s}, the
         "sc" value a placeholder until Phase 8 (REG-03). VSC and red flags are not modelled (D-02).
       * One car per row of `snapshot.cars`, ordered by (position unknown last, position, number).
-      * Compound and tire age come from the car's latest visible stint; at lap 0 they come from
-        the entry's start compound and start tyre age (0 if unknown). `tire_age` is laps already
-        on the tyres. `compounds_used` lists compounds in stint order, start compound first.
+      * Compound and tire age come from the car's latest visible stint; a started out-lap sets the
+        new compound and tyre age 0 before the lap is complete. At lap 0 they come from the
+        entry's start compound and start tyre age (0 if unknown). `tire_age` is laps already on the
+        tyres. `compounds_used` lists compounds in stint order, start compound first.
       * Wear rate, wear SD and pace offset come from `fit`; they are None when the compound is
         unknown or unfitted, the driver is not in the fit, or the fit is unidentified.
       * Gap to the car ahead: time gap on the last lap both cars completed (see module

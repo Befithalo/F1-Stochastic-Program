@@ -10,6 +10,8 @@ Conventions
 
   A NULL `visible_at_s` means "not knowable mid-race" (for example a lap with no recorded end
   time); such a row is visible only at the race end and in history.
+* The as-of door may additionally expose a started, unfinished lap with only its start-time facts
+  (lap start, pit-out flag, stint and compound); completion facts stay hidden until lap end.
 * Canonical pandas dtypes after `normalize`: INTEGER -> Int64, DOUBLE -> Float64,
   BOOLEAN -> boolean, VARCHAR -> object holding str or None, TIMESTAMP -> tz-naive UTC
   datetime64[us]. Missing values are pandas NA, which DuckDB stores as SQL NULL.
