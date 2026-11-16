@@ -4,15 +4,15 @@ milestone: v1.0
 current_phase: 06
 current_plan: 10
 status: ready_to_plan
-stopped_at: Plan 07-04 complete
-last_updated: "2026-11-16T10:33:37.921Z"
+stopped_at: Phase 8 context gathered
+last_updated: "2026-11-16T12:11:52.837Z"
 last_activity: 2026-11-16
-state_head: db6a8f862db8088d152645a39f114d5b660f0d56
+state_head: 84bb8d53846780db8f43ba7d005572054f0cb807
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 49
-  completed_plans: 48
+  completed_plans: 49
 milestone_name: milestone
 current_phase_name: MVP Backtest, Streamlit View & README
 last_activity_desc: Completed Plan 06-11 and exact-head Ubuntu/Windows CI; owner approval is pending
@@ -166,6 +166,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-16T10:33:37.275Z
-Stopped at: Plan 07-04 complete
-Resume file: .planning/phases/07-bayesian-pace-model/07-05-PLAN.md
+Last session: 2026-11-16T12:11:52.118Z
+Stopped at: Phase 8 context gathered
+Resume file: .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md
