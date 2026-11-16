@@ -198,14 +198,18 @@ def test_lap_15_replay_ranks_only_distinct_live_choices(db: Path) -> None:
     )
 
     assert cutoff.analysis is not None
-    actions = {row.action for row in cutoff.analysis.options}
-    assert actions == {
+    # ALO's out-lap 15 has started on Hards (DEC-112), so Soft and Hard are both used: never
+    # stopping again is legal, and a second stop may fit any of the three dry compounds.
+    actions = [row.action for row in cutoff.analysis.options]
+    assert len(actions) == len(set(actions))
+    assert set(actions) == {
         "pit now (HARD)",
         "pit now (MEDIUM)",
+        "pit now (SOFT)",
+        "stay out",
         "wait and decide next lap",
     }
-    assert len(cutoff.analysis.options) == 3
-    assert cutoff.analysis.never_stop_allowed is False
+    assert cutoff.analysis.never_stop_allowed is True
     assert cutoff.analysis.waiting_tie_window_laps is not None
 
     simulator = NumpySimulator(
@@ -231,16 +235,7 @@ def test_lap_15_replay_ranks_only_distinct_live_choices(db: Path) -> None:
     [
         "VER",
         "PER",
-        pytest.param(
-            "ALO",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "Lap-15 inputs cannot see Aston Martin's full race pace, and the model "
-                    "does not simulate retirements."
-                ),
-            ),
-        ),
+        "ALO",
         "SAI",
         "HAM",
     ],
