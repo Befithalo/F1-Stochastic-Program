@@ -64,6 +64,7 @@ from f1si.plots.wear_filter import (
     render_wear_filter_plot,
     wear_filter_file_name,
 )
+from f1si.regime.markov import estimate_regime_model
 from f1si.regime.sc_rate import ScRateEstimate, estimate_sc_rate
 from f1si.rng import DEFAULT_SEED, make_rng
 from f1si.sim.constants import MAX_RACES
@@ -1103,6 +1104,7 @@ def _prepare_replay_context(
     if snapshot is None:
         snapshot = accessor.snapshot(at)
     history = accessor.history(at)
+    regime_estimate = estimate_regime_model(history)
     if pace_model not in ("linear", "bayesian"):
         raise ValueError(f"Unknown pace model {pace_model!r}; choose 'linear' or 'bayesian'.")
     if pace_model == "bayesian":
@@ -1120,6 +1122,7 @@ def _prepare_replay_context(
             cast(PaceStateFit, bayesian_fit),
             laps_total=laps_total,
             pit_loss_s=pit.median_s,
+            regime_estimate=regime_estimate,
         )
         estimate = estimate_sc_rate(history)
         bayesian_compounds = bayesian_fit.fitted_compounds
@@ -1159,7 +1162,12 @@ def _prepare_replay_context(
     pit = measure_pit_loss(snapshot, fit)
     wear = current_stint_snapshots(filter_stints(snapshot, fit))
     state = build_race_state(
-        snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
+        snapshot,
+        fit,
+        laps_total=laps_total,
+        pit_loss_s=pit.median_s,
+        wear_filter=wear,
+        regime_estimate=regime_estimate,
     )
     estimate = estimate_sc_rate(history)
     # A legal dry strategy must use two different compounds. A one-compound fit cannot price a

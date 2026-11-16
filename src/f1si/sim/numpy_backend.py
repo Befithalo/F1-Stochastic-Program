@@ -331,6 +331,24 @@ class NumpySimulator:
         # draws
         d_sc = max(1, n_sim)
         sc_params, passing, noise = make_streams(rng, d_sc)
+        use_markov = state.regime_transition is not None
+        regime_index = np.full(
+            n,
+            ("green", "vsc", "sc", "red", "wet").index(
+                max(state.regime, key=state.regime.__getitem__)
+            ),
+            dtype=np.int64,
+        )
+        regime_transition = (
+            np.ascontiguousarray(state.regime_transition, dtype=np.float64)
+            if use_markov
+            else np.ascontiguousarray(np.eye(5), dtype=np.float64)
+        )
+        pit_cost_by_regime = (
+            np.ascontiguousarray(state.pit_loss_by_regime_s, dtype=np.float64)
+            if state.pit_loss_by_regime_s is not None
+            else np.ascontiguousarray([pit_green, pit_green, pit_sc, pit_green, pit_green])
+        )
         n_draw = len(DRAW_COMPOUNDS)
         block = uniform_block(self._mode, n_sim + n_cars + n_draw, n, sc_params)
         u_sc_all = np.ascontiguousarray(block[:, :n_sim])
@@ -397,6 +415,11 @@ class NumpySimulator:
         self._check_kernel_inputs(
             mean_tab, stop_lap, next_comp, n_comp_run, n_cars, wear_sd, wear_age_off, z_wear
         )
+        regime_draws = (
+            uniform_block(self._mode, d_sc, n, rng.spawn(1)[0])
+            if use_markov
+            else np.zeros((n, d_sc), dtype=np.float64)
+        )
         for j in range(n_sim):
             pu = uniform_block(self._mode, n_cars, n, passing[j])
             eps = normal_block(self._mode, n_cars, n, noise)
@@ -405,6 +428,11 @@ class NumpySimulator:
                 mean_tab[j],
                 sd_tab[j],
                 np.ascontiguousarray(u_sc_all[:, j]),
+                np.ascontiguousarray(regime_draws[:, j]),
+                use_markov,
+                regime_transition,
+                regime_index,
+                pit_cost_by_regime,
                 z_off,
                 z_wear,
                 eps,

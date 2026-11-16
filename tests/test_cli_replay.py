@@ -3,6 +3,7 @@
 import argparse
 import unittest
 from contextlib import redirect_stderr
+from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,7 +12,7 @@ from typing import Any, cast
 import numpy as np
 import pytest
 
-from f1si import cli
+from f1si import cli, paths
 from f1si.cli import build_parser, main
 from f1si.data import asof
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
@@ -19,7 +20,8 @@ from f1si.pace.kalman import GENERIC_SIGMA_S
 from f1si.pace.linear import _classify, fit_linear_pace
 from f1si.pace.sparse_fallback import SparsePaceFallback
 from f1si.sim.constants import MAX_RACES
-from f1si.sim.numpy_backend import NumpySimulator
+from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
+from f1si.strategy.longstaff import LongstaffSchwartzPolicy
 from tests.conftest import LONG_RACE_ID, LONG_SLUG
 
 
@@ -68,8 +70,53 @@ def test_replay_state_contains_validated_five_state_markov_inputs(
 
     assert tuple(context.state.regime_transition.shape) == (5, 5)
     assert context.state.regime_transition.flags.c_contiguous
-    assert tuple(context.state.pit_loss_by_regime_s) == (22.0, 16.5, 11.0, 22.0, 22.0)
+    costs = context.state.pit_loss_by_regime_s
+    assert costs.shape == (5,)
+    assert costs.tolist() == pytest.approx(
+        [
+            context.state.pit_loss_s["green"],
+            0.75 * context.state.pit_loss_s["green"],
+            0.5 * context.state.pit_loss_s["green"],
+            context.state.pit_loss_s["green"],
+            context.state.pit_loss_s["green"],
+        ]
+    )
     assert sum(context.state.regime.values()) == pytest.approx(1.0)
+
+
+@pytest.mark.skipif(not paths.db_path(paths.data_dir()).exists(), reason="local race cache absent")
+def test_bahrain_2023_controlled_safety_car_changes_top_action() -> None:
+    """A controlled SC state changes Alonso's cutoff recommendation without using outcomes."""
+    accessor = AsOfAccessor(paths.db_path(paths.data_dir()))
+    at = AsOf("2023-01", 15)
+    snapshot = accessor.snapshot(at)
+    context = cli._prepare_replay_context(accessor, "2023-01", 57, 15, snapshot=snapshot)
+    green_cost = context.state.pit_loss_s["green"]
+    costs = np.array([green_cost, 0.75 * green_cost, 0.5 * green_cost, green_cost, green_cost])
+    policy = LongstaffSchwartzPolicy(
+        context.model,
+        compounds=context.compounds,
+        risk_aversion=0.5,
+        n_simulations=128,
+        seed=1729,
+        sc=SafetyCarModel(context.estimate.rate_per_lap, context.estimate.duration_laps),
+        wear_sd_by_compound=context.wear_sd_by_compound,
+    )
+    controlled_matrix = np.eye(5, dtype=np.float64)
+    recommendations = [
+        policy.analyze(
+            replace(
+                context.state,
+                regime={regime: 1.0},
+                regime_transition=controlled_matrix,
+                pit_loss_by_regime_s=costs,
+            ),
+            driver="ALO",
+        ).best.action
+        for regime in ("green", "sc")
+    ]
+
+    assert recommendations == ["wait and decide next lap", "pit now (HARD)"]
 
 
 def test_sparse_fallback_replay_returns_ranked_options_at_lap_zero_and_fallback_lap(

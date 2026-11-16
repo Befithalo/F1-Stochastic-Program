@@ -53,7 +53,7 @@ import json
 import math
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Final, Protocol
 
@@ -84,8 +84,22 @@ _CAR_KEYS: Final = (
 )
 _OPTIONAL_CAR_KEYS: Final = ("laps_done", "pace_offset_sd", "wear_source")
 _WEAR_SOURCES: Final = ("fit", "filter")
-_STATE_KEYS: Final = ("lap", "laps_total", "regime", "pit_loss_s", "cars", "sc_laps_elapsed")
-_OPTIONAL_STATE_KEYS: Final = ("sc_laps_elapsed",)
+_STATE_KEYS: Final = (
+    "lap",
+    "laps_total",
+    "regime",
+    "pit_loss_s",
+    "cars",
+    "sc_laps_elapsed",
+    "regime_transition",
+    "pit_loss_by_regime_s",
+)
+_OPTIONAL_STATE_KEYS: Final = (
+    "sc_laps_elapsed",
+    "regime_transition",
+    "pit_loss_by_regime_s",
+)
+_REGIMES: Final = ("green", "vsc", "sc", "red", "wet")
 SC_PIT_LOSS_RATIO: Final = 0.5
 
 
@@ -246,6 +260,10 @@ class RaceState:
     pit_loss_s: Mapping[str, float]
     cars: tuple[CarState, ...]
     sc_laps_elapsed: int = 0
+    regime_transition: NDArray[np.float64] | None = field(default=None, compare=False, repr=False)
+    pit_loss_by_regime_s: NDArray[np.float64] | None = field(
+        default=None, compare=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         if _check_int("sc_laps_elapsed", self.sc_laps_elapsed) < 0:
@@ -259,12 +277,30 @@ class RaceState:
         regime = _freeze_mapping("regime", self.regime)
         if not regime or abs(sum(regime.values()) - 1.0) > 1e-9 or min(regime.values()) < 0:
             raise ValueError(f"regime must be non-negative and sum to 1, got {dict(regime)!r}")
+        if any(key not in _REGIMES for key in regime):
+            raise ValueError(f"regime keys must be among {_REGIMES}, got {tuple(regime)}")
         pit_loss = _freeze_mapping("pit_loss_s", self.pit_loss_s)
         for key, value in pit_loss.items():
             if value <= 0:
                 raise ValueError(f"pit_loss_s[{key!r}] must be > 0, got {value!r}")
         object.__setattr__(self, "regime", regime)
         object.__setattr__(self, "pit_loss_s", pit_loss)
+        if self.regime_transition is not None:
+            transition = np.asarray(self.regime_transition, dtype=np.float64)
+            if transition.shape != (5, 5) or not np.isfinite(transition).all():
+                raise ValueError("regime_transition must be a finite 5x5 matrix")
+            if (transition < 0).any() or not np.allclose(transition.sum(axis=1), 1.0, atol=1e-9):
+                raise ValueError("regime_transition rows must be non-negative and sum to one")
+            transition = np.ascontiguousarray(transition)
+            transition.flags.writeable = False
+            object.__setattr__(self, "regime_transition", transition)
+        if self.pit_loss_by_regime_s is not None:
+            costs = np.asarray(self.pit_loss_by_regime_s, dtype=np.float64)
+            if costs.shape != (5,) or not np.isfinite(costs).all() or (costs <= 0).any():
+                raise ValueError("pit_loss_by_regime_s must contain five finite positive costs")
+            costs = np.ascontiguousarray(costs)
+            costs.flags.writeable = False
+            object.__setattr__(self, "pit_loss_by_regime_s", costs)
         object.__setattr__(self, "cars", tuple(self.cars))
         for car in self.cars:
             if car.laps_done is not None and car.laps_done > self.lap:
@@ -334,6 +370,10 @@ class RaceState:
         }
         if self.sc_laps_elapsed:
             out["sc_laps_elapsed"] = self.sc_laps_elapsed
+        if self.regime_transition is not None:
+            out["regime_transition"] = self.regime_transition.tolist()
+        if self.pit_loss_by_regime_s is not None:
+            out["pit_loss_by_regime_s"] = self.pit_loss_by_regime_s.tolist()
         return out
 
     def to_json(self) -> str:
@@ -387,6 +427,8 @@ class RaceState:
             pit_loss_s=data["pit_loss_s"],
             cars=tuple(cars),
             sc_laps_elapsed=data.get("sc_laps_elapsed", 0),
+            regime_transition=data.get("regime_transition"),
+            pit_loss_by_regime_s=data.get("pit_loss_by_regime_s"),
         )
 
     @classmethod
@@ -505,6 +547,7 @@ def build_race_state(
     laps_total: int,
     pit_loss_s: float,
     wear_filter: Mapping[int, FilterSnapshot] | None = None,
+    regime_estimate: Any | None = None,
 ) -> RaceState:
     """Build the `RaceState` for the cutoff of `snapshot` (pure; reads only its arguments).
 
@@ -646,11 +689,26 @@ def build_race_state(
             )
         )
     sc_active, sc_elapsed = _safety_car_state(snapshot, lap)
+    current_regime = "sc" if sc_active else "green"
+    transition = None
+    regime_costs = None
+    if regime_estimate is not None:
+        from f1si.regime.markov import label_regime
+
+        cutoff = math.inf if snapshot.cutoff_s is None else snapshot.cutoff_s
+        current_regime = label_regime(snapshot.track_status, snapshot.weather, cutoff)
+        transition = regime_estimate.transition
+        regime_costs = np.array(
+            [pit_loss_s, 0.75 * pit_loss_s, 0.5 * pit_loss_s, pit_loss_s, pit_loss_s],
+            dtype=np.float64,
+        )
     return RaceState(
         lap=lap,
         laps_total=laps_total,
-        regime={"sc": 1.0} if sc_active else {"green": 1.0},
+        regime={current_regime: 1.0},
         pit_loss_s={"green": pit_loss_s, "sc": SC_PIT_LOSS_RATIO * pit_loss_s},
         cars=tuple(states),
         sc_laps_elapsed=sc_elapsed,
+        regime_transition=transition,
+        pit_loss_by_regime_s=regime_costs,
     )
