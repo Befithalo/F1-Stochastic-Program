@@ -168,8 +168,13 @@ def test_markov_state_rejects_invalid_numeric_inputs(
     state = build_race_state(
         snapshot, fit_linear_pace(snapshot), laps_total=LAPS_TOTAL, pit_loss_s=22.0
     )
+    marked = dataclasses.replace(
+        state,
+        regime_transition=np.eye(5),
+        pit_loss_by_regime_s=[22.0, 16.5, 11.0, 22.0, 22.0],
+    )
     with pytest.raises(ValueError, match=message):
-        dataclasses.replace(state, **{field: value})
+        dataclasses.replace(marked, **{field: value})
 
 
 def test_markov_state_requires_a_one_hot_cutoff_regime(long_synthetic_db: Path) -> None:

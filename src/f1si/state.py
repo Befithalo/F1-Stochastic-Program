@@ -286,6 +286,8 @@ class RaceState:
         object.__setattr__(self, "regime", regime)
         object.__setattr__(self, "pit_loss_s", pit_loss)
         if self.regime_transition is not None:
+            if len(regime) != 1 or not math.isclose(next(iter(regime.values())), 1.0):
+                raise ValueError("a Markov-aware RaceState regime must be one-hot")
             transition = np.asarray(self.regime_transition, dtype=np.float64)
             if transition.shape != (5, 5) or not np.isfinite(transition).all():
                 raise ValueError("regime_transition must be a finite 5x5 matrix")
@@ -294,7 +296,11 @@ class RaceState:
             transition = np.ascontiguousarray(transition)
             transition.flags.writeable = False
             object.__setattr__(self, "regime_transition", transition)
+            if self.pit_loss_by_regime_s is None:
+                raise ValueError("pit_loss_by_regime_s is required with regime_transition")
         if self.pit_loss_by_regime_s is not None:
+            if self.regime_transition is None:
+                raise ValueError("regime_transition is required with pit_loss_by_regime_s")
             costs = np.asarray(self.pit_loss_by_regime_s, dtype=np.float64)
             if costs.shape != (5,) or not np.isfinite(costs).all() or (costs <= 0).any():
                 raise ValueError("pit_loss_by_regime_s must contain five finite positive costs")
