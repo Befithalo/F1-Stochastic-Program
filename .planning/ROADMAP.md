@@ -39,7 +39,12 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
   1. A user can audit cached inputs and build a reproducible physics input with optional OpenF1 telemetry, location, and weather, preserving original timestamps and race/session-clock mapping to each cutoff; unavailable coverage is reported and poor telemetry or location coverage leaves a documented fallback.
   2. A user can select a versioned, unit-checked Bahrain 2023 track profile whose source, coordinate transform, quality checks, attribution, and redistribution terms are recorded; if rights are unclear, the profile remains external/local and is referenced by digest and provenance.
   3. A user can inspect which vehicle, fuel, and tire quantities are effective fitted composites versus hidden assumptions, including supporting evidence, era-specific bounds, uncertainty, and sensitivity results.
-**Plans**: TBD
+**Plans:** 4 plans
+Plans:
+- [ ] 09-01-PLAN.md — Create Wave 0 validation contracts for Phase 9.
+- [ ] 09-02-PLAN.md — Build cutoff-safe optional channels and the PhysicsInput envelope.
+- [ ] 09-03-PLAN.md — Validate and pin the Bahrain 2023 geometry profile.
+- [ ] 09-04-PLAN.md — Publish the parameter register, numeric sensitivity result, and closeout report.
 **Required closeout for every phase**: Report the unchanged M1 baseline from .planning/M1-BASELINE.md: podium Brier 0.055456 (grid baseline 0.073693); top-10 Brier 0.144645 (grid baseline 0.169086); inclusive P05–P95 coverage 82.26% (16,508/20,001); signed planned-stop timing error +1.174 laps (695 matched stops); and top-action agreement with observed team calls 17.22% (695 matched stops). Preserve the original definitions and denominators; do not recompute this baseline or include the separate 2026 report. Require passing Ubuntu and Windows CI before phase close. Record method/source/evaluation decisions in DECISIONS.md and keep the 50,000-race runtime budget.
 
 ### Phase 10: Point-Mass PaceModel

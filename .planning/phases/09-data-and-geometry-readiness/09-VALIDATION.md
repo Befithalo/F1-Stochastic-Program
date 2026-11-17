@@ -18,19 +18,22 @@ created: "2026-11-17"
 | Property | Value |
 |----------|-------|
 | **Framework** | pytest 9.x + Hypothesis |
-| **Config file** | `pyproject.toml` |
-| **Quick run command** | `uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q` |
-| **Full suite command** | `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest --cov=f1si --cov-report=term` |
+| **Config file** | pyproject.toml |
+| **Quick run command** | uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q |
+| **Full suite command** | uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest --cov=f1si --cov-report=term |
 | **Estimated runtime** | Under 60 minutes in CI; exact local runtime to be recorded by the executor |
+
+No new test or runtime dependency is planned. The phase extends the existing normalized source/cache loader and validates DuckDB changes through that loader and tests; it creates no schema-push task.
 
 ---
 
 ## Sampling Rate
 
-- **After every task commit:** Run the narrowest relevant pytest command below.
+- **After every task commit:** Run the task's narrowest automated command below.
 - **After every plan wave:** Run the full suite command.
-- **Before phase closeout:** Require the repository CI matrix to pass on `ubuntu-latest` and `windows-latest`.
-- **Max feedback latency:** The CI job timeout is 60 minutes; local targeted test runs should remain under 120 seconds.
+- **Before phase closeout:** Require the repository CI matrix to pass on ubuntu-latest and windows-latest.
+- **Max feedback latency:** CI job timeout is 60 minutes; local targeted tests should remain under 120 seconds.
+- **Continuity:** Every task has an automated verification command paired with an observable failure condition.
 
 ---
 
@@ -38,20 +41,27 @@ created: "2026-11-17"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | TBD | DAT-01 | T-09-01 | Exclude rows after cutoff; preserve source timestamp and race-clock mapping | unit + integration | `uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | GEO-01 | T-09-02 | Reject missing, malformed, or digest-mismatched geometry before model use | unit + integration | `uv run pytest tests/geometry/test_profile.py -q` | ❌ W0 | ⬜ pending |
-| TBD | TBD | TBD | PAR-01 | T-09-03 | Keep fitted composites distinct from hidden assumptions and serialize evidence, bounds, uncertainty, and sensitivity status | unit + report contract | `uv run pytest tests/parameters/test_register.py -q` | ❌ W0 | ⬜ pending |
+| 09-01-T01 | 09-01-PLAN.md | 0 | DAT-01 | T-09-01 | Specify exact-cutoff inclusion, future-row exclusion, UTC provenance, fallback, and holdout boundary | Contract collection | uv run pytest tests/data/test_physics_input.py --collect-only -q | Wave 0 creates it | pending |
+| 09-01-T02 | 09-01-PLAN.md | 0 | GEO-01 | T-09-03 | Specify provenance, geometry quality, path confinement, missing-asset, and digest rejection | Contract collection | uv run pytest tests/geometry/test_profile.py --collect-only -q | Wave 0 creates it | pending |
+| 09-01-T03 | 09-01-PLAN.md | 0 | PAR-01 | T-09-04 | Specify effective-versus-assumed classification, evidence, bounds, uncertainty, and sensitivity fields | Contract collection | uv run pytest tests/parameters/test_register.py --collect-only -q | Wave 0 creates it | pending |
+| 09-02-T01 | 09-02-PLAN.md | 1 | DAT-01 | T-09-05 | Preserve source time and exclude post-cutoff telemetry through the as-of door | Integration | uv run pytest tests/data/test_physics_input.py -k "car_data_cutoff or physics_input_is_immutable" -q | Created by 09-01-T01 | pending |
+| 09-02-T02 | 09-02-PLAN.md | 1 | DAT-01 | T-09-06 | Validate timestamped optional payloads and report sparse-channel fallback | Unit + integration | uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q | Created by 09-01-T01 | pending |
+| 09-03-T01 | 09-03-PLAN.md | 2 | GEO-01 | T-09-11 | Reject path escapes, missing/altered digest, malformed geometry, units, or quality failures | Unit + integration | uv run pytest tests/geometry/test_profile.py -q | Created by 09-01-T02 | pending |
+| 09-03-T02 | 09-03-PLAN.md | 2 | GEO-01 | T-09-11 | Pin source revision and record file-level rights, transform, attribution, and digest | Integration + provenance review | uv run pytest tests/geometry/test_profile.py tests/data/test_physics_input.py -q | Created by 09-01-T02 and 09-01-T01 | pending |
+| 09-04-T01 | 09-04-PLAN.md | 3 | PAR-01 | T-09-13 | Keep hidden physical values distinct and require citations, era bounds, and uncertainty | Unit + serialization | uv run pytest tests/parameters/test_register.py -k "register or assumption" -q | Created by 09-01-T03 | pending |
+| 09-04-T02 | 09-04-PLAN.md | 3 | PAR-01 | T-09-16 | Use only in-sample RaceSnapshot data, report numeric evidence sensitivity, and exclude results/2026 | Unit + report contract | uv run pytest tests/parameters/test_register.py -k "sensitivity or report" -q | Created by 09-01-T03 | pending |
+| 09-04-T03 | 09-04-PLAN.md | 3 | PAR-01 | T-09-16 | Produce reproducible numeric sensitivity output and required phase-closeout disclosures | Report generation | uv run python -m f1si.parameters.report --database data/f1si.duckdb --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json | Created by 09-04-T02 | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending · green · red · flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `tests/data/test_physics_input.py` — cutoff filtering, UTC source-time preservation, coverage report, and cached-lap fallback.
-- [ ] `tests/geometry/test_profile.py` — manifest, digest, units/transform, quality validation, and fail-closed behavior.
-- [ ] `tests/parameters/test_register.py` — fitted-versus-assumed classification, evidence, bounds, uncertainty, and sensitivity fields.
-- [ ] Assign the placeholder task/plan/wave IDs above once the planner emits the executable plan set.
+- [ ] **09-01-T01 / Plan 09-01 / Wave 0:** tests/data/test_physics_input.py — cutoff filtering, source UTC and race-clock preservation, per-channel coverage, fallback, immutability, and results/holdout boundary.
+- [ ] **09-01-T02 / Plan 09-01 / Wave 0:** tests/geometry/test_profile.py — manifest and digest, units/transform, quality validation, path confinement, and fail-closed behavior.
+- [ ] **09-01-T03 / Plan 09-01 / Wave 0:** tests/parameters/test_register.py — fitted-effective versus hidden-assumption classification, evidence, era bounds, uncertainty, and sensitivity fields.
+- [ ] Wave 0 tasks collect all acceptance tests before production implementation; later plans turn each suite green.
 
 ---
 
@@ -59,17 +69,17 @@ created: "2026-11-17"
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| File-level redistribution and attribution review for the chosen Sakhir geometry asset | GEO-01 | License metadata and upstream data obligations require source review and cannot be established by a digest test | Record exact asset URL/revision, asset-level terms, attribution, and the bundle-or-external decision in the geometry manifest and `DECISIONS.md`. |
+| File-level redistribution and attribution review for the chosen Sakhir geometry asset | GEO-01 | A digest test cannot establish rights for the individual file or its underlying OpenStreetMap/satellite-derived source material | Record the exact asset URL/revision, file-specific terms, attribution, and bundle-or-external decision in docs/geometry/bahrain-2023-profile.json and DECISIONS.md. If rights remain unclear, retain only the local/external asset and provenance reference. |
 
 ---
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verification or Wave 0 dependencies.
-- [ ] Sampling continuity: no three consecutive tasks without automated verification.
-- [ ] Wave 0 covers all missing test references.
+- [ ] All tasks have automated verification paired with observable failure conditions.
+- [ ] Sampling continuity has no three consecutive tasks without automated verification.
+- [ ] Wave 0 covers all three previously missing test suites.
 - [ ] No watch-mode flags.
 - [ ] Feedback latency is within the limits above.
-- [ ] Set `nyquist_compliant: true` only after Wave 0 and the phase test map are complete.
+- [ ] Set nyquist_compliant: true only after Wave 0 tests and the phase test map are complete.
 
 **Approval:** pending
