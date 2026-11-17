@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -70,7 +71,7 @@ def test_valid_profile_preserves_units_transform_rights_and_digest(
     assert serialized["transform"]["type"] == "identity"
     assert json.loads(json.dumps(serialized))["units"]["coordinates"] == "m"
     with pytest.raises(TypeError):
-        profile.manifest.transform["type"] = "mutated"
+        cast(Any, profile.manifest.transform)["type"] = "mutated"
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
     prepared = build_physics_input(
         snapshot,

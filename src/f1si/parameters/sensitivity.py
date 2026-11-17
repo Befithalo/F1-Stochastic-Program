@@ -24,7 +24,12 @@ def _estimate_rows(
     wear: list[dict[str, Any]] = []
     for race_id, fit in fits:
         report = fit.report
-        if report.fuel_s_per_lap is not None and report.fuel_se is not None:
+        if (
+            report.fuel_s_per_lap is not None
+            and report.fuel_se is not None
+            and report.fuel_ci_low is not None
+            and report.fuel_ci_high is not None
+        ):
             fuel.append(
                 {
                     "race_id": race_id,

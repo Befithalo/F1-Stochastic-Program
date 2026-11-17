@@ -236,6 +236,11 @@ def build_physics_input(
     frames = {
         name: _cutoff_frame(getattr(snapshot, name), snapshot.cutoff_s) for name in _TIME_COLUMNS
     }
-    prepared = replace(snapshot, **frames)
+    prepared = replace(
+        snapshot,
+        weather=frames["weather"],
+        car_data=frames["car_data"],
+        location=frames["location"],
+    )
     coverage = {name: _coverage(name, frame) for name, frame in frames.items()}
     return PhysicsInput(prepared, geometry_ref, parameter_ref, coverage)

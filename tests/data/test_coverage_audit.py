@@ -52,8 +52,8 @@ def test_bahrain_probe_is_bounded_to_three_optional_endpoints() -> None:
     assert result["lights_out_utc"] == "2023-03-05T15:00:00Z"
     for _path, params in channel_calls:
         assert params["session_key"] == 1234
-        start = pd.Timestamp(params["date>"])
-        end = pd.Timestamp(params["date<"])
+        start = pd.Timestamp(str(params["date>"]))
+        end = pd.Timestamp(str(params["date<"]))
         assert 0 <= (end - start).total_seconds() <= 600
 
 

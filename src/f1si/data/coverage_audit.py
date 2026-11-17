@@ -38,7 +38,7 @@ def _local_cache_report(db_path: Path) -> dict[str, Any]:
             ).fetchall()
             counts[channel] = {str(race_id): int(count) for race_id, count in grouped}
 
-    races = [
+    races: list[dict[str, Any]] = [
         {
             "race_id": race_id,
             "channels": {
@@ -124,7 +124,7 @@ def probe_bahrain_2023(
                 f"expected one Bahrain 2023 Race session, found {len(candidates)}"
             )
         session_row = candidates[0]
-        session_key = int(session_row["session_key"])
+        session_key = int(str(session_row["session_key"]))
         lap_rows = fetch_rows(
             "/laps",
             {"session_key": session_key, "lap_number": 1},
@@ -134,7 +134,7 @@ def probe_bahrain_2023(
         return _unavailable_probe(f"OpenF1 session metadata unavailable: {error}")
 
     lap_one_times = pd.to_datetime(
-        [row.get("date_start") for row in lap_rows if row.get("lap_number") == 1],
+        [str(row.get("date_start", "")) for row in lap_rows if row.get("lap_number") == 1],
         utc=True,
         errors="coerce",
     ).dropna()
@@ -154,9 +154,12 @@ def probe_bahrain_2023(
         for endpoint in ("/car_data", "/location", "/weather"):
             endpoint_rows = fetch_rows(endpoint, params, freshness="forever")
             timestamps = pd.to_datetime(
-                [row.get(_DATE_COLUMN) for row in endpoint_rows], utc=True, errors="coerce"
+                [str(row.get(_DATE_COLUMN, "")) for row in endpoint_rows],
+                utc=True,
+                errors="coerce",
             )
             valid = timestamps.notna()
+            valid_count = sum(1 for value in valid if bool(value))
             valid_times = timestamps[valid]
             race_clock = (valid_times - lights_out).total_seconds()
             aligned = bool(len(valid_times) > 0 and ((race_clock >= 0) & (race_clock <= 600)).all())
@@ -169,27 +172,29 @@ def probe_bahrain_2023(
                 first_race_clock = float((first_timestamp - lights_out).total_seconds())
             endpoints[endpoint] = {
                 "row_count": len(endpoint_rows),
-                "usable_row_count": int(valid.sum()),
-                "valid_timestamp_fraction": float(valid.mean()) if len(endpoint_rows) else 0.0,
+                "usable_row_count": valid_count,
+                "valid_timestamp_fraction": valid_count / len(endpoint_rows)
+                if endpoint_rows
+                else 0.0,
                 "race_clock_alignment": "aligned" if aligned else "misaligned",
                 "first_source_utc": first_source,
                 "first_race_clock_s": first_race_clock,
             }
     except (SourceError, RateLimitedError) as error:
-        result = _unavailable_probe(
+        unavailable = _unavailable_probe(
             f"bounded telemetry probe failed: {error}", session_key=session_key
         )
-        result["lights_out_utc"] = _utc_iso(lights_out)
-        result["window"] = {
+        unavailable["lights_out_utc"] = _utc_iso(lights_out)
+        unavailable["window"] = {
             "start_utc": _utc_iso(lights_out),
             "end_utc": _utc_iso(end),
             "duration_minutes": 10,
         }
-        result["endpoints"].update(endpoints)
-        return result
+        unavailable["endpoints"].update(endpoints)
+        return unavailable
 
     usable = sum(int(value["usable_row_count"]) for value in endpoints.values())
-    result: dict[str, Any] = {
+    probe_report: dict[str, Any] = {
         "race_id": "2023-01",
         "status": "available" if usable else "unavailable",
         "session_key": session_key,
@@ -202,8 +207,8 @@ def probe_bahrain_2023(
         "endpoints": endpoints,
     }
     if not usable:
-        result["reason"] = "all three optional endpoints returned no usable timestamped rows"
-    return result
+        probe_report["reason"] = "all three optional endpoints returned no usable timestamped rows"
+    return probe_report
 
 
 def build_coverage_report(

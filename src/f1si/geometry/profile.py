@@ -8,10 +8,11 @@ import io
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -38,14 +39,14 @@ class GeometryProfileManifest:
     asset_path: str
     sha256: str
     coordinate_frame: str
-    transform: MappingProxyType
-    units: MappingProxyType
+    transform: Mapping[str, Any]
+    units: Mapping[str, Any]
     attribution: str
     redistribution_status: str
-    quality: MappingProxyType
+    quality: Mapping[str, Any]
     source_repository: str
-    rights_review: MappingProxyType
-    validation: MappingProxyType
+    rights_review: Mapping[str, Any]
+    validation: Mapping[str, Any]
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-compatible copy, including rights and measured validation outcomes."""
@@ -183,10 +184,10 @@ def _read_only_array(values: np.ndarray) -> np.ndarray:
     return np.frombuffer(array.tobytes(order="C"), dtype="<f8")
 
 
-def _mapping(value: object, name: str) -> MappingProxyType:
+def _mapping(value: object, name: str) -> Mapping[str, Any]:
     if not isinstance(value, dict):
         raise GeometryProfileError(f"manifest {name} must be a JSON object")
-    return _freeze(value)
+    return cast(Mapping[str, Any], _freeze(value))
 
 
 def _freeze(value: Any) -> Any:
@@ -275,7 +276,7 @@ def _manifest(data: object) -> GeometryProfileManifest:
     )
 
 
-def _number(mapping: MappingProxyType, name: str) -> float:
+def _number(mapping: Mapping[str, Any], name: str) -> float:
     try:
         value = float(mapping[name])
     except (KeyError, TypeError, ValueError):
@@ -285,7 +286,7 @@ def _number(mapping: MappingProxyType, name: str) -> float:
     return value
 
 
-def _validate_quality(quality: MappingProxyType) -> None:
+def _validate_quality(quality: Mapping[str, Any]) -> None:
     names = (
         "minimum_width_m",
         "maximum_width_m",
@@ -317,13 +318,13 @@ def _validate_quality(quality: MappingProxyType) -> None:
             raise GeometryProfileError(f"{name} must be finite and between 0 and 2")
 
 
-def _validate_transform(transform: MappingProxyType) -> None:
+def _validate_transform(transform: Mapping[str, Any]) -> None:
     kind = transform.get("type")
     if kind not in {"identity", "rigid_2d"}:
         raise GeometryProfileError("transform.type must be identity or rigid_2d")
     try:
         translation = np.asarray(transform.get("translation_m"), dtype="float64")
-        rotation_deg = float(transform.get("rotation_deg"))
+        rotation_deg = float(transform["rotation_deg"])
     except (TypeError, ValueError):
         raise GeometryProfileError(
             "transform requires a finite 2D translation and rotation"
@@ -389,7 +390,10 @@ def _parse_csv(raw: bytes) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarr
                 f"geometry CSV row {line_number} has an inconsistent column count"
             )
         try:
-            parsed.append(tuple(float(row[index].strip()) for index in indices))
+            x_value, y_value, right_value, left_value = (
+                float(row[index].strip()) for index in indices
+            )
+            parsed.append((x_value, y_value, right_value, left_value))
         except (IndexError, ValueError):
             raise GeometryProfileError(
                 f"geometry CSV row {line_number} contains a non-numeric value"
@@ -412,9 +416,10 @@ def _curvature(xy: np.ndarray) -> np.ndarray:
     )
     cross = np.abs(previous[:, 0] * following[:, 1] - previous[:, 1] * following[:, 0])
     with np.errstate(divide="ignore", invalid="ignore"):
-        return np.divide(
+        curvature: np.ndarray = np.divide(
             2.0 * cross, denominator, out=np.full_like(cross, np.inf), where=denominator > 0
         )
+    return curvature
 
 
 def _relative_delta(reference: float, observed: float) -> float:
@@ -422,7 +427,7 @@ def _relative_delta(reference: float, observed: float) -> float:
 
 
 def _apply_transform(
-    x_m: np.ndarray, y_m: np.ndarray, transform: MappingProxyType
+    x_m: np.ndarray, y_m: np.ndarray, transform: Mapping[str, Any]
 ) -> tuple[np.ndarray, np.ndarray]:
     translation = np.asarray(transform["translation_m"], dtype="float64")
     angle = math.radians(float(transform["rotation_deg"]))
@@ -437,7 +442,7 @@ def _validate_geometry(
     y_m: np.ndarray,
     width_right_m: np.ndarray,
     width_left_m: np.ndarray,
-    quality: MappingProxyType,
+    quality: Mapping[str, Any],
 ) -> GeometryValidation:
     xy = np.column_stack((x_m, y_m))
     if (

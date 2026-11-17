@@ -5,14 +5,16 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import pytest
 
+from f1si.data.asof import RaceSnapshot
+from f1si.data.physics_input import VersionedArtifactRef
 
-def _artifact_ref(kind: str):
-    from f1si.data.physics_input import VersionedArtifactRef
 
+def _artifact_ref(kind: str) -> VersionedArtifactRef:
     return VersionedArtifactRef(name=kind, version="1", sha256="0" * 64)
 
 
@@ -180,4 +182,8 @@ def test_physics_input_refuses_history_or_out_of_sample_capabilities() -> None:
     from f1si.data.physics_input import build_physics_input
 
     with pytest.raises((TypeError, ValueError)):
-        build_physics_input(object())
+        build_physics_input(
+            cast(RaceSnapshot, object()),
+            geometry_ref=_artifact_ref("geometry"),
+            parameter_ref=_artifact_ref("parameters"),
+        )
