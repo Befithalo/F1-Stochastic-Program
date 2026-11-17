@@ -1,0 +1,1 @@
+{"content":"OpenF1 documented public car telemetry exposes speed, controls, DRS, RPM and gear; weather exposes air and track temperature, not tyre temperature. Treat tyre temperature as a hidden modeled state, not a measurement.","source":"web","provider":"websearch","confidence":"MEDIUM","fetched_at":"2026-11-17T20:43:57.334Z","ttl":86400000,"kind":"web"}
