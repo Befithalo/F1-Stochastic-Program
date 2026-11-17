@@ -36,7 +36,7 @@
     {
       "number": "7",
       "name": "Bayesian Pace Model",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "8",
@@ -46,8 +46,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 8 of 8 · executing"
+    "label": "Advance to the next step (verify)",
+    "reason": "Phase 5 of 8 · 75% · ready to verify"
   },
-  "updated_at": "2026-11-16T20:44:25.651Z"
+  "updated_at": "2026-11-17T19:34:26.563Z"
 }

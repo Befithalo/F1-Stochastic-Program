@@ -1,9 +1,9 @@
 ---
 phase: "07"
 slug: "bayesian-pace-model"
-status: draft
+status: pending_exact_head_ci
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: "2026-11-16"
 ---
 
@@ -19,7 +19,7 @@ created: "2026-11-16"
 | **Config file** | pyproject.toml |
 | **Quick run command** | uv run pytest tests/pace/test_bayesian_model.py -q |
 | **Full suite command** | uv run pytest --cov=f1si --cov-report=term |
-| **Estimated runtime** | ~300 seconds including the bounded NUTS reference |
+| **Estimated runtime** | ~25 minutes for the full suite including the bounded NUTS reference |
 
 ## Sampling Rate
 
@@ -53,11 +53,26 @@ All Phase 7 acceptance criteria are automated. No UI review or manual checkpoint
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verification.
-- [ ] Sampling continuity: every task has a focused automated command.
+- [x] All tasks have automated verification.
+- [x] Sampling continuity: every task has a focused automated command.
 - [x] Wave 0 is not needed; existing test infrastructure is in place.
 - [x] No watch-mode flags.
-- [ ] Full suite and exact-head CI pass.
+- [x] Full suite passed; report-verifier fix passed focused tests and the locked report verifies read-only.
+- [ ] Exact-head Ubuntu and Windows CI pass after all closeout changes.
 - [ ] nyquist_compliant: true set after plan verification and successful execution.
 
-**Approval:** pending
+**Executed checks (2026-11-17):**
+
+| Command | Result |
+|---------|--------|
+| `uv run pytest --cov=f1si --cov-report=term` | Passed: 1,243 passed, 33 deselected, 8 warnings in 1,494.58s; total coverage 87%. This run included `test_seeded_multiera_panel_recovers_pace_effects_and_predictive_coverage` and the bounded four-chain NUTS reference. |
+| `uv run pytest tests/backtest/test_bayesian_accuracy.py tests/test_decisions_log.py -q` | Passed after DEC-131: 42 tests in 1.55s. |
+| `uv run python -m f1si.backtest.pace_evaluation --verify-existing` | Passed read-only against the committed lock and report; no fit, target read, or result access. |
+| `uv run ruff check .` | Passed. |
+| `uv run ruff format --check .` | Passed: 192 files already formatted. |
+| `uv run mypy` | Passed: no issues in 178 source files. |
+| GitHub Actions exact-head checks | Pending after the final M1 closeout push; require successful Ubuntu and Windows checks for one `head_sha`. |
+
+The full suite ran before the DEC-131 report-verifier code change; all changed verifier paths, malformed-report cases, and decision assertions then passed the focused tests above. The next exact-head CI run executes the full workflow with the final code. PAC-06 remains unmet; the user-directed M1 closeout override does not change that measured result.
+
+**Approval:** pending exact-head CI and GSD verification

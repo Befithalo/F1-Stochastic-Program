@@ -32,8 +32,8 @@
 - [x] **PAC-02**: User can get the free-track optimal plan by brute-forcing every 1- and 2-stop strategy for total race time
 - [x] **PAC-03**: A Kalman filter estimates hidden tire wear per car from noisy lap times, with an uncertainty band
 - [x] **PAC-04**: On synthetic stints the Kalman estimate is within 10% of truth by lap 8 and 95% intervals cover truth about 95% of the time. *Restated 2026-11-12 (owner, Phase 4 D-17): 10% by stint lap 8 is not attainable at honest noise (about 19-35%); the gate is that the filter reaches the Bayes-optimal accuracy (matches the closed form), with the 10% figure reported against, not gated; revisit in Phase 7. Coverage stays gated.*
-- [ ] **PAC-05**: A hierarchical Bayesian (PyMC) pace model with car, driver, tire, fuel and era effects implements `PaceModel`
-- [ ] **PAC-06**: The Bayesian pace model recovers known parameters from synthetic data and beats a per-compound linear baseline by at least 15% on next-lap error
+- [x] **PAC-05**: A hierarchical Bayesian (PyMC) pace model with car, driver, tire, fuel and era effects implements `PaceModel`
+- [ ] **PAC-06**: The Bayesian pace model recovers known parameters from synthetic data and beats a per-compound linear baseline by at least 15% on next-lap error. *Synthetic recovery passed; the locked real-data gate was unmet (Bayesian MAE 0.538745 s vs 0.364033 s linear, -47.99% improvement); carried to M2 under DEC-130.*
 
 ### Regime Model
 
@@ -62,7 +62,7 @@
 - [x] **BKT-02**: Backtest reports Brier score (podium, top-10) vs a grid-position baseline and 90% finishing-interval coverage
 - [x] **BKT-03**: Backtest covers at least 20 races (10 at the MVP checkpoint), with results reported per era
 - [x] **BKT-04**: Strategy calls are compared with actual team calls, with confidence intervals
-- [ ] **BKT-05**: A locked holdout set is defined and touched only once, at milestone end
+- [x] **BKT-05**: A locked holdout set is defined and touched only once, at milestone end. *Phase 8's 2026 holdout was locked and scored once; the report is pre-registered but retrospectively unblinded.*
 
 ### Presentation
 
@@ -124,12 +124,12 @@
 | BKT-04 | Phase 6 | Complete |
 | UI-01 | Phase 6 | Complete |
 | UI-02 | Phase 6 | Complete |
-| PAC-05 | Phase 7 | Pending |
-| PAC-06 | Phase 7 | Pending |
+| PAC-05 | Phase 7 | Complete |
+| PAC-06 | Phase 7 | Not met; carried to M2 (DEC-130) |
 | REG-02 | Phase 8 | Complete |
 | REG-03 | Phase 8 | Complete |
 | BKT-03 | Phase 8 | Complete |
-| BKT-05 | Phase 8 | Pending |
+| BKT-05 | Phase 8 | Complete; one successful score, retrospective unblinding disclosed |
 
 **Coverage:** 38 v1 requirements, 38 mapped, 0 unmapped
 

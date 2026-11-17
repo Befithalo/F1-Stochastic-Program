@@ -28,6 +28,7 @@ from f1si.data.asof import AsOf, RaceEnd, RaceSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
 LOCK_PATH = ROOT / ".planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json"
+REPORT_PATH = ROOT / "reports/pace/phase-07.json"
 
 
 def test_lock_freezes_the_race_order_all_cutoffs_and_seed_derivation() -> None:
@@ -116,7 +117,7 @@ def test_one_shot_command_refuses_existing_report_and_verifies_without_scoring(
 ) -> None:
     _lock, digest = _read_lock(LOCK_PATH)
     report = tmp_path / "phase-07.json"
-    report.write_text(json.dumps({"status": "completed", "lock_sha256": digest}), encoding="utf-8")
+    report.write_bytes(REPORT_PATH.read_bytes())
 
     with pytest.raises(ValueError, match="already exists"):
         run_locked_evaluation(
@@ -132,6 +133,28 @@ def test_one_shot_command_refuses_existing_report_and_verifies_without_scoring(
     )
 
     assert verified["lock_sha256"] == digest
+    assert verified["paired_targets"] == 1348
+
+
+@pytest.mark.parametrize("tamper", ["missing-races", "contradictory-mae"])
+def test_existing_report_verification_rejects_incomplete_or_inconsistent_reports(
+    tmp_path: Path, tamper: str
+) -> None:
+    report_data = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
+    if tamper == "missing-races":
+        report_data["per_race"].pop("2025-01")
+    else:
+        report_data["linear_mae_s"] += 1.0
+    report = tmp_path / "phase-07.json"
+    report.write_text(json.dumps(report_data), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Existing evaluation report"):
+        run_locked_evaluation(
+            db_path=tmp_path / "must-not-open.duckdb",
+            lock_path=LOCK_PATH,
+            report_path=report,
+            verify_existing=True,
+        )
 
 
 def test_isolated_fit_worker_reopens_only_the_requested_cutoff(

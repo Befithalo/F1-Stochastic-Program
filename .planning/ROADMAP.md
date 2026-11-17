@@ -12,8 +12,8 @@ Milestone M1 builds the core stochastic engine. Phases 1-6 are the lean MVP (BUI
 - [x] **Phase 4: Kalman Tire Filter** - Hidden tire wear estimated per car with uncertainty, verified on synthetic stints (completed 2026-11-13)
 - [ ] **Phase 5: Longstaff-Schwartz Strategy & Live Replay** - Ranked pit options with CVaR, risk setting, reasons, Bahrain 2023 replay end to end
 - [x] **Phase 6: MVP Backtest, Streamlit View & README** - 10-race walk-forward backtest, team-call comparison, one-page view, README with real results (completed 2026-11-16)
-- [ ] **Phase 7: Bayesian Pace Model** - Hierarchical PyMC pace model with era effect, recovered on synthetic data, beats linear baseline
-- [ ] **Phase 8: Markov Regimes & Full Backtest** - Regime model and regime-dependent pit loss, 20-race per-era backtest, holdout touched once
+- [x] **Phase 7: Bayesian Pace Model** - Bayesian pace model and synthetic recovery completed; the locked real-data improvement gate was unmet and is carried into M2 under DEC-130 (completed 2026-11-17)
+- [x] **Phase 8: Markov Regimes & Full Backtest** - Implementation and locked scores complete; three judgment-tier constraints remain disclosed in verification (completed 2026-11-17)
 
 ## Phase Details
 
@@ -274,7 +274,7 @@ Rework order is represented by Waves 10 and 11 above.
 
 ### Phase 7: Bayesian Pace Model
 
-**Goal**: User can swap the linear pace model for a hierarchical Bayesian one that is proven to recover truth and predict better
+**Goal**: As a race strategist, I want to compare a hierarchical Bayesian pace model with the linear model, so that I can judge its uncertainty and next-lap predictions against real data.
 **Mode:** mvp
 **Depends on**: Phase 6
 **Requirements**: PAC-05, PAC-06
@@ -285,34 +285,18 @@ Rework order is represented by Waves 10 and 11 above.
   3. On held-out laps the next-lap error is at least 15% lower than the per-compound linear baseline
   4. The replay and backtest run with the Bayesian model without changes outside the model swap
 
-**Plans**: 6 plans
+**Plans**: 5/5 complete; the locked real-data improvement gate was unmet and is carried into M2 (DEC-130)
 
 Plans:
-- [x] 08-01-PLAN.md — Trace visible regime through Bahrain replay and simulation
-- [x] 08-02-PLAN.md — Verify transition recovery, precedence, and pit-cost assumptions
-- [x] 08-03-PLAN.md — Lock and score the exact 20-race in-sample evaluation
-- [x] 08-04-PLAN.md — Build and guard the isolated holdout evaluator and lock
-- [ ] 08-05-PLAN.md — Score the holdout once and publish report-derived results
-- [ ] 08-06-PLAN.md — Complete decision, validation, and exact-head CI checks
-
-**Wave 1**
-- [x] 07-01-PLAN.md
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 07-02-PLAN.md
-
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 07-03-PLAN.md
-
-**Wave 4** *(blocked on Wave 3 completion)*
-- [x] 07-04-PLAN.md
-
-**Wave 5** *(blocked on Wave 4 completion)*
-- [x] 07-05-PLAN.md
+- [x] 07-01-PLAN.md - Implement Bayesian pace and shared uncertainty
+- [x] 07-02-PLAN.md - Fit cutoff-safe training data and preserve era identity
+- [x] 07-03-PLAN.md - Verify synthetic recovery and bounded inference
+- [x] 07-04-PLAN.md - Integrate model selection into replay and backtest
+- [x] 07-05-PLAN.md - Lock, score once, and report the real-data comparison
 
 ### Phase 8: Markov Regimes & Full Backtest
 
-**Goal**: User gets regime-aware strategy calls and a final 20-race, per-era backtest with a once-only holdout evaluation
+**Goal**: As a race strategist, I want to get regime-aware pit recommendations and assess a locked 20-race, per-era evaluation, so that I can judge the strategy model across changing race conditions.
 **Mode:** mvp
 **Depends on**: Phase 7
 **Requirements**: REG-02, REG-03, BKT-03, BKT-05
@@ -324,7 +308,15 @@ Plans:
   4. A holdout set is defined and locked, then evaluated exactly once, with the result recorded in the README
   5. Live replay of Bahrain 2023 still works end to end and CI is green (M1 definition of done)
 
-**Plans**: TBD
+**Plans**: 6/6 complete
+
+Plans:
+- [x] 08-01-PLAN.md - Trace visible regime through Bahrain replay and simulation
+- [x] 08-02-PLAN.md - Verify transition recovery, precedence, and pit-cost assumptions
+- [x] 08-03-PLAN.md - Lock and score the exact 20-race in-sample evaluation
+- [x] 08-04-PLAN.md - Build and guard the isolated holdout evaluator and lock
+- [x] 08-05-PLAN.md - Score the holdout once and publish report-derived results
+- [x] 08-06-PLAN.md - Complete decision, validation, and exact-head CI checks
 
 ## Progress
 
@@ -336,5 +328,5 @@ Plans:
 | 4. Kalman Tire Filter | 5/5 | Complete    | 2026-11-13 |
 | 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
 | 6. MVP Backtest, Streamlit View & README | 12/12 | Complete    | 2026-11-16 |
-| 7. Bayesian Pace Model | 5/5 | In Progress | - |
-| 8. Markov Regimes & Full Backtest | 4/6 | In Progress | - |
+| 7. Bayesian Pace Model | 5/5 | Complete    | 2026-11-17 |
+| 8. Markov Regimes & Full Backtest | 6/6 | In Progress | - |

@@ -359,16 +359,268 @@ def _absolute_errors(
     return linear, bayesian
 
 
-def _existing_report(report_path: Path, lock_sha256: str) -> dict[str, Any]:
+_REPORT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "status",
+        "evaluation",
+        "lock_sha256",
+        "locked_race_ids",
+        "model_config",
+        "randomness",
+        "target_definition",
+        "metric",
+        "paired_targets",
+        "unique_driver_target_laps",
+        "linear_mae_s",
+        "bayesian_mae_s",
+        "improvement_percent",
+        "pac_06_met",
+        "per_race",
+        "fit_summary",
+        "era_identifiability",
+        "fit_predictions_completed_before_target_read",
+        "started_at_utc",
+        "completed_at_utc",
+        "runtime_seconds",
+    }
+)
+_PER_RACE_REPORT_FIELDS = frozenset(
+    {"paired_targets", "unique_driver_target_laps", "linear_mae_s", "bayesian_mae_s"}
+)
+_FIT_SUMMARY_FIELDS = frozenset(
+    {
+        "attempts",
+        "successes",
+        "failures",
+        "failure_examples",
+        "cutoffs_with_baseline_prediction_candidates",
+        "cutoffs_with_paired_prediction_candidates",
+        "cutoffs_skipped_without_baseline_targets",
+        "advi_iterations_per_fit",
+        "loss_relative_change_min",
+        "loss_relative_change_median",
+        "loss_relative_change_max",
+        "final_loss_median",
+    }
+)
+
+
+def _report_int(value: object, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ValueError(f"Existing evaluation report has invalid {label}")
+    return value
+
+
+def _report_number(
+    value: object, label: str, *, nullable: bool = False, nonnegative: bool = False
+) -> float | None:
+    if value is None and nullable:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"Existing evaluation report has invalid {label}")
+    number = float(value)
+    if not math.isfinite(number) or (nonnegative and number < 0.0):
+        raise ValueError(f"Existing evaluation report has invalid {label}")
+    return number
+
+
+def _validate_existing_report(
+    report: object, lock: dict[str, Any], lock_sha256: str
+) -> dict[str, Any]:
+    """Validate the frozen score's report structure and internal metric consistency."""
+    if not isinstance(report, dict) or set(report) != _REPORT_FIELDS:
+        raise ValueError("Existing evaluation report does not match the registered schema")
+    if report["schema_version"] != 1 or isinstance(report["schema_version"], bool):
+        raise ValueError("Existing evaluation report has an unsupported schema version")
+    if report["lock_sha256"] != lock_sha256:
+        raise ValueError("Existing report does not match the committed evaluation lock")
+    if report["status"] != "completed" or report["evaluation"] != (
+        "phase-07-locked-bayesian-pace-next-lap"
+    ):
+        raise ValueError("Existing evaluation report is not a completed Phase 7 score")
+    if report["locked_race_ids"] != list(LOCKED_RACES):
+        raise ValueError("Existing evaluation report does not match the registered race order")
+    if report["model_config"] != MODEL_CONFIG:
+        raise ValueError("Existing evaluation report model settings do not match the evaluator")
+    if report["randomness"] != lock["randomness"]:
+        raise ValueError("Existing evaluation report randomness does not match the lock")
+    if report["target_definition"] != lock["split"]["target_mask"]:
+        raise ValueError("Existing evaluation report target mask does not match the lock")
+    if report["metric"] != lock["metric"]:
+        raise ValueError("Existing evaluation report metric does not match the lock")
+    if report["fit_predictions_completed_before_target_read"] is not True:
+        raise ValueError("Existing evaluation report does not prove prediction/result ordering")
+
+    paired_targets = _report_int(report["paired_targets"], "paired target count")
+    unique_targets = _report_int(report["unique_driver_target_laps"], "unique target count")
+    if unique_targets > paired_targets:
+        raise ValueError("Existing evaluation report has more unique targets than paired rows")
+    linear_mae = _report_number(
+        report["linear_mae_s"], "linear MAE", nullable=True, nonnegative=True
+    )
+    bayesian_mae = _report_number(
+        report["bayesian_mae_s"], "Bayesian MAE", nullable=True, nonnegative=True
+    )
+    improvement = _report_number(report["improvement_percent"], "MAE improvement", nullable=True)
+    if paired_targets == 0:
+        if any(value is not None for value in (linear_mae, bayesian_mae, improvement)):
+            raise ValueError("Existing evaluation report has metrics without paired targets")
+    elif linear_mae is None or bayesian_mae is None or improvement is None or linear_mae <= 0.0:
+        raise ValueError("Existing evaluation report is missing paired-target metrics")
+
+    per_race = report["per_race"]
+    if not isinstance(per_race, dict) or set(per_race) != set(LOCKED_RACES):
+        raise ValueError("Existing evaluation report does not contain every locked race")
+    race_paired_total = 0
+    race_unique_total = 0
+    weighted_linear = 0.0
+    weighted_bayesian = 0.0
+    for race_id in LOCKED_RACES:
+        race_row = per_race[race_id]
+        if not isinstance(race_row, dict) or set(race_row) != _PER_RACE_REPORT_FIELDS:
+            raise ValueError(f"Existing evaluation report has invalid metrics for {race_id}")
+        race_paired = _report_int(race_row["paired_targets"], f"{race_id} paired target count")
+        race_unique = _report_int(
+            race_row["unique_driver_target_laps"], f"{race_id} unique target count"
+        )
+        if race_unique > race_paired:
+            raise ValueError(
+                f"Existing evaluation report has inconsistent target counts for {race_id}"
+            )
+        race_linear = _report_number(
+            race_row["linear_mae_s"], f"{race_id} linear MAE", nullable=True, nonnegative=True
+        )
+        race_bayesian = _report_number(
+            race_row["bayesian_mae_s"], f"{race_id} Bayesian MAE", nullable=True, nonnegative=True
+        )
+        if race_paired == 0:
+            if race_linear is not None or race_bayesian is not None:
+                raise ValueError(f"Existing evaluation report has empty-race metrics for {race_id}")
+        elif race_linear is None or race_bayesian is None:
+            raise ValueError(f"Existing evaluation report is missing metrics for {race_id}")
+        else:
+            weighted_linear += race_linear * race_paired
+            weighted_bayesian += race_bayesian * race_paired
+        race_paired_total += race_paired
+        race_unique_total += race_unique
+    if race_paired_total != paired_targets or race_unique_total != unique_targets:
+        raise ValueError("Existing evaluation report race totals do not match aggregate counts")
+    if paired_targets:
+        assert linear_mae is not None
+        assert bayesian_mae is not None
+        assert improvement is not None
+        expected_linear = weighted_linear / paired_targets
+        expected_bayesian = weighted_bayesian / paired_targets
+        expected_improvement = 100.0 * (expected_linear - expected_bayesian) / expected_linear
+        if not (
+            math.isclose(linear_mae, expected_linear, rel_tol=1e-10, abs_tol=1e-12)
+            and math.isclose(bayesian_mae, expected_bayesian, rel_tol=1e-10, abs_tol=1e-12)
+            and math.isclose(improvement, expected_improvement, rel_tol=1e-10, abs_tol=1e-12)
+        ):
+            raise ValueError("Existing evaluation report aggregate metrics contradict race metrics")
+    gate = lock["metric"]
+    expected_gate = bool(
+        paired_targets >= int(gate["minimum_paired_targets"])
+        and improvement is not None
+        and improvement >= 15.0
+    )
+    if report["pac_06_met"] is not expected_gate:
+        raise ValueError("Existing evaluation report PAC-06 result contradicts its metrics")
+
+    fit_summary = report["fit_summary"]
+    if not isinstance(fit_summary, dict) or set(fit_summary) != _FIT_SUMMARY_FIELDS:
+        raise ValueError("Existing evaluation report has an invalid fit summary")
+    attempts = _report_int(fit_summary["attempts"], "fit attempts")
+    successes = _report_int(fit_summary["successes"], "successful fit count")
+    failures = _report_int(fit_summary["failures"], "failed fit count")
+    baseline_cutoffs = _report_int(
+        fit_summary["cutoffs_with_baseline_prediction_candidates"], "baseline cutoff count"
+    )
+    paired_cutoffs = _report_int(
+        fit_summary["cutoffs_with_paired_prediction_candidates"], "paired cutoff count"
+    )
+    skipped_cutoffs = _report_int(
+        fit_summary["cutoffs_skipped_without_baseline_targets"], "skipped cutoff count"
+    )
+    expected_cutoffs = sum(
+        int(lock["split"]["eligible_cutoff_laps"][race_id]["last_inclusive"])
+        - int(lock["split"]["eligible_cutoff_laps"][race_id]["first"])
+        + 1
+        for race_id in LOCKED_RACES
+    )
+    if (
+        successes + failures != attempts
+        or baseline_cutoffs != attempts
+        or paired_cutoffs > successes
+        or attempts + skipped_cutoffs != expected_cutoffs
+        or fit_summary["advi_iterations_per_fit"] != MODEL_CONFIG["advi_iterations"]
+    ):
+        raise ValueError("Existing evaluation report fit counts contradict the locked cutoffs")
+    examples = fit_summary["failure_examples"]
+    if not isinstance(examples, list) or len(examples) != min(failures, 20):
+        raise ValueError("Existing evaluation report fit failure examples are incomplete")
+    for example in examples:
+        if (
+            not isinstance(example, dict)
+            or set(example) != {"race_id", "cutoff_lap", "reason"}
+            or example["race_id"] not in LOCKED_RACES
+            or isinstance(example["cutoff_lap"], bool)
+            or not isinstance(example["cutoff_lap"], int)
+            or not isinstance(example["reason"], str)
+            or not example["reason"]
+        ):
+            raise ValueError("Existing evaluation report has invalid fit failure details")
+    loss_values = [
+        _report_number(fit_summary[name], name, nullable=True, nonnegative=True)
+        for name in (
+            "loss_relative_change_min",
+            "loss_relative_change_median",
+            "loss_relative_change_max",
+        )
+    ]
+    loss_min, loss_median, loss_max = loss_values
+    final_loss = _report_number(fit_summary["final_loss_median"], "median fit loss", nullable=True)
+    if successes == 0:
+        if any(value is not None for value in loss_values) or final_loss is not None:
+            raise ValueError(
+                "Existing evaluation report has fit diagnostics without successful fits"
+            )
+    elif loss_min is None or loss_median is None or loss_max is None or final_loss is None:
+        raise ValueError("Existing evaluation report is missing successful-fit diagnostics")
+    elif not (loss_min <= loss_median <= loss_max):
+        raise ValueError("Existing evaluation report has unordered fit convergence diagnostics")
+
+    eras = report["era_identifiability"]
+    expected_eras = {
+        "training_era": "ground_effect_2022_2025",
+        "target_era": "ground_effect_2022_2025",
+        "between_era_effect_measured": False,
+        "note": lock["era_limit"],
+    }
+    if eras != expected_eras:
+        raise ValueError("Existing evaluation report era limit does not match the lock")
+    for name in ("started_at_utc", "completed_at_utc"):
+        value = report[name]
+        if not isinstance(value, str):
+            raise ValueError(f"Existing evaluation report has invalid {name}")
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as err:
+            raise ValueError(f"Existing evaluation report has invalid {name}") from err
+        if parsed.tzinfo is None:
+            raise ValueError(f"Existing evaluation report has timezone-naive {name}")
+    runtime = _report_number(report["runtime_seconds"], "runtime", nonnegative=True)
+    assert runtime is not None
+    return report
+
+
+def _existing_report(report_path: Path, lock: dict[str, Any], lock_sha256: str) -> dict[str, Any]:
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as err:
         raise ValueError(f"Cannot verify existing evaluation report: {err}") from err
-    if not isinstance(report, dict) or report.get("lock_sha256") != lock_sha256:
-        raise ValueError("Existing report does not match the committed evaluation lock")
-    if report.get("status") != "completed":
-        raise ValueError("Existing evaluation report is not marked completed")
-    return report
+    return _validate_existing_report(report, lock, lock_sha256)
 
 
 def run_locked_evaluation(
@@ -383,7 +635,7 @@ def run_locked_evaluation(
     lock, lock_sha256 = _read_lock(lock_path)
     if report_path.exists():
         if verify_existing:
-            return _existing_report(report_path, lock_sha256)
+            return _existing_report(report_path, lock, lock_sha256)
         raise ValueError(
             f"Evaluation report already exists at {report_path}; use --verify-existing to read it."
         )

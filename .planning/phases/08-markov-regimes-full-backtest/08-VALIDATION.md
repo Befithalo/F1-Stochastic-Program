@@ -43,8 +43,8 @@ created: "2026-11-16"
 | 08-04-02 | 04 | 4 | BKT-05 | T-08-04 | Only the dedicated evaluator may cross the result door; future-scramble guards pass | import/future guard | `uv run pytest tests/guards/test_import_ban.py tests/guards/test_future_scramble.py -q` | Existing guards + extension | passed in focused suite |
 | 08-05-01 | 05 | 5 | BKT-05 | T-08-07 | One holdout report matches its committed lock and verifies without rescoring | locked evaluation | `uv run f1si holdout --verify-existing --output reports/backtest/phase-08-holdout.json` | Existing report | passed after read-only verifier correction |
 | 08-05-02 | 05 | 5 | BKT-03, BKT-05 | T-08-07 | Public metrics match separate reports and retain per-race denominators and limitations | docs/report | `uv run pytest tests/test_docs.py -q` | Existing + extended | passed: 28 tests |
-| 08-06-01 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | DEC-121..128, assumptions, and the Phase 7 PAC-06 miss remain explicit and accurate | decision log | `uv run pytest tests/test_decisions_log.py -q` | Existing + extended | passed in focused and full suites |
-| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Focused paths, read-only report checks, strict checks, full pytest, and exact-head CI are recorded | phase validation | commands below | Existing + extended | local checks passed; exact-head CI pending |
+| 08-06-01 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | DEC-121..129, assumptions, and the Phase 7 PAC-06 miss remain explicit and accurate | decision log | `uv run pytest tests/test_decisions_log.py -q` | Existing + extended | passed in focused and full suites |
+| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Focused paths, read-only report checks, strict checks, full pytest, and exact-head CI are recorded | phase validation | commands below | Existing + extended | local checks passed; closeout-head CI pending |
 
 ## Wave 0 Requirements
 
@@ -64,8 +64,9 @@ All Phase 8 success criteria have automated verification. The once-only locked s
 | `uv run ruff check .` | Passed: All checks passed |
 | `uv run ruff format --check .` | Passed: 192 files already formatted |
 | `uv run mypy` | Passed: no issues in 178 source files |
-| `uv run pytest --cov=f1si --cov-report=term` | Passed: 1,235 passed, 33 deselected, 8 warnings, 1,490.44s; total coverage 87% |
-| Exact-head GitHub Actions query | Pending on the final pushed Phase 8 head; must include successful `checks (ubuntu-latest)` and `checks (windows-latest)` for the same `head_sha` |
+| `uv run pytest --cov=f1si --cov-report=term` | Passed: 1,243 passed, 33 deselected, 8 warnings, 1,494.58s; total coverage 87% |
+| `uv run pytest tests/backtest/test_holdout.py tests/test_decisions_log.py -q` | Passed: 51 tests after DEC-129 prediction-row validation |
+| Exact-head GitHub Actions query | Pending on the final closeout push; must include successful `checks (ubuntu-latest)` and `checks (windows-latest)` for the same `head_sha` |
 
 Both reports remain separate. The 20-race 2023–2025 report has 82.26% interval coverage and the 2026 holdout has 73.03%; do not pool these regulation-era samples. The holdout is pre-registered but retrospectively unblinded because schedule research incidentally displayed outcome information. The failed first invocation stopped before result access; the second produced the sole successful result-accessing score. Do not tune or rescore.
 
@@ -85,6 +86,6 @@ Both reports remain separate. The 20-race 2023–2025 report has 82.26% interval
 
 The exact score command was invoked twice: the first invocation failed at schedule preflight for 2026-09 and made no result-access call; after DEC-127 locked ex-ante schedule distances, the second completed with exactly one successful result-accessing score. It produced `reports/backtest/phase-08-holdout.json` for the nine locked races using linear pace, 1,000 simulations, seed 0, and risk 0.5. The report contains 11,352 prediction rows and 11,282 Brier observations. Its podium Brier is 0.06639, top-10 Brier is 0.14948, 90% interval coverage is 6,947/9,513 (73.03%), signed stop-timing error is +2.064 laps, and team-call agreement is 1.87% across 267 matched stops.
 
-The first read-only verifier attempt revealed that the lock listed required fields while the score writer also emitted its known `predictions` extension. DEC-128 narrows the fix to that list-valued extension and continues to reject unknown fields. The report and lock are unchanged; the verifier now passes without accessing data or recomputing predictions.
+The first read-only verifier attempt revealed that the lock listed required fields while the score writer also emitted its known `predictions` extension. DEC-128 narrows the fix to that list-valued extension and continues to reject unknown fields. The later code review found malformed rows could still pass; DEC-129 validates each frozen prediction row against the exact emitted shape, types, locked schedule bounds, and probability/finish constraints. The report and lock are unchanged; verification remains read-only.
 
 Search output and adjacent FIA media-kit classifications incidentally displayed outcome information during earlier schedule research. No displayed outcome values were copied into code, locks, metrics, or tuning. Describe this score as **pre-registered but retrospectively unblinded**, never blind. Do not change the sample, cutoffs, metrics, model, report, or score.

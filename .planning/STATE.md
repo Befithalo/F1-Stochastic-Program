@@ -1,20 +1,21 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 8
-current_phase_name: Markov Regimes & Full Backtest
-current_plan: 10
-status: executing
-stopped_at: Recorded Phase 8 holdout schedule blocker; completed independent 08-06 checks only
-last_updated: "2026-11-17T08:58:40.604Z"
-last_activity: 2026-11-16
-last_activity_desc: Phase 8 planning complete
-state_head: 8763af4ae42ee1470fe0a91777e44d6f616108ce
+current_phase: 5
+current_phase_name: Longstaff-Schwartz Strategy & Live Replay
+current_plan: 4
+status: verifying
+stopped_at: Phase 7 complete, ready to verify Phase 5
+last_updated: "2026-11-17T19:34:26.516Z"
+last_activity: 2026-11-17
+last_activity_desc: Phase 7 complete, transitioned to Phase 5
+state_head: d854e0b122d66a6fc0ddcfadb2927240353b0ca5
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 55
-  completed_plans: 53
+  completed_plans: 55
+  percent: 75
 milestone_name: milestone
 ---
 
@@ -29,20 +30,20 @@ See: .planning/PROJECT.md (updated 2026-10-22)
 
 ## Current Position
 
-Phase: 8 (Markov Regimes & Full Backtest) — READY TO EXECUTE
-Current Plan: Not started
+Phase: 5 — Longstaff-Schwartz Strategy & Live Replay
+Current Plan: 4
 Total Plans in Phase: 6
 Plan: 12 of 12
-Status: Ready to execute
-Last activity: 2026-11-16 — Phase 8 planning complete
+Status: Phase complete — ready for verification
+Last activity: 2026-11-17 — Phase 7 complete, transitioned to Phase 5
 
-Progress: [====------] 38%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 29
+- Total plans completed: 22
 - Average duration: -
 - Total execution time: -
 
@@ -60,6 +61,7 @@ Progress: [====------] 38%
 | 3 | 7 | - | - |
 | Phase 04 P01 | 1h | 3 tasks | 12 files |
 | 4 | 5 | - | - |
+| 7 | 5 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |
@@ -184,5 +186,5 @@ Progress: [====------] 38%
 ## Session Continuity
 
 Last session: 2026-11-17T08:58:39.889Z
-Stopped at: Recorded Phase 8 holdout schedule blocker; completed independent 08-06 checks only
+Stopped at: Phase 7 complete, ready to verify Phase 5
 Resume file: .planning/phases/08-markov-regimes-full-backtest/08-05-SUMMARY.md

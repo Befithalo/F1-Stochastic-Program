@@ -1421,3 +1421,36 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Accept arbitrary objects because the extension is optional; infer schema from report values; modify or rescore the committed holdout report.
 **Consequences:** Verification now rejects incomplete, mistyped, out-of-schedule, non-finite, or out-of-range prediction rows. The existing scored report remains read-only and is not opened or rescored as part of this change.
 **Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; `tests/backtest/test_holdout.py`; DEC-125, DEC-128
+
+## DEC-130 — Carry the unmet Bayesian pace gate into M2
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The locked Phase 7 evaluation met its 500-target minimum but the Bayesian model's 0.538745 s MAE was 47.993% higher than the 0.364033 s linear baseline. The user directed M1 closeout and continuation into M2 after this measured result was reported.
+**Decision:** Close M1 with PAC-06 explicitly recorded as unmet and carried forward. Do not retune or rescore the locked Phase 7 holdout, and do not describe its synthetic recovery result as real-data superiority. M2's hybrid model must pass its separately locked held-out-stint comparison against the data-only Bayesian model before the M3 gate is considered met.
+**Why:** The result is a real failed evaluation gate, while the user authorized milestone closeout and set M2's independent hybrid-vs-Bayesian held-out-stint gate. Preserving the miss keeps M1 history truthful and gives M2 a measurable target.
+**Alternatives rejected:** Mark PAC-06 passed; change or rescore the locked sample; or leave M1 without the user-directed closeout and M2 continuation.
+**Consequences:** The archived M1 requirements retain PAC-06 as not met, and the M1 audit/closeout names it as an accepted open gate. M2 must use a new, pre-registered real-data split and report the Phase 7 result as historical context.
+**Refs:** `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; `reports/pace/phase-07.json`; `.planning/ROADMAP.md`; DEC-118, DEC-120
+
+## DEC-131 — Verify the locked pace report without rescoring
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** Phase 7 code review found that `--verify-existing` accepted a report containing only `status: completed` and the correct lock digest, without requiring the locked races, metrics, or fit diagnostics.
+**Decision:** Make read-only verification validate the exact schema version 1 report fields, locked race order and configuration, per-race and aggregate metric consistency, the PAC-06 gate result, fit counts and diagnostics, era limit, and timestamp/runtime types. Never refit or rescore while verifying.
+**Why:** A lock digest proves which protocol a report names, but it does not prove the report contains complete results or internally consistent values. Schema and arithmetic checks make the existing artifact auditable without opening the data cache or results door.
+**Alternatives rejected:** Trust only `status` and digest; recompute predictions to validate a saved report; or modify/rescore the locked evaluation.
+**Consequences:** The committed Phase 7 report remains unchanged and must pass the stricter read-only verifier. Malformed, truncated, or internally inconsistent reports fail before any database access.
+**Refs:** `src/f1si/backtest/pace_evaluation.py`; `tests/backtest/test_bayesian_accuracy.py`; `reports/pace/phase-07.json`; DEC-118, DEC-120, DEC-129
+
+## DEC-132 — Use the final 20-race in-sample report as the M1 baseline
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** M2 phase summaries need a stable M1 reference for Brier score, interval coverage, signed stop-timing error, and team-call agreement. M1 has a 10-race MVP checkpoint, a final 20-race 2023-2025 in-sample report, and a separate 2026 holdout whose outcome information was incidentally exposed during schedule research.
+**Decision:** Use the locked `reports/backtest/phase-08.json` 20-race in-sample result as the canonical M1 baseline: podium Brier 0.055456, top-10 Brier 0.144645, inclusive P05-P95 coverage 82.26% (16,508/20,001), signed stop-timing error +1.174 laps, and team-call agreement 17.22% (695 matched stops). Copy these values and denominators from `.planning/M1-BASELINE.md` into every M2 phase-end report. Keep the Phase 6 checkpoint and 2026 holdout separate; never pool or rescore them for the M2 baseline.
+**Why:** The final 20-race report is the completed M1 in-sample evaluation and provides the required strategy metrics under one locked sample and model. Separating the 2026 report preserves its different era, lack of a grid baseline, and retrospective-unblinding disclosure.
+**Alternatives rejected:** Use only the 10-race MVP checkpoint; pool the 2026 holdout with 2023-2025; or recompute historical metrics during M2.
+**Consequences:** M2 summaries have a fixed, traceable comparison baseline while the underlying report remains unchanged. The failed PAC-06 pace result remains a separate historical gate, not a strategy metric.
+**Refs:** `.planning/M1-BASELINE.md`; `reports/backtest/phase-08.json`; `reports/backtest/phase-08-holdout.json`; DEC-124, DEC-125, DEC-130
