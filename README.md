@@ -4,7 +4,7 @@ A Python platform that recommends F1 pit strategy as a full probability distribu
 
 ## Status
 
-Phases 1–5 provide the data layer, simulator, wear filter, and cutoff-safe strategy replay. Phase 6 adds a fixed-sample, ten-race walk-forward evaluation and a read-only Streamlit view. Phase 7 adds an optional Bayesian pace model and a locked real-data evaluation; the 15% real-data improvement gate was not met. These results are measurements, not claims of calibrated performance or superiority over teams.
+Phases 1–5 provide the data layer, simulator, wear filter, and cutoff-safe strategy replay. Phase 6 adds a fixed-sample, ten-race walk-forward evaluation and a read-only Streamlit view. Phase 7 adds an optional Bayesian pace model and a locked real-data evaluation; the 15% real-data improvement gate was not met. Phase 8 adds Markov regime inputs and an in-sample report; its 2026 holdout remains pending because an authoritative ex-ante scheduled distance is unavailable for a locked event. No holdout score or report has been produced. These results are measurements, not claims of calibrated performance or superiority over teams.
 
 ## What Phase 1 gives you
 
@@ -50,6 +50,10 @@ The optional hierarchical Bayesian model passed the synthetic recovery checks, b
 | **Combined** | **1,348** | **1,344** | **0.3640** | **0.5387** |
 
 The score used 74 successful 50,000-iteration cutoff fits with no fit failures. The registered race group and metric were not changed after scoring, and the score was not rerun for tuning. All real training and target rows are from the 2022–2025 ground-effect regulation era, so the evaluation does not identify a real between-era effect. See the [complete report](reports/pace/phase-07.json), [Phase 7 explainer](docs/explained/phase-07.md), and [Phase 7 summary](docs/phases/07-bayesian-pace-model.md).
+
+## Phase 8 regime evaluation status
+
+Phase 8 adds cutoff-visible regime labels and race-local transition estimates. The committed in-sample report is separate from the 2026 holdout. The holdout score is pending: its single prescribed attempt stopped during schedule preflight because required scheduled-distance metadata was unavailable. No result values were accessed for that attempt, and no holdout report or holdout metrics exist. During external schedule research, outcome displays were incidentally exposed; any eventual evaluation must therefore be described as pre-registered but retrospectively unblinded, not blind. See the [Phase 8 explainer](docs/explained/phase-08.md) and [validation record](.planning/phases/08-markov-regimes-full-backtest/08-VALIDATION.md).
 
 Read [docs/explained/phase-05.md](docs/explained/phase-05.md) for the Phase 5 Longstaff-Schwartz and replay tour. Read [docs/explained/phase-04.md](docs/explained/phase-04.md) for the Phase 4 tour (the Kalman tyre-wear filter, its priors, real Bahrain numbers). Read [docs/explained/phase-03.md](docs/explained/phase-03.md) for the Phase 3 tour (the safety-car rate, passing, variance reduction, the simulator). Read [docs/explained/phase-02.md](docs/explained/phase-02.md) for the Phase 2 tour (interfaces, tyre wear, the pit plan). Read [docs/explained/phase-01.md](docs/explained/phase-01.md) for a plain-language tour of everything built (what, why, how the pieces connect, a file-by-file tour and interview questions). Every method choice is logged in [DECISIONS.md](DECISIONS.md).
 

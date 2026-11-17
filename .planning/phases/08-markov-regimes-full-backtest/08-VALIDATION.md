@@ -42,9 +42,9 @@ created: "2026-11-16"
 | 08-04-01 | 04 | 4 | BKT-05 | T-08-04 | Feature-only fit and committed exact holdout lock fail closed before result access | evaluator/lock | `uv run pytest tests/backtest/test_holdout.py -q` | New holdout test | pending |
 | 08-04-02 | 04 | 4 | BKT-05 | T-08-04 | Only the dedicated evaluator crosses the result door and future-scramble guards pass | import/future guard | `uv run pytest tests/guards/test_import_ban.py tests/guards/test_future_scramble.py -q` | Existing guards + extension | pending |
 | 08-05-01 | 05 | 5 | BKT-05 | T-08-07 | One holdout report matches its committed lock and verifies without rescoring | locked evaluation | `uv run f1si holdout --verify-existing --output reports/backtest/phase-08-holdout.json` | New command path | blocked: no report produced; score preflight failed |
-| 08-05-02 | 05 | 5 | BKT-03, BKT-05 | T-08-07 | Public metrics match separate reports and retain per-race/per-era denominators and limitations | docs/report | `uv run pytest tests/test_docs.py -q` | Existing + extended | blocked: holdout report absent; no holdout claims published |
+| 08-05-02 | 05 | 5 | BKT-03, BKT-05 | T-08-07 | Public metrics match separate reports and retain per-race/per-era denominators and limitations | docs/report | `uv run pytest tests/test_docs.py -q` | Existing + extended | partial: 27 docs tests pass; holdout metrics publication pending because report absent |
 | 08-06-01 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | DEC-121..126 and unresolved assumptions remain explicit and accurate | decision log | `uv run pytest tests/test_decisions_log.py -q` | Existing + extended | passed: 30 passed |
-| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Independent focused paths and checks recorded; report-dependent checks remain pending | partial validation | focused safe pytest set: 309 passed; `uv run ruff check .`: passed; `uv run ruff format --check .`: passed; `uv run mypy`: failed (7 errors); report verifiers/full suite/exact-head CI not run | Existing CI | partial; phase incomplete |
+| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Independent focused paths and checks recorded; report-dependent checks remain pending | partial validation | focused safe pytest set: 309 passed; post-fix focused tests: 64 passed; docs tests: 27 passed; Ruff lint/format and mypy passed; report verifiers/full suite/exact-head CI pending | Existing CI | partial; phase incomplete |
 
 ## Wave 0 Requirements
 
@@ -73,11 +73,13 @@ The following 08-06 checks do not require the missing holdout report and were ru
 |---------|--------|
 | `uv run pytest tests/test_decisions_log.py -q` | Passed, 30 tests in 0.28s |
 | `uv run pytest tests/test_cli_replay.py tests/test_state_builder.py tests/sim/test_safety_car.py tests/regime/test_markov.py tests/backtest/test_walk_forward.py tests/backtest/test_metrics.py tests/backtest/test_holdout.py tests/guards/test_import_ban.py tests/guards/test_future_scramble.py tests/test_decisions_log.py -q` | Passed, 309 tests in 542.71s |
+| `uv run pytest tests/backtest/test_holdout.py tests/test_cli_replay.py tests/test_decisions_log.py -q` | Passed after typing fixes, 64 tests in 301.18s |
+| `uv run pytest tests/test_docs.py -q` | Passed, 27 tests in 0.21s; Phase 8 docs explicitly state the holdout is pending and has no metrics |
 | `uv run ruff check .` | Passed: All checks passed |
 | `uv run ruff format --check .` | Passed: 191 files already formatted |
-| `uv run mypy` | Failed: 7 errors in `src/f1si/cli.py`, `src/f1si/evaluation/holdout.py`, and `tests/backtest/test_holdout.py` (redefinition, overload, arg-type, attr-defined, and func-returns-value) |
+| `uv run mypy` | Passed after minimal typing fixes: Success, no issues found in 178 source files |
 
-Report verification, documentation tests that require both reports, the full pytest command, exact-head hosted CI, and final Nyquist sign-off remain pending. `nyquist_compliant: false` remains in force.
+The documentation tests passed without introducing any fabricated holdout figures. Report verification, the full pytest command, exact-head hosted CI, and final Nyquist sign-off remain pending. `nyquist_compliant: false` remains in force.
 
 ## Holdout Blocker and Evaluation Limitation
 
