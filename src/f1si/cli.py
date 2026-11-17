@@ -317,6 +317,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=4,
         help="bounded report prediction workers, 1 through 4 (default: 4)",
     )
+    holdout = sub.add_parser(
+        "holdout", help="score or verify the separately locked Phase 8 holdout"
+    )
+    holdout_mode = holdout.add_mutually_exclusive_group(required=True)
+    holdout_mode.add_argument(
+        "--score", action="store_true", help="run the single locked holdout score"
+    )
+    holdout_mode.add_argument(
+        "--verify-existing",
+        action="store_true",
+        help="verify an existing holdout report without predictions or result access",
+    )
+    holdout.add_argument("--output", type=Path, default=None, help="holdout report path")
+    holdout.add_argument("--n", type=int, default=1_000, help="locked simulation count")
+    holdout.add_argument("--risk", type=float, default=0.5, help="locked risk setting")
+    holdout.add_argument("--seed", type=int, default=0, help="locked base seed")
     backfill = sub.add_parser(
         "backfill-scheduled-laps",
         help="fill missing 2023-2025 race lap counts from FastF1",
@@ -1446,6 +1462,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "backfill-scheduled-laps":
             return _cmd_backfill_scheduled_laps(data_dir, args.output)
+        if args.command == "holdout":
+            from f1si.evaluation.holdout import DEFAULT_REPORT, score_holdout, verify_holdout_report
+
+            output = args.output or DEFAULT_REPORT
+            if args.verify_existing:
+                verify_holdout_report(output)
+                print(f"Verified locked holdout report at {output}")
+                return 0
+            report = score_holdout(
+                paths.db_path(data_dir),
+                report_path=output,
+                n_simulations=args.n,
+                risk=args.risk,
+                seed=args.seed,
+            )
+            print(f"Wrote locked holdout report to {output} ({len(report['race_ids'])} races)")
+            return 0
         if args.command == "plot":
             reports_dir: Path = (
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()

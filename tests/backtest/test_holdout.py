@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 import f1si.evaluation.holdout as holdout
+from f1si.cli import build_parser
 from f1si.data import asof
 from f1si.evaluation.holdout import (
     HOLDOUT_RACE_IDS,
@@ -36,6 +37,29 @@ def test_holdout_lock_freezes_exact_contract_and_digest() -> None:
     digest = payload.pop("lock_digest")
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), allow_nan=False)
     assert digest["sha256"] == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def test_exact_score_command_parses_without_opening_data() -> None:
+    args = build_parser().parse_args(
+        [
+            "holdout",
+            "--score",
+            "--output",
+            "reports/backtest/phase-08-holdout.json",
+            "--n",
+            "1000",
+            "--risk",
+            "0.5",
+            "--seed",
+            "0",
+        ]
+    )
+    assert args.command == "holdout"
+    assert args.score is True
+    assert args.verify_existing is False
+    assert args.n == 1000
+    assert args.risk == 0.5
+    assert args.seed == 0
 
 
 def test_regime_sequences_use_only_registered_in_sample_race_end_snapshots() -> None:
