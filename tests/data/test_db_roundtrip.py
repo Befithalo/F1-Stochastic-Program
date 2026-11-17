@@ -29,6 +29,8 @@ _MINI_COUNTS = {
     "track_status": 2,
     "race_control": 1,
     "weather": 2,
+    "car_data": 0,
+    "location": 0,
     "lap_cutoffs": 4,
     "results": 2,
 }

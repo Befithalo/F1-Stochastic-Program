@@ -65,6 +65,7 @@ class TableSpec:
     visibility: Visibility
     time_column: str | None
     derived: bool = False
+    optional: bool = False
 
     @property
     def column_names(self) -> tuple[str, ...]:
@@ -192,6 +193,8 @@ _WEATHER = TableSpec(
     columns=(
         _col("race_id", "VARCHAR", required=True),
         _col("seq", "INTEGER", required=True),
+        # Null on legacy cache rows: never infer UTC from their race-clock t_s.
+        _col("source_utc", "TIMESTAMP"),
         _col("t_s", "DOUBLE", required=True),
         _col("air_temp_c", "DOUBLE"),
         _col("track_temp_c", "DOUBLE"),
@@ -205,6 +208,48 @@ _WEATHER = TableSpec(
     key=("race_id", "seq"),
     visibility="time",
     time_column="t_s",
+)
+
+_CAR_DATA = TableSpec(
+    name="car_data",
+    columns=(
+        _col("race_id", "VARCHAR", required=True),
+        _col("seq", "INTEGER", required=True),
+        _col("driver_number", "INTEGER", required=True),
+        _col("source_utc", "TIMESTAMP", required=True),
+        _col("t_s", "DOUBLE", required=True),
+        _col("speed_kph", "DOUBLE"),
+        _col("rpm", "INTEGER"),
+        _col("gear", "INTEGER"),
+        _col("throttle_pct", "DOUBLE"),
+        _col("brake", "BOOLEAN"),
+        _col("drs", "INTEGER"),
+        _col(VISIBILITY_COLUMN, "DOUBLE"),
+    ),
+    key=("race_id", "seq"),
+    visibility="time",
+    time_column="t_s",
+    optional=True,
+)
+
+_LOCATION = TableSpec(
+    name="location",
+    columns=(
+        _col("race_id", "VARCHAR", required=True),
+        _col("seq", "INTEGER", required=True),
+        _col("driver_number", "INTEGER", required=True),
+        _col("source_utc", "TIMESTAMP", required=True),
+        _col("t_s", "DOUBLE", required=True),
+        _col("x_m", "DOUBLE"),
+        _col("y_m", "DOUBLE"),
+        _col("z_m", "DOUBLE"),
+        _col("status", "INTEGER"),
+        _col(VISIBILITY_COLUMN, "DOUBLE"),
+    ),
+    key=("race_id", "seq"),
+    visibility="time",
+    time_column="t_s",
+    optional=True,
 )
 
 # Derived by the loader (see f1si.data.derive), never supplied by a source.
@@ -250,6 +295,8 @@ TABLES: Final[Mapping[str, TableSpec]] = MappingProxyType(
             _TRACK_STATUS,
             _RACE_CONTROL,
             _WEATHER,
+            _CAR_DATA,
+            _LOCATION,
             _LAP_CUTOFFS,
             _RESULTS,
         )
@@ -328,6 +375,11 @@ def normalize(table: str, df: pd.DataFrame) -> pd.DataFrame:
         KeyError: naming the missing column(s).
     """
     spec = _spec(table)
+    if table == "weather" and "source_utc" not in df.columns:
+        # Pre-M2 DuckDB caches do not have this provenance column. Keep the unknown UTC time
+        # unknown; t_s is relative to lights out and is not enough to reconstruct it.
+        df = df.copy()
+        df["source_utc"] = pd.NaT
     if spec.visibility == "time" and VISIBILITY_COLUMN not in df.columns:
         df = add_visibility(table, df)
     missing = [c.name for c in spec.columns if c.name not in df.columns]
@@ -335,6 +387,13 @@ def normalize(table: str, df: pd.DataFrame) -> pd.DataFrame:
         raise KeyError(f"table {table!r} is missing column(s): {', '.join(missing)}")
     out = pd.DataFrame({c.name: _cast(df[c.name], c.sql_type) for c in spec.columns})
     return out.reset_index(drop=True)
+
+
+def empty_frame(table: str) -> pd.DataFrame:
+    """Return an empty frame with the normalized columns and dtypes for `table`."""
+    spec = _spec(table)
+    columns = [column for column in spec.column_names if column != VISIBILITY_COLUMN]
+    return normalize(table, pd.DataFrame(columns=columns))
 
 
 def validate_race(race: NormalizedRace) -> list[str]:
@@ -354,6 +413,8 @@ def validate_race(race: NormalizedRace) -> list[str]:
         if spec.derived:
             continue
         if name not in race.tables:
+            if spec.optional:
+                continue
             problems.append(f"missing required table '{name}'")
             continue
         df = race.tables[name]

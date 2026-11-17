@@ -101,11 +101,17 @@ def _build_tables(ref: RaceRef, race: NormalizedRace) -> tuple[dict[str, pd.Data
     Raises:
         SourceError: if too many lap end times had to be dropped for the race to be trusted.
     """
-    tables = {
-        name: schema.normalize(name, race.tables[name])
-        for name in schema.PER_RACE_TABLES
-        if not schema.TABLES[name].derived
-    }
+    tables: dict[str, pd.DataFrame] = {}
+    for name in schema.PER_RACE_TABLES:
+        spec = schema.TABLES[name]
+        if spec.derived:
+            continue
+        if name not in race.tables:
+            if not spec.optional:
+                raise KeyError(f"source omitted required table {name!r}")
+            tables[name] = schema.empty_frame(name)
+        else:
+            tables[name] = schema.normalize(name, race.tables[name])
     laps, dropped = derive.sanitize_lap_ends(tables["laps"])
     notes: list[str] = []
     if dropped:

@@ -41,6 +41,8 @@ def test_tables_are_exactly_the_phase_1_tables() -> None:
         "track_status",
         "race_control",
         "weather",
+        "car_data",
+        "location",
         "lap_cutoffs",
         "results",
     ]
@@ -50,6 +52,8 @@ def test_tables_are_exactly_the_phase_1_tables() -> None:
         "track_status",
         "race_control",
         "weather",
+        "car_data",
+        "location",
         "lap_cutoffs",
         "results",
     )
@@ -189,6 +193,8 @@ def test_time_tables_get_visibility_from_their_time_column() -> None:
         ("track_status", "t_s"),
         ("race_control", "t_s"),
         ("weather", "t_s"),
+        ("car_data", "t_s"),
+        ("location", "t_s"),
         ("lap_cutoffs", "cutoff_s"),
     ]:
         assert schema.TABLES[name].visibility == "time"

@@ -114,6 +114,8 @@ class RaceSnapshot:
     track_status: pd.DataFrame
     race_control: pd.DataFrame
     weather: pd.DataFrame
+    car_data: pd.DataFrame
+    location: pd.DataFrame
     stints: pd.DataFrame
     pit_events: pd.DataFrame
     cars: pd.DataFrame
@@ -134,7 +136,7 @@ class History:
     results: pd.DataFrame
 
 
-_TIME_TABLES: Final = ("laps", "track_status", "race_control", "weather")
+_TIME_TABLES: Final = ("laps", "track_status", "race_control", "weather", "car_data", "location")
 _HISTORY_TABLES: Final = (
     "entries",
     "laps",
@@ -218,6 +220,8 @@ def _visible_rows(
     spec = schema.TABLES[table]
     if spec.visibility != "time":
         raise ValueError(f"{table!r} is not a time-indexed table")
+    if spec.optional and not _db.table_exists(con, table):
+        return schema.empty_frame(table)
     order = _order(table)
     if cutoff_s is None:
         sql = f"SELECT * FROM {table} WHERE race_id = ? ORDER BY {order}"
@@ -429,6 +433,8 @@ def build_snapshot(
         track_status=frames["track_status"],
         race_control=frames["race_control"],
         weather=frames["weather"],
+        car_data=frames["car_data"],
+        location=frames["location"],
         stints=rebuild_stints(derived_laps, cutoff_s=cutoff_s),
         pit_events=rebuild_pit_events(derived_laps),
         cars=rebuild_cars(derived_laps, entries),

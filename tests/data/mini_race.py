@@ -135,6 +135,7 @@ def mini_weather() -> pd.DataFrame:
         {
             "race_id": [RACE_ID, RACE_ID],
             "seq": [0, 1],
+            "source_utc": [None, None],
             "t_s": [-60.0, 100.0],
             "air_temp_c": [25.0, 25.5],
             "track_temp_c": [35.0, 36.0],
@@ -162,6 +163,40 @@ def mini_results() -> pd.DataFrame:
     )
 
 
+def mini_car_data() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "race_id",
+            "seq",
+            "driver_number",
+            "source_utc",
+            "t_s",
+            "speed_kph",
+            "rpm",
+            "gear",
+            "throttle_pct",
+            "brake",
+            "drs",
+        ]
+    )
+
+
+def mini_location() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "race_id",
+            "seq",
+            "driver_number",
+            "source_utc",
+            "t_s",
+            "x_m",
+            "y_m",
+            "z_m",
+            "status",
+        ]
+    )
+
+
 def mini_source_tables() -> dict[str, pd.DataFrame]:
     """What a source emits: every required table except the derived ones."""
     return {
@@ -170,6 +205,8 @@ def mini_source_tables() -> dict[str, pd.DataFrame]:
         "track_status": mini_track_status(),
         "race_control": mini_race_control(),
         "weather": mini_weather(),
+        "car_data": mini_car_data(),
+        "location": mini_location(),
         "results": mini_results(),
     }
 

@@ -21,7 +21,17 @@ FORBIDDEN_COLUMNS = {
     "n_laps",
     "stint_length",
 }
-FRAMES = ("entries", "laps", "track_status", "race_control", "weather", "stints", "pit_events")
+FRAMES = (
+    "entries",
+    "laps",
+    "track_status",
+    "race_control",
+    "weather",
+    "car_data",
+    "location",
+    "stints",
+    "pit_events",
+)
 
 
 @pytest.fixture(scope="module")
@@ -83,6 +93,8 @@ def test_snapshot_fields_are_exactly_the_documented_ones() -> None:
         "track_status",
         "race_control",
         "weather",
+        "car_data",
+        "location",
         "stints",
         "pit_events",
         "cars",

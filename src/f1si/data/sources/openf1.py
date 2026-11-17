@@ -38,6 +38,7 @@ identity and the team is used: no status, no laps completed, no position.
   stint is never taken for the first (that is the tyre after the first stop).
 """
 
+import math
 import time
 from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
@@ -65,7 +66,15 @@ COMPLETED_MARGIN: Final = timedelta(hours=6)
 # instead of forever (WR-05).
 PROVISIONAL_WINDOW: Final = timedelta(days=7)
 FIRST_OPENF1_SEASON: Final = 2023
-_RACE_PATHS: Final = ("/drivers", "/laps", "/stints", "/race_control", "/weather")
+_RACE_PATHS: Final = (
+    "/drivers",
+    "/laps",
+    "/stints",
+    "/race_control",
+    "/weather",
+    "/car_data",
+    "/location",
+)
 
 
 def _unexpected(path: str, detail: str) -> SourceError:
@@ -281,6 +290,8 @@ class OpenF1Source:
         stints_raw = self._rows("/stints", params, freshness=fresh)
         control_raw = self._rows("/race_control", params, freshness=fresh)
         weather_raw = self._rows("/weather", params, freshness=fresh)
+        car_data_raw = self._rows("/car_data", params, freshness=fresh)
+        location_raw = self._rows("/location", params, freshness=fresh)
         results = self._jolpica.results(ref.season, ref.round, freshness=fresh)
         pit_stops = self._jolpica.pit_stops(ref.season, ref.round, freshness=fresh)
 
@@ -306,6 +317,8 @@ class OpenF1Source:
         laps = _build_laps(ref, laps_in, stints, results, pit_stops, t0)
         race_control = _build_race_control(ref, control_raw, t0)
         weather = _build_weather(ref, weather_raw, t0)
+        car_data = _build_car_data(ref, car_data_raw, t0)
+        location = _build_location(ref, location_raw, t0)
         try:
             self._check_complete(ref, entries, laps, race_control, weather, results)
         except SourceError:
@@ -328,6 +341,8 @@ class OpenF1Source:
                 "track_status": track,
                 "race_control": race_control,
                 "weather": weather,
+                "car_data": car_data,
+                "location": location,
                 "results": _build_results(ref, results),
             },
         )
@@ -710,6 +725,7 @@ def _build_weather(
             {
                 "race_id": ref.race_id,
                 "seq": seq,
+                "source_utc": when,
                 "t_s": _seconds(when, t0),
                 "air_temp_c": _number(row.get("air_temperature"), path, "air_temperature"),
                 "track_temp_c": _number(row.get("track_temperature"), path, "track_temperature"),
@@ -723,8 +739,122 @@ def _build_weather(
     return pd.DataFrame(
         out,
         columns=[
-            "race_id", "seq", "t_s", "air_temp_c", "track_temp_c", "humidity_pct",
+            "race_id", "seq", "source_utc", "t_s", "air_temp_c", "track_temp_c", "humidity_pct",
             "pressure_mbar", "rainfall", "wind_speed_ms", "wind_direction_deg",
+        ],
+    )  # fmt: skip
+
+
+def _boolean(value: object, path: str, what: str) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    whole = _whole(value, path, what)
+    if whole not in (0, 1):
+        raise _unexpected(path, f"{what} must be boolean or 0/1 ({value!r})")
+    return bool(whole)
+
+
+def _build_car_data(
+    ref: RaceRef, rows: Sequence[Mapping[str, object]], t0: pd.Timestamp
+) -> pd.DataFrame:
+    path = "/car_data"
+    parsed: list[tuple[pd.Timestamp, int, int, Mapping[str, object]]] = []
+    for index, row in enumerate(rows):
+        _required(row, ("date", "driver_number"), path)
+        when = _stamp(row["date"], path, "date")
+        driver = _whole(row["driver_number"], path, "driver_number")
+        if when is None or driver is None:
+            raise _unexpected(path, "date and driver_number must be present")
+        parsed.append((when, driver, index, row))
+    parsed.sort(key=lambda item: (item[0], item[1], item[2]))
+    out: list[dict[str, object]] = []
+    for seq, (when, driver, _index, row) in enumerate(parsed):
+        speed = _number(row.get("speed"), path, "speed")
+        rpm = _whole(row.get("rpm"), path, "rpm")
+        gear = _whole(row.get("n_gear"), path, "n_gear")
+        throttle = _number(row.get("throttle"), path, "throttle")
+        drs = _whole(row.get("drs"), path, "drs")
+        if speed is not None and (not math.isfinite(speed) or not 0 <= speed <= 400):
+            raise _unexpected(path, f"speed is outside 0..400 km/h ({speed!r})")
+        if rpm is not None and not 0 <= rpm <= 20_000:
+            raise _unexpected(path, f"rpm is outside 0..20000 ({rpm!r})")
+        if gear is not None and not 0 <= gear <= 8:
+            raise _unexpected(path, f"n_gear is outside 0..8 ({gear!r})")
+        if throttle is not None and (not math.isfinite(throttle) or not 0 <= throttle <= 100):
+            raise _unexpected(path, f"throttle is outside 0..100 percent ({throttle!r})")
+        if drs is not None and not 0 <= drs <= 14:
+            raise _unexpected(path, f"drs is outside 0..14 ({drs!r})")
+        out.append(
+            {
+                "race_id": ref.race_id,
+                "seq": seq,
+                "driver_number": driver,
+                "source_utc": when,
+                "t_s": _seconds(when, t0),
+                "speed_kph": speed,
+                "rpm": rpm,
+                "gear": gear,
+                "throttle_pct": throttle,
+                "brake": _boolean(row.get("brake"), path, "brake"),
+                "drs": drs,
+            }
+        )
+    return pd.DataFrame(
+        out,
+        columns=[
+            "race_id",
+            "seq",
+            "driver_number",
+            "source_utc",
+            "t_s",
+            "speed_kph",
+            "rpm",
+            "gear",
+            "throttle_pct",
+            "brake",
+            "drs",
+        ],
+    )
+
+
+def _build_location(
+    ref: RaceRef, rows: Sequence[Mapping[str, object]], t0: pd.Timestamp
+) -> pd.DataFrame:
+    path = "/location"
+    parsed: list[tuple[pd.Timestamp, int, int, Mapping[str, object]]] = []
+    for index, row in enumerate(rows):
+        _required(row, ("date", "driver_number"), path)
+        when = _stamp(row["date"], path, "date")
+        driver = _whole(row["driver_number"], path, "driver_number")
+        if when is None or driver is None:
+            raise _unexpected(path, "date and driver_number must be present")
+        parsed.append((when, driver, index, row))
+    parsed.sort(key=lambda item: (item[0], item[1], item[2]))
+    out: list[dict[str, object]] = []
+    for seq, (when, driver, _index, row) in enumerate(parsed):
+        coords = {axis: _number(row.get(axis), path, axis) for axis in ("x", "y", "z")}
+        if any(value is not None and not math.isfinite(value) for value in coords.values()):
+            raise _unexpected(path, "coordinates must be finite")
+        out.append(
+            {
+                "race_id": ref.race_id,
+                "seq": seq,
+                "driver_number": driver,
+                "source_utc": when,
+                "t_s": _seconds(when, t0),
+                "x_m": coords["x"],
+                "y_m": coords["y"],
+                "z_m": coords["z"],
+                "status": _whole(row.get("status"), path, "status"),
+            }
+        )
+    return pd.DataFrame(
+        out,
+        columns=[
+            "race_id", "seq", "driver_number", "source_utc", "t_s", "x_m", "y_m", "z_m",
+            "status",
         ],
     )  # fmt: skip
 

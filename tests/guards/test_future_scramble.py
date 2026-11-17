@@ -77,6 +77,9 @@ def test_harness_covers_every_table(original_tables: dict[str, pd.DataFrame]) ->
     scrambled = scramble_future(original_tables, AsOf(CURRENT, 5), rng=np.random.default_rng(1))
     assert set(scrambled) == set(schema.TABLES)
     for name in schema.TABLES:
+        if schema.TABLES[name].optional and original_tables[name].empty:
+            pd.testing.assert_frame_equal(scrambled[name], original_tables[name])
+            continue
         assert not _keyed(name, scrambled[name]).equals(_keyed(name, original_tables[name])), name
 
 
@@ -118,6 +121,8 @@ def test_every_future_row_differs_and_stays_future(
     cutoff = _cutoff(original_tables, 5)
     for name in TIME_TABLES:
         orig = original_tables[name]
+        if schema.TABLES[name].optional and orig.empty:
+            continue
         orig_cur = orig[orig["race_id"] == CURRENT]
         was_visible = orig_cur["visible_at_s"].notna() & (orig_cur["visible_at_s"] <= cutoff)
         orig_future = orig_cur[~was_visible]

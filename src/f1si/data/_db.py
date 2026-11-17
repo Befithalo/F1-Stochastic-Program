@@ -89,6 +89,7 @@ def ensure_schema(con: duckdb.DuckDBPyConnection) -> None:
     """Create every table (IF NOT EXISTS) and (re)create the stints and pit_stops views."""
     for table in schema.TABLES:
         con.execute(schema.ddl(table))
+    con.execute("ALTER TABLE weather ADD COLUMN IF NOT EXISTS source_utc TIMESTAMP")
     for view, select in schema.VIEWS.items():
         con.execute(f"CREATE OR REPLACE VIEW {view} AS {select}")
 
@@ -114,7 +115,11 @@ def write_race(db_path: Path, race_row: pd.DataFrame, tables: Mapping[str, pd.Da
         KeyError: if a frame lacks a required column (nothing is written).
     """
     unknown = sorted(set(tables) - set(schema.PER_RACE_TABLES))
-    missing = [name for name in schema.PER_RACE_TABLES if name not in tables]
+    missing = [
+        name
+        for name in schema.PER_RACE_TABLES
+        if name not in tables and not schema.TABLES[name].optional
+    ]
     if unknown or missing:
         raise ValueError(f"write_race tables mismatch: unknown={unknown}, missing={missing}")
     if len(race_row) != 1:
@@ -126,7 +131,8 @@ def write_race(db_path: Path, race_row: pd.DataFrame, tables: Mapping[str, pd.Da
         try:
             for name in schema.PER_RACE_TABLES:
                 con.execute(f"DELETE FROM {name} WHERE race_id = ?", [race_id])
-                _insert_frame(con, name, _prepared(name, tables[name]))
+                frame = tables[name] if name in tables else schema.empty_frame(name)
+                _insert_frame(con, name, _prepared(name, frame))
             con.execute("DELETE FROM races WHERE race_id = ?", [race_id])
             _insert_frame(con, "races", _prepared("races", race_row))
             con.commit()
@@ -198,8 +204,28 @@ def read_table(
         )
     where = "" if race_id is None else " WHERE race_id = ?"
     params: list[object] = [] if race_id is None else [race_id]
-    df = read_df(db_path, f"SELECT * FROM {table}{where} ORDER BY {order}", params, con=con)
+    if table in schema.TABLES and schema.TABLES[table].optional:
+        own = con
+        if own is None:
+            with connect_reader(db_path) as opened:
+                if not table_exists(opened, table):
+                    return schema.empty_frame(table)
+                df = opened.execute(f"SELECT * FROM {table}{where} ORDER BY {order}", params).df()
+        elif not table_exists(own, table):
+            return schema.empty_frame(table)
+        else:
+            df = own.execute(f"SELECT * FROM {table}{where} ORDER BY {order}", params).df()
+    else:
+        df = read_df(db_path, f"SELECT * FROM {table}{where} ORDER BY {order}", params, con=con)
     return schema.normalize(table, df) if table in schema.TABLES else df
+
+
+def table_exists(con: Connection, table: str) -> bool:
+    """Whether a schema table exists in this cache, including pre-M2 caches."""
+    row = con.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_name = ? LIMIT 1", [table]
+    ).fetchone()
+    return row is not None
 
 
 def read_all_tables(db_path: Path) -> dict[str, pd.DataFrame]:

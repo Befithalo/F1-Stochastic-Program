@@ -227,6 +227,38 @@ class Payloads:
             }
             for i in range(4)
         ]
+        self.car_data: Rows = [
+            {
+                "date": iso(LIGHTS_OUT + timedelta(seconds=1.0)),
+                "driver_number": 1,
+                "speed": 301,
+                "rpm": 12_000,
+                "n_gear": 8,
+                "throttle": 100,
+                "brake": False,
+                "drs": 12,
+            },
+            {
+                "date": iso(LIGHTS_OUT + timedelta(seconds=2.0)),
+                "driver_number": 1,
+                "speed": 100,
+                "rpm": 8_000,
+                "n_gear": 4,
+                "throttle": 30,
+                "brake": True,
+                "drs": 0,
+            },
+        ]
+        self.location: Rows = [
+            {
+                "date": iso(LIGHTS_OUT + timedelta(seconds=1.0)),
+                "driver_number": 1,
+                "x": 120.0,
+                "y": -15.0,
+                "z": 2.0,
+                "status": 1,
+            }
+        ]
         self.results = [result_row(n) for n in range(1, N_DRIVERS + 1)]
         self.pit_stops: Rows = [
             {
@@ -247,6 +279,8 @@ class Payloads:
                 "/stints": copy.deepcopy(self.stints),
                 "/race_control": copy.deepcopy(self.control),
                 "/weather": copy.deepcopy(self.weather),
+                "/car_data": copy.deepcopy(self.car_data),
+                "/location": copy.deepcopy(self.location),
             }
         )
 
@@ -357,7 +391,7 @@ def test_source_identity_and_defaults() -> None:
 # ---------------------------------------------------------------- fetch
 
 
-def test_fetch_makes_exactly_five_openf1_calls() -> None:
+def test_fetch_makes_exactly_seven_openf1_calls() -> None:
     _, _, fake = fetch_race(Payloads())
     assert [c[0] for c in fake.calls] == [
         "/drivers",
@@ -365,16 +399,48 @@ def test_fetch_makes_exactly_five_openf1_calls() -> None:
         "/stints",
         "/race_control",
         "/weather",
+        "/car_data",
+        "/location",
     ]
     assert all(c[1] == {"session_key": SESSION_KEY} for c in fake.calls)
 
 
 def test_fetch_returns_all_tables_with_a_valid_shape() -> None:
     tables, _, _ = fetch_race(Payloads())
-    assert set(tables) == {"entries", "laps", "track_status", "race_control", "weather", "results"}
+    assert set(tables) == {
+        "entries",
+        "laps",
+        "track_status",
+        "race_control",
+        "weather",
+        "car_data",
+        "location",
+        "results",
+    }
     assert len(tables["entries"]) == N_DRIVERS
     assert len(tables["laps"]) == N_DRIVERS * N_LAPS
     assert len(tables["weather"]) == 4
+    assert len(tables["car_data"]) == 2
+    assert len(tables["location"]) == 1
+
+
+def test_optional_channel_values_keep_utc_and_mapped_race_clock() -> None:
+    tables, _, _ = fetch_race(Payloads())
+
+    car = tables["car_data"].iloc[0]
+    assert car["source_utc"] == pd.Timestamp("2023-03-05T15:03:01Z")
+    # The clock origin is the earliest lap-one start (15:03:00.1), not session start.
+    assert car["t_s"] == pytest.approx(0.9)
+    assert car["speed_kph"] == 301.0
+    assert car["rpm"] == 12_000
+    assert car["gear"] == 8
+    assert car["throttle_pct"] == 100.0
+    assert not bool(car["brake"])
+    location = tables["location"].iloc[0]
+    assert location["source_utc"] == pd.Timestamp("2023-03-05T15:03:01Z")
+    assert location["t_s"] == pytest.approx(0.9)
+    assert location["x_m"] == 120.0
+    assert tables["weather"]["source_utc"].notna().all()
 
 
 def test_race_clock_starts_at_the_earliest_lap_one() -> None:
@@ -780,7 +846,7 @@ def _freshness_used(clock_now: datetime) -> set[str]:
     source.fetch(ref)
     used = {freshness for _, _, freshness in fake.calls}
     used |= {freshness for _, _, freshness in payloads.jolpica_fake.calls}
-    assert len(fake.calls) == 5
+    assert len(fake.calls) == 7
     assert payloads.jolpica_fake.calls
     return used
 
@@ -805,7 +871,15 @@ def test_an_incomplete_race_discards_its_saved_responses() -> None:
     with pytest.raises(SourceError, match="discarded"):
         source.fetch(ref)
     forgotten_paths = {path for path, _ in fake.forgotten}
-    assert forgotten_paths == {"/drivers", "/laps", "/stints", "/race_control", "/weather"}
+    assert forgotten_paths == {
+        "/drivers",
+        "/laps",
+        "/stints",
+        "/race_control",
+        "/weather",
+        "/car_data",
+        "/location",
+    }
     assert all(params == {"session_key": SESSION_KEY} for _, params in fake.forgotten)
     jolpica_paths = {path for path, _ in payloads.jolpica_fake.forgotten}
     assert "/2023/5/results.json" in jolpica_paths
