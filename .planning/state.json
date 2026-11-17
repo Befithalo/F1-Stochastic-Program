@@ -1,53 +1,33 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v1.0",
+  "milestone": "v2.0",
   "phases": [
     {
-      "number": "1",
-      "name": "Foundation & Data",
-      "status": "complete"
+      "number": "9",
+      "name": "Data and Geometry Readiness",
+      "status": "pending"
     },
     {
-      "number": "2",
-      "name": "Interfaces, Linear Tire Wear & Free-Track Optimizer",
-      "status": "complete"
+      "number": "10",
+      "name": "Point-Mass PaceModel",
+      "status": "pending"
     },
     {
-      "number": "3",
-      "name": "Monte Carlo Simulator",
-      "status": "complete"
+      "number": "11",
+      "name": "Tire Thermal and Energy/Wear State",
+      "status": "pending"
     },
     {
-      "number": "4",
-      "name": "Kalman Tire Filter",
-      "status": "complete"
-    },
-    {
-      "number": "5",
-      "name": "Longstaff-Schwartz Strategy & Live Replay",
-      "status": "complete"
-    },
-    {
-      "number": "6",
-      "name": "MVP Backtest, Streamlit View & README",
-      "status": "complete"
-    },
-    {
-      "number": "7",
-      "name": "Bayesian Pace Model",
-      "status": "complete"
-    },
-    {
-      "number": "8",
-      "name": "Markov Regimes & Full Backtest",
-      "status": "complete"
+      "number": "12",
+      "name": "Hybrid Pace and Locked Held-Out-Stint Gate",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 1 of 4 · executing"
   },
-  "updated_at": "2026-11-17T20:33:16.328Z"
+  "updated_at": "2026-11-17T22:09:11.056Z"
 }
