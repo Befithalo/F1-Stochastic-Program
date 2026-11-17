@@ -165,7 +165,10 @@ def test_kernel_jit_equals_py_func_with_wear_age_off() -> None:
     jit_st["comp"][:, 1] = 1
     jit_st["age"][:] = np.array([3, 9])
     off = np.array([0, 7], dtype=np.int64)
-    py_st = {k: v.copy() for k, v in jit_st.items()}
+    py_st = {
+        key: value.copy() if isinstance(value, np.ndarray) else value
+        for key, value in jit_st.items()
+    }
     run(jit_st, wear_age_off=off)
     run(py_st, wear_age_off=off, python=True)
     for key in ("clock", "age", "comp", "order"):
