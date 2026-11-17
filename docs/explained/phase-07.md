@@ -21,6 +21,7 @@ The fit rejects non-finite or unstable ADVI loss before sampling posterior draws
 
 - `src/f1si/pace/training.py` joins eligible clean historical laps with cutoff-visible completed laps and assigns stable categories without reading race results.
 - `src/f1si/pace/bayesian.py` builds the partially pooled PyMC hierarchy, gates ADVI on its loss trajectory, and exposes compact posterior means, intervals and uncertainty to the existing pace and state contracts.
+- `src/f1si/regime/markov.py` labels cutoff-visible track control and rainfall as green, VSC, safety car, red flag or wet, then estimates within-race one-lap transition probabilities with Dirichlet(1) smoothing.
 - `src/f1si/backtest/pace_evaluation.py` runs the pre-registered 2025 next-lap holdout once, fits both models at cutoff snapshots, and reads target laps only after predictions are complete.
 - `tests/pace/test_bayesian_training.py` checks panel eligibility, cutoff safety, era assignment and stable category handling.
 - `tests/pace/test_bayesian_model.py` checks seeded fit behavior, shared pace-model conformance, sparse-group shrinkage and refusal when ADVI diagnostics fail.
