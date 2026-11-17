@@ -25,9 +25,9 @@
   },
   "cutoffs": "every integer cutoff from zero through scheduled_laps minus one, in race and lap order",
   "target_mask": [
-    "current cutoff snapshot only; each eligible driver's next-to-complete lap is predicted",
-    "target lap is not completed in the current snapshot and later completes cleanly",
-    "target compound equals the cutoff-visible compound; when current stint is visible, stint must match",
+    "one available best-action finish distribution per driver and cutoff snapshot",
+    "join the frozen prediction to that driver's final classification; unclassified starters count as failures for podium and top-ten scores",
+    "finish-interval coverage is evaluated only for classified finishers",
     "freeze all race/cutoff/driver predictions before requesting final classifications"
   ],
   "metrics": {
@@ -42,9 +42,9 @@
     "schema_version": 1,
     "required_top_level_fields": ["schema_version", "race_ids", "metadata", "metrics", "per_race"],
     "required_race_rows": "one ordered row for every locked 2026 race",
-    "required_denominators": "all overall and per-race metrics include explicit observation counts"
+    "required_denominators": "podium/top-ten driver-cutoff counts, classified-finisher interval counts, and observed/matched stop counts are explicit overall and per race"
   },
   "result_access": "OutOfSampleAccessor.final_classification is called only after predictions for all locked races are frozen",
   "score_policy": "score once and never tune or rescore against the holdout",
-  "lock_digest": {"algorithm": "sha256", "canonicalization": "UTF-8 JSON, sorted keys, compact separators, omitting lock_digest", "sha256": "fc93e3d26dce31e80fa277bdae8384e94f1f4e9c4ae7b674875f0e765e367321"}
+  "lock_digest": {"algorithm": "sha256", "canonicalization": "UTF-8 JSON, sorted keys, compact separators, omitting lock_digest", "sha256": "a3c1d0c1a7cbd35949ff4811517304295ed090e63ed96ffb20bbebe8e24880da"}
 }

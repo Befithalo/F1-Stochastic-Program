@@ -29,7 +29,7 @@ LOCK_PATH: Final = (
     / ".planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json"
 )
 DEFAULT_REPORT: Final = Path("reports/backtest/phase-08-holdout.json")
-LOCK_SHA256: Final = "fc93e3d26dce31e80fa277bdae8384e94f1f4e9c4ae7b674875f0e765e367321"
+LOCK_SHA256: Final = "a3c1d0c1a7cbd35949ff4811517304295ed090e63ed96ffb20bbebe8e24880da"
 _SIMULATION: Final = {"pace_model": "linear", "n_simulations": 1_000, "seed": 0, "risk": 0.5}
 
 
@@ -330,13 +330,15 @@ def score_holdout(
         race_hits = 0
         race_finishers = 0
         for row in rows:
-            position = classified.get(row["driver"])
-            if position is None or pd.isna(position):
+            if row["driver"] not in classified:
                 continue
-            position = int(position)
-            podium_scores.append((float(row["podium_probability"]) - float(position <= 3)) ** 2)
-            top10_scores.append((float(row["top10_probability"]) - float(position <= 10)) ** 2)
-            if position > 0:
+            raw_position = classified[row["driver"]]
+            position = None if raw_position is None or pd.isna(raw_position) else int(raw_position)
+            podium_target = position is not None and 0 < position <= 3
+            top10_target = position is not None and 0 < position <= 10
+            podium_scores.append((float(row["podium_probability"]) - float(podium_target)) ** 2)
+            top10_scores.append((float(row["top10_probability"]) - float(top10_target)) ** 2)
+            if position is not None and position > 0:
                 race_finishers += 1
                 race_hits += int(int(row["finish_p05"]) <= position <= int(row["finish_p95"]))
         if podium_scores:
@@ -375,6 +377,12 @@ def score_holdout(
             "top10_brier": None if not brier_top10 else float(np.mean(brier_top10)),
             "race_count_with_podium_scores": len(brier_podium),
             "race_count_with_top10_scores": len(brier_top10),
+            "podium_observation_count": sum(
+                int(row["scored_driver_cutoffs"]) for row in per_race.values()
+            ),
+            "top10_observation_count": sum(
+                int(row["scored_driver_cutoffs"]) for row in per_race.values()
+            ),
             "finish_interval_90": {
                 "classified_finishers": classified_count,
                 "covered": coverage_hits,
