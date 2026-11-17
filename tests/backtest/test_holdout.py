@@ -40,6 +40,37 @@ def test_holdout_lock_freezes_exact_contract_and_digest() -> None:
     assert digest["sha256"] == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def test_holdout_lock_freezes_ex_ante_schedule_for_every_registered_race() -> None:
+    schedule = _load_holdout_lock()["schedule"]
+    assert schedule["events"] == {
+        "2026-09": {"circuit": "silverstone", "scheduled_laps": 52},
+        "2026-10": {"circuit": "spa", "scheduled_laps": 44},
+        "2026-11": {"circuit": "hungaroring", "scheduled_laps": 70},
+        "2026-12": {"circuit": "zandvoort", "scheduled_laps": 72},
+        "2026-13": {"circuit": "monza", "scheduled_laps": 53},
+        "2026-14": {"circuit": "madring", "scheduled_laps": 57},
+        "2026-15": {"circuit": "baku", "scheduled_laps": 51},
+        "2026-16": {"circuit": "sepang", "scheduled_laps": 56},
+        "2026-17": {"circuit": "marina_bay", "scheduled_laps": 61},
+    }
+    assert "meetings?year=2026" in schedule["provenance"]["2026-16"]
+    assert "FIA 2026 Sporting Regulations B2.5.2" in schedule["provenance"]["2026-16"]
+
+
+@pytest.mark.parametrize("observed", [None, 56])
+def test_locked_schedule_fills_missing_metadata_and_accepts_matching_value(
+    observed: int | None,
+) -> None:
+    schedule = _load_holdout_lock()["schedule"]["events"]
+    assert holdout._resolve_scheduled_laps("2026-16", observed, schedule) == 56
+
+
+def test_locked_schedule_rejects_metadata_that_disagrees_with_schedule() -> None:
+    schedule = _load_holdout_lock()["schedule"]["events"]
+    with pytest.raises(ValueError, match="Scheduled lap metadata disagrees with locked schedule"):
+        holdout._resolve_scheduled_laps("2026-16", 57, schedule)
+
+
 def test_exact_score_command_parses_without_opening_data() -> None:
     args = build_parser().parse_args(
         [

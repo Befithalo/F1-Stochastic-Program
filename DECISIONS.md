@@ -1381,10 +1381,21 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 ## DEC-126 — Keep the 2026 holdout pending without an ex-ante Sepang horizon
 
 **Date:** 2026-11-17
-**Status:** Accepted
+**Status:** Accepted; superseded by DEC-127
 **Context:** The single prescribed holdout score invocation stopped during schedule preflight because scheduled race distance was unavailable for locked event 2026-16 (Sepang). Local cutoff-visible metadata has no scheduled-laps values for the 2026 holdout rounds, and no authoritative ex-ante Sepang horizon is present in the committed lock or local calendar metadata.
 **Decision:** Do not infer or borrow a scheduled horizon from observed 2026 laps, do not access final classifications, and do not retry the score. Leave the holdout report absent and Phase 8 incomplete until an authoritative ex-ante schedule source for the locked event is added through a separately reviewed decision.
 **Why:** A fabricated horizon would change the locked cutoff contract and compromise the registered holdout. The score command failed before requesting final classifications, so no score was produced.
 **Alternatives rejected:** Guess a Sepang lap count; derive it from observed 2026 data; alter the locked event, cutoff, or sample; retry the one-time score.
 **Consequences:** DEC-125's evaluation remains pending and neither its holdout quality gate nor Phase 8 completion can be claimed. During external schedule research, search result snippets displayed outcome information and an opened FIA media-kit PDF displayed adjacent season classifications. No outcome values were copied into code, locks, metrics, tuning, or reports. This exposure means any eventual report must be described as a pre-registered retrospective evaluation, not blind.
 **Refs:** .planning/phases/08-markov-regimes-full-backtest/08-05-SUMMARY.md; .planning/phases/08-markov-regimes-full-backtest/08-VALIDATION.md; DEC-125
+
+## DEC-127 — Complete the registered holdout with locked ex-ante schedule distances
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The sole prescribed score invocation failed during feature-only preflight because OpenF1 supplied no scheduled lap count. It failed before `final_classification`, so the one successful outcome-accessing score has not occurred. Ex-ante schedule-only metadata is now available for every registered race without consulting 2026 outcome fields.
+**Decision:** Lock the scheduled lap count and circuit provenance for each of the nine registered 2026 holdout races. Use the locked horizon only when local schedule metadata is null; fail closed if local metadata disagrees. For 2026-16, use the schedule-only OpenF1 meeting/session fields, Sepang Circuit's 5.543 km lap length, and FIA 2026 Sporting Regulations B2.5.2: the least whole-lap distance exceeding 305 km gives 56 laps (310.408 km). The earlier failed pre-result invocation does not consume the one successful result-accessing score; run the prescribed scoring command once after this lock, implementation, and tests are committed.
+**Why:** An explicit ex-ante horizon makes each locked cutoff reproducible while preserving the race sample and keeping observed 2026 laps and results outside schedule resolution.
+**Alternatives rejected:** Infer a horizon from observed laps, alter the sample or cutoff range, treat a missing scheduled-lap count as zero, or query outcome endpoints while building schedule metadata.
+**Consequences:** The holdout remains a pre-registered retrospective evaluation, not a blind evaluation, because search snippets and adjacent FIA media-kit classifications were incidentally exposed during earlier schedule research. No values from those displays were used in code, lock metrics, tuning, or report design. Publish this exposure with the report, and do not access outcomes again after the first successful score/report write.
+**Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; OpenF1 `meetings?year=2026` and `sessions?meeting_key=1308` schedule fields; Sepang Circuit official lap length; FIA 2026 Sporting Regulations B2.5.2; DEC-125, DEC-126

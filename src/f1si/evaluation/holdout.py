@@ -29,7 +29,7 @@ LOCK_PATH: Final = (
     / ".planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json"
 )
 DEFAULT_REPORT: Final = Path("reports/backtest/phase-08-holdout.json")
-LOCK_SHA256: Final = "a3c1d0c1a7cbd35949ff4811517304295ed090e63ed96ffb20bbebe8e24880da"
+LOCK_SHA256: Final = "7c181dd855048b14e5d338bec31acdd0868046b62aabe781589ee2b350adc2d6"
 _SIMULATION: Final = {"pace_model": "linear", "n_simulations": 1_000, "seed": 0, "risk": 0.5}
 
 
@@ -56,9 +56,50 @@ def _load_holdout_lock(lock_path: Path = LOCK_PATH) -> dict[str, Any]:
         raise ValueError("The holdout training calendar does not match the committed lock.")
     if value.get("era") != "reg_2026" or value.get("simulation") != _SIMULATION:
         raise ValueError("The holdout era or simulation settings differ from the lock.")
+    schedule = value.get("schedule")
+    events = schedule.get("events") if isinstance(schedule, dict) else None
+    provenance = schedule.get("provenance") if isinstance(schedule, dict) else None
+    if (
+        not isinstance(events, dict)
+        or set(events) != set(HOLDOUT_RACE_IDS)
+        or not isinstance(provenance, dict)
+        or set(provenance) != set(HOLDOUT_RACE_IDS)
+    ):
+        raise ValueError("The holdout schedule must cover every locked race and its provenance.")
+    for race_id in HOLDOUT_RACE_IDS:
+        event = events[race_id]
+        if (
+            not isinstance(event, dict)
+            or not isinstance(event.get("circuit"), str)
+            or type(event.get("scheduled_laps")) is not int
+            or event["scheduled_laps"] < 1
+            or not isinstance(provenance[race_id], str)
+            or not provenance[race_id].strip()
+        ):
+            raise ValueError(f"The locked schedule entry is invalid for {race_id}.")
     if value.get("report_schema", {}).get("schema_version") != 1:
         raise ValueError("The holdout report schema differs from the lock.")
     return value
+
+
+def _resolve_scheduled_laps(
+    race_id: str,
+    observed_laps: int | None,
+    locked_schedule: dict[str, Any],
+) -> int:
+    """Use the ex-ante locked horizon and reject conflicting local metadata."""
+    event = locked_schedule.get(race_id)
+    if not isinstance(event, dict):
+        raise ValueError(f"No locked scheduled distance is available for {race_id}.")
+    locked_laps = event.get("scheduled_laps")
+    if type(locked_laps) is not int or locked_laps < 1:
+        raise ValueError(f"No locked scheduled distance is available for {race_id}.")
+    if observed_laps is not None and observed_laps != locked_laps:
+        raise ValueError(
+            f"Scheduled lap metadata disagrees with locked schedule for {race_id}: "
+            f"observed {observed_laps}, locked {locked_laps}."
+        )
+    return locked_laps
 
 
 def _regime_sequences_from_snapshots(
@@ -163,6 +204,7 @@ def _frozen_predictions(
     risk: float,
     seed: int,
     pace_model: str,
+    locked_schedule: dict[str, Any],
 ) -> tuple[dict[str, Any], ...]:
     from f1si.cli import _prepare_replay_context, _replay_at_cutoff
     from f1si.data.asof import AsOfAccessor
@@ -179,9 +221,7 @@ def _frozen_predictions(
     frozen: list[dict[str, Any]] = []
     for race_id in HOLDOUT_RACE_IDS:
         first = accessor.snapshot(asof.AsOf(race_id, 0))
-        laps_total = first.race.scheduled_laps
-        if laps_total is None or laps_total < 1:
-            raise ValueError(f"Scheduled race distance is unavailable for {race_id}.")
+        laps_total = _resolve_scheduled_laps(race_id, first.race.scheduled_laps, locked_schedule)
         for lap in range(laps_total):
             snapshot = first if lap == 0 else accessor.snapshot(asof.AsOf(race_id, lap))
             prepared = _prepare_replay_context(
@@ -264,6 +304,7 @@ def score_holdout(
         risk=risk,
         seed=seed,
         pace_model=pace_model,
+        locked_schedule=lock["schedule"]["events"],
     )
     accessor = OutOfSampleAccessor(db_path)
     strategy_by_race: dict[str, dict[str, int | float | None]] = {}

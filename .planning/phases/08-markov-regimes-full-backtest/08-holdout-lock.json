@@ -24,6 +24,31 @@
     "pace_fit_seed_scope": "shared by every driver at one race and cutoff"
   },
   "cutoffs": "every integer cutoff from zero through scheduled_laps minus one, in race and lap order",
+  "schedule": {
+    "rule": "Use the locked ex-ante scheduled lap count when RaceInfo.scheduled_laps is null; if local metadata is present, it must equal the locked count.",
+    "provenance": {
+      "2026-09": "Official race schedule lap count matched to the local locked circuit key silverstone.",
+      "2026-10": "Official race schedule lap count matched to the local locked circuit key spa.",
+      "2026-11": "Official race schedule lap count matched to the local locked circuit key hungaroring.",
+      "2026-12": "Official race schedule lap count matched to the local locked circuit key zandvoort.",
+      "2026-13": "Official race schedule lap count matched to the local locked circuit key monza.",
+      "2026-14": "Official race schedule lap count matched to the local locked circuit key madring.",
+      "2026-15": "Official race schedule lap count matched to the local locked circuit key baku.",
+      "2026-16": "OpenF1 schedule-only meetings?year=2026 identifies meeting_key 1308 as the Bahrain Grand Prix in Malaysia; sessions?meeting_key=1308 identifies its Race session on October 4. The official Sepang Circuit lap length is 5.543 km. FIA 2026 Sporting Regulations B2.5.2 requires the least whole-lap distance exceeding 305 km; ceil(305/5.543)=56 laps, or 310.408 km.",
+      "2026-17": "Official race schedule lap count matched to the local locked circuit key marina_bay."
+    },
+    "events": {
+      "2026-09": {"circuit": "silverstone", "scheduled_laps": 52},
+      "2026-10": {"circuit": "spa", "scheduled_laps": 44},
+      "2026-11": {"circuit": "hungaroring", "scheduled_laps": 70},
+      "2026-12": {"circuit": "zandvoort", "scheduled_laps": 72},
+      "2026-13": {"circuit": "monza", "scheduled_laps": 53},
+      "2026-14": {"circuit": "madring", "scheduled_laps": 57},
+      "2026-15": {"circuit": "baku", "scheduled_laps": 51},
+      "2026-16": {"circuit": "sepang", "scheduled_laps": 56},
+      "2026-17": {"circuit": "marina_bay", "scheduled_laps": 61}
+    }
+  },
   "target_mask": [
     "one available best-action finish distribution per driver and cutoff snapshot",
     "join the frozen prediction to that driver's final classification; unclassified starters count as failures for podium and top-ten scores",
@@ -46,5 +71,5 @@
   },
   "result_access": "OutOfSampleAccessor.final_classification is called only after predictions for all locked races are frozen",
   "score_policy": "score once and never tune or rescore against the holdout",
-  "lock_digest": {"algorithm": "sha256", "canonicalization": "UTF-8 JSON, sorted keys, compact separators, omitting lock_digest", "sha256": "a3c1d0c1a7cbd35949ff4811517304295ed090e63ed96ffb20bbebe8e24880da"}
+  "lock_digest": {"algorithm": "sha256", "canonicalization": "UTF-8 JSON, sorted keys, compact separators, omitting lock_digest", "sha256": "7c181dd855048b14e5d338bec31acdd0868046b62aabe781589ee2b350adc2d6"}
 }
