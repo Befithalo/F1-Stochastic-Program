@@ -1,6 +1,6 @@
 ---
 phase: 07-bayesian-pace-model
-verified: 2026-11-17T19:33:19Z
+verified: 2026-11-17T20:30:00Z
 status: passed
 score: 4/4 must-haves verified (1 accepted override)
 covered_files:
@@ -15,6 +15,7 @@ covered_files:
   - .planning/phases/07-bayesian-pace-model/07-05-PLAN.md
   - .planning/phases/07-bayesian-pace-model/07-05-SUMMARY.md
   - .planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json
+  - .planning/phases/07-bayesian-pace-model/07-VALIDATION.md
   - DECISIONS.md
   - README.md
   - docs/explained/phase-07.md
@@ -38,7 +39,7 @@ covered_files:
   - tests/test_cli_replay.py
   - tests/test_decisions_log.py
   - tests/test_docs.py
-covered_digest: "v3:sha256:6cfe20437586f96cf414894e8b539ae8aaca67621d69208642e9d4d06279178d"
+covered_digest: "v3:sha256:5cdb427376db988a27d1b5d6f0dc1501eff118f378ff464ed12016808abf0c9e"
 behavior_unverified: 0
 overrides_applied: 1
 overrides:
@@ -47,13 +48,11 @@ overrides:
     accepted_by: "befit (user-directed M1 closeout)"
     accepted_at: "2026-11-17T19:32:16Z"
 re_verification:
-  previous_status: gaps_found
-  previous_score: 3/4
+  previous_status: human_needed
+  previous_score: 4/4
   gaps_closed:
-    - "PAC-06: accepted for M1 administrative closure while remaining measured as unmet and carried into M2; not marked VERIFIED."
-    - "Synthetic Bayesian recovery: the named known-truth recovery test passed."
-    - "MVP story format: Phase 7 roadmap goal is now a valid user story."
-    - "Plan 07-04 artifact declaration now names tests/backtest/test_walk_forward.py."
+    - "GitHub Actions run 44163005087 completed successfully for Ubuntu and Windows on exact SHA 9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d."
+    - "DEC-131 report-verifier hardening and read-only locked-report verification passed."
   gaps_remaining: []
   regressions: []
 ---
@@ -61,9 +60,9 @@ re_verification:
 # Phase 7: Bayesian Pace Model Verification Report
 
 **Phase Goal:** As a race strategist, I want to compare a hierarchical Bayesian pace model with the linear model, so that I can judge its uncertainty and next-lap predictions against real data.
-**Verified:** 2026-11-17T19:33:19Z
+**Verified:** 2026-11-17T20:30:00Z
 **Status:** passed (with one accepted override)
-**Re-verification:** Yes — after the documented closeout decision and verification gaps were addressed.
+**Re-verification:** Yes — against pushed SHA `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`.
 
 ## User Flow Coverage
 
@@ -87,7 +86,7 @@ User story: “As a race strategist, I want to compare a hierarchical Bayesian p
 | 3 | On held-out laps the next-lap error is at least 15% lower than the per-compound linear baseline. | PASSED (override) | **Measured truth remains unmet:** the frozen 1,348-pair report has linear MAE 0.364033047 s, Bayesian MAE 0.538744808 s and -47.993379% improvement (`pac_06_met: false`). The user-authorized override allows M1 administrative closure only; PAC-06 remains visibly unmet and carried into M2. |
 | 4 | Replay and backtest run with the Bayesian model without changes outside the model swap. | ✓ VERIFIED | Model selection is wired through existing replay/backtest composition. The named cutoff-history/cache identity test passed (1 passed, 2.05 s); prior implementation and future-scramble tests remain in the phase evidence. |
 
-**Score:** 4/4 including 1 accepted override; PAC-06 is not counted as a measured pass.
+**Score:** 4/4 including 1 accepted override; PAC-06 is not counted as a measured pass. Exact-head CI completed successfully on both required operating systems.
 
 ### Override Record
 
@@ -132,10 +131,10 @@ The user-authorized PAC-06 override is administrative: it accepts closing M1 wit
 |---|---|---|---|
 | Synthetic known-truth recovery | `uv run pytest tests/pace/test_bayesian_recovery.py::test_seeded_multiera_panel_recovers_pace_effects_and_predictive_coverage -q` | 1 passed; one PyTensor warning; 10.92 s | ✓ PASS |
 | Replay cutoff history and fit-cache identity | `uv run pytest tests/test_cli_replay.py::test_bayesian_replay_uses_cutoff_history_and_caches_only_matching_fit_identity -q` | 1 passed in 2.05 s (prior verification) | ✓ PASS |
+| DEC-131 saved-report hardening | `uv run pytest tests/backtest/test_bayesian_accuracy.py -q` | 8 passed in 1.22 s | ✓ PASS |
 | Saved Phase 7 score verification | `uv run python -m f1si.backtest.pace_evaluation --verify-existing` | Verified existing report for lock `f11423b3249de7794d32ccbce89d299cd361e1758c472ceaa36ce0448572bb48`; read-only | ✓ PASS |
-| One-shot and saved-report consistency | `uv run pytest tests/backtest/test_bayesian_accuracy.py::test_one_shot_command_refuses_existing_report_and_verifies_without_scoring -q` | 1 passed in 1.19 s (prior verification) | ✓ PASS |
 
-The orchestrator also reports the full suite passed: 1,243 tests. This re-verification did not rerun the suite.
+The validation artifact records 1,243 passing full-suite tests, 42 focused tests after DEC-131, and successful exact-head CI. GitHub Actions run `44163005087` completed successfully for both `ubuntu-latest` and `windows-latest` at SHA `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`. The DEC-131 changes therefore passed the pushed-tree CI workflow on both platforms. The saved report verifier was also run read-only and passed.
 
 ## Probe Execution
 
@@ -175,7 +174,7 @@ No orphaned Phase 7 requirement IDs were found.
 
 ## Human Verification Required
 
-None. The prior behavior-unverified synthetic recovery item is closed by the named passing test. This is an infrastructure/model phase; no manual UI or external-service check is required.
+No human verification items remain. CI completion was confirmed directly in GitHub Actions: run `44163005087`, exact SHA `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`, with both Ubuntu and Windows jobs successful.
 
 ## Re-verification Changes
 
@@ -183,8 +182,14 @@ None. The prior behavior-unverified synthetic recovery item is closed by the nam
 - The known-truth synthetic recovery test now directly passes.
 - The roadmap story validates, and Plan 07-04 now points to the concrete backtest test file.
 - The Phase 7 report still verifies read-only; no score was recomputed and no final outcomes were accessed.
+- Exact-head Ubuntu and Windows CI is complete and successful; this closes the prior human-verification item.
+- No score was recomputed, no model was retuned, and no raw 2026 outcomes were accessed.
+
+### Advisory (New Scope, Unevidenced)
+
+None. No new-scope concern was found that lacked deterministic evidence.
 
 ---
 
-_Verified: 2026-11-17T19:33:19Z_
+_Verified: 2026-11-17T20:30:00Z_
 _Verifier: the agent (gsd-verifier)_

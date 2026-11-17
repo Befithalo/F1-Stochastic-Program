@@ -1,8 +1,8 @@
 ---
 phase: "08"
 slug: "markov-regimes-full-backtest"
-status: pending_exact_head_ci
-nyquist_compliant: false
+status: validated
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-16"
 ---
@@ -44,7 +44,7 @@ created: "2026-11-16"
 | 08-05-01 | 05 | 5 | BKT-05 | T-08-07 | One holdout report matches its committed lock and verifies without rescoring | locked evaluation | `uv run f1si holdout --verify-existing --output reports/backtest/phase-08-holdout.json` | Existing report | passed after read-only verifier correction |
 | 08-05-02 | 05 | 5 | BKT-03, BKT-05 | T-08-07 | Public metrics match separate reports and retain per-race denominators and limitations | docs/report | `uv run pytest tests/test_docs.py -q` | Existing + extended | passed: 28 tests |
 | 08-06-01 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | DEC-121..129, assumptions, and the Phase 7 PAC-06 miss remain explicit and accurate | decision log | `uv run pytest tests/test_decisions_log.py -q` | Existing + extended | passed in focused and full suites |
-| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Focused paths, read-only report checks, strict checks, full pytest, and exact-head CI are recorded | phase validation | commands below | Existing + extended | local checks passed; closeout-head CI pending |
+| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Focused paths, read-only report checks, strict checks, full pytest, and exact-head CI are recorded | phase validation | commands below | Existing + extended | local checks and exact-head Ubuntu/Windows CI passed |
 
 ## Wave 0 Requirements
 
@@ -66,7 +66,7 @@ All Phase 8 success criteria have automated verification. The once-only locked s
 | `uv run mypy` | Passed: no issues in 178 source files |
 | `uv run pytest --cov=f1si --cov-report=term` | Passed: 1,243 passed, 33 deselected, 8 warnings, 1,494.58s; total coverage 87% |
 | `uv run pytest tests/backtest/test_holdout.py tests/test_decisions_log.py -q` | Passed: 51 tests after DEC-129 prediction-row validation |
-| Exact-head GitHub Actions query | Pending on the final closeout push; must include successful `checks (ubuntu-latest)` and `checks (windows-latest)` for the same `head_sha` |
+| Exact-head GitHub Actions | Run [44163005087](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/44163005087), SHA `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`; `checks (ubuntu-latest)` and `checks (windows-latest)` both successful |
 
 Both reports remain separate. The 20-race 2023–2025 report has 82.26% interval coverage and the 2026 holdout has 73.03%; do not pool these regulation-era samples. The holdout is pre-registered but retrospectively unblinded because schedule research incidentally displayed outcome information. The failed first invocation stopped before result access; the second produced the sole successful result-accessing score. Do not tune or rescore.
 
@@ -76,11 +76,11 @@ Both reports remain separate. The 20-race 2023–2025 report has 82.26% interval
 - [x] No three consecutive tasks lack focused automated verification.
 - [x] No watch-mode flags are used.
 - [x] Both report verifiers, strict lint/format/type checks, and full pytest pass locally.
-- [ ] Exact-head Ubuntu and Windows CI pass on the final pushed head.
-- [ ] `nyquist_compliant: true` is set only after exact-head CI passes.
+- [x] Exact-head Ubuntu and Windows CI pass on the final pushed head.
+- [x] `nyquist_compliant: true` is set only after exact-head CI passes.
 
-**Approval:** pending exact-head CI
-**Phase status:** all implementation and local validation tasks complete; awaiting exact-head Ubuntu/Windows CI. Phase 7 PAC-06 remains unmet and is not represented as passed. Phase 8 metrics are observational results, not calibration or competitive-superiority claims.
+**Approval:** automated validation complete; judgment-tier prohibitions remain disclosed in Phase 8 verification.
+**Phase status:** implementation and validation are complete; exact-head CI passed on Ubuntu and Windows. Phase 7 PAC-06 remains unmet and is not represented as passed. Phase 8 metrics are observational results, not calibration or competitive-superiority claims.
 
 ## Holdout Score and Evaluation Limitation
 

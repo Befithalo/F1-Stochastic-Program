@@ -1,43 +1,38 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 5
-current_phase_name: Longstaff-Schwartz Strategy & Live Replay
-current_plan: 4
-status: verifying
-stopped_at: Phase 7 complete, ready to verify Phase 5
-last_updated: "2026-11-17T19:34:26.516Z"
+status: Awaiting next milestone
+stopped_at: M1 v1.0 closed; M2 Physics planning is next
+last_updated: "2026-11-17T20:33:16.275Z"
 last_activity: 2026-11-17
-last_activity_desc: Phase 7 complete, transitioned to Phase 5
-state_head: d854e0b122d66a6fc0ddcfadb2927240353b0ca5
+last_activity_desc: Milestone v1.0 completed and archived
+state_head: 9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d
 progress:
   total_phases: 8
-  completed_phases: 6
+  completed_phases: 8
   total_plans: 55
   completed_plans: 55
-  percent: 75
 milestone_name: milestone
+closeout_type: override_closeout
+current_phase: 8
+current_phase_name: Markov Regimes & Full Backtest (M1 archived)
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-22)
+See: .planning/PROJECT.md (updated 2026-11-17)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 7 — bayesian pace model
+**Current focus:** M2 Physics — requirements and roadmap
 
 ## Current Position
 
-Phase: 5 — Longstaff-Schwartz Strategy & Live Replay
-Current Plan: 4
-Total Plans in Phase: 6
-Plan: 12 of 12
-Status: Phase complete — ready for verification
-Last activity: 2026-11-17 — Phase 7 complete, transitioned to Phase 5
-
-Progress: [████████░░] 75%
+Phase: M1 v1.0 archived; preparing M2
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-17 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
@@ -164,27 +159,41 @@ Progress: [████████░░] 75%
 
 ### Pending Todos
 
-- GitHub Actions must run on the current Phase 5 commits on both Ubuntu and Windows before phase closeout. The local branch agent-05-01 is not on origin.
+- Commit and merge the M1 archive, tag v1.0, then run Ubuntu and Windows CI on the final merge commit.
 
 ### Blockers/Concerns
 
-- Phase 5 current-branch CI is pending; the latest available main run is for Phase 4 commit fcec2f2, not these commits.
-- Keep 2026 races out-of-sample because of the regulation break.
-- Fuel load and tire wear are hidden variables; state this in README.
-- The prior Windows Application Control OS error 4551 is resolved with verified PSF-signed CPython 3.12.10 at %LOCALAPPDATA%/Programs/Python/Python312/python.exe.
-- Phase 08 holdout score blocked: sole prescribed 08-05 invocation failed before outcome access because scheduled race distance is unavailable for 2026-09; no authoritative ex-ante horizon exists locally for locked 2026-16 Sepang. No score/report produced; no retry or 2026 outcome access. Phase 8 incomplete; see DEC-126 and 08-05-SUMMARY.md.
+- PAC-06 remains unmet: the locked Bayesian pace MAE was 0.538745 s versus 0.364033 s for linear pace. M2 must compare a hybrid model to the data-only Bayesian model on a separately locked held-out-stint set; do not retune or rescore the M1 evaluation.
+- Seven UAT, verification, and deferred items were acknowledged in the v1.0 override closeout and are preserved in the Deferred Items table and milestone archive. Phases 1, 5, and 8 still carry human judgment or UAT items.
+- The separate 2026 holdout report exists and was scored after its predictions were frozen; it is pre-registered but retrospectively unblinded. Keep it out of the M1 baseline and do not tune on it.
+- Fuel load, tire temperature, and tire wear remain hidden or latent variables; disclose assumptions and uncertainty.
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
-| 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
-| 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
-| 261115-166 | Merge only the user-selected Streamlit-compatible rules from the supplied F1 design brief into Phase 6 06-UI-SPEC.md. Ignore plugin and screenshot instructions. Update no app code and do not build the dashboard. Stop after the spec merge, brief summary, and a proposed post-approval build plan. | 2026-11-15 | 79da677 | Passed | [261115-166-merge-only-the-user-selected-streamlit-c](./quick/261115-166-merge-only-the-user-selected-streamlit-c/) |
-| 261116-0hq | UI design pass on the Streamlit replay page: race-strip decision band (prototype B), merged options, humanized copy, contrast to 4.5:1 text and 3:1 marks, stint crash fix | 2026-11-16 | 0b428bd | Passed | [261116-0hq-ui-design-pass-on-the-streamlit-replay-p](./quick/261116-0hq-ui-design-pass-on-the-streamlit-replay-p/) |
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close, most recent first:
+
+| Category | Item | Status | Deferred At | Milestone |
+|----------|------|--------|-------------|-----------|
+| quick_tasks | 261116-0hq-ui-design-pass-on-the-streamlit-replay-p | completed artifact archived in v1.0 | 2026-11-17 | v1.0 |
+| uat_gaps | 01/01-HUMAN-UAT.md | partial; 2 scenarios | 2026-11-17 | v1.0 |
+| verification_gaps | 01/01-VERIFICATION.md | human_needed | 2026-11-17 | v1.0 |
+| verification_gaps | 05/05-VERIFICATION.md | human_needed | 2026-11-17 | v1.0 |
+| verification_gaps | 08/08-VERIFICATION.md | human_needed | 2026-11-17 | v1.0 |
+| deferred_items | 05/deferred-items.md: docs verification sequencing note | acknowledged | 2026-11-17 | v1.0 |
+| deferred_items | 06/deferred-items.md: pre-existing RNG factory import-ban findings in scoring.py | acknowledged | 2026-11-17 | v1.0 |
 
 ## Session Continuity
 
 Last session: 2026-11-17T08:58:39.889Z
-Stopped at: Phase 7 complete, ready to verify Phase 5
-Resume file: .planning/phases/08-markov-regimes-full-backtest/08-05-SUMMARY.md
+Stopped at: M1 v1.0 archived; finish merge and final CI before M2 execution
+Resume file: .planning/milestones/v1.0-phases/08-markov-regimes-full-backtest/08-VERIFICATION.md
+
+## Operator Next Steps
+
+- Finish M1 release merge, push, and final Ubuntu/Windows CI.
+- Start M2 Physics with GSD after the M1 merge.

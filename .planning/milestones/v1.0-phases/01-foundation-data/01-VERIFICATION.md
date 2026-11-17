@@ -18,6 +18,10 @@ human_verification:
   - test: "Owner views reports/bahrain-2023.png"
     expected: "20 driver panels, compound colours, faded pit/slow laps, stint lines."
     why_human: "Visual. Already observed and confirmed by the orchestrator; listed for the owner's own sign-off only."
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-11-17
+  status: human_needed
 ---
 
 # Phase 1: Foundation & Data - Verification Report

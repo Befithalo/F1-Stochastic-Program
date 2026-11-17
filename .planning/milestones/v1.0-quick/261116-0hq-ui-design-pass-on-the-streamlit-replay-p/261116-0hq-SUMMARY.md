@@ -3,6 +3,10 @@ quick_id: 261116-0hq
 description: UI design pass on the Streamlit replay page
 date: 2026-11-16
 status: done, not committed (waiting for the owner)
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-11-17
+  status: done, not committed (waiting for the owner)
 ---
 
 # Summary

@@ -1,8 +1,8 @@
 ---
 phase: "07"
 slug: "bayesian-pace-model"
-status: pending_exact_head_ci
-nyquist_compliant: false
+status: validated
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-16"
 ---
@@ -58,8 +58,8 @@ All Phase 7 acceptance criteria are automated. No UI review or manual checkpoint
 - [x] Wave 0 is not needed; existing test infrastructure is in place.
 - [x] No watch-mode flags.
 - [x] Full suite passed; report-verifier fix passed focused tests and the locked report verifies read-only.
-- [ ] Exact-head Ubuntu and Windows CI pass after all closeout changes.
-- [ ] nyquist_compliant: true set after plan verification and successful execution.
+- [x] Exact-head Ubuntu and Windows CI pass after all closeout changes.
+- [x] nyquist_compliant: true set after plan verification and successful execution.
 
 **Executed checks (2026-11-17):**
 
@@ -71,8 +71,8 @@ All Phase 7 acceptance criteria are automated. No UI review or manual checkpoint
 | `uv run ruff check .` | Passed. |
 | `uv run ruff format --check .` | Passed: 192 files already formatted. |
 | `uv run mypy` | Passed: no issues in 178 source files. |
-| GitHub Actions exact-head checks | Pending after the final M1 closeout push; require successful Ubuntu and Windows checks for one `head_sha`. |
+| GitHub Actions exact-head checks | Passed: run [44163005087](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/44163005087), SHA `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`; Ubuntu and Windows jobs both successful. |
 
-The full suite ran before the DEC-131 report-verifier code change; all changed verifier paths, malformed-report cases, and decision assertions then passed the focused tests above. The next exact-head CI run executes the full workflow with the final code. PAC-06 remains unmet; the user-directed M1 closeout override does not change that measured result.
+The exact-head CI run executed the full workflow after the DEC-131 report-verifier change; Ubuntu and Windows both passed. PAC-06 remains unmet; the user-directed M1 closeout override does not change that measured result.
 
-**Approval:** pending exact-head CI and GSD verification
+**Approval:** automated validation complete; the separate PAC-06 real-data gate remains unmet under the recorded M1 override.

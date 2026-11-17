@@ -26,7 +26,7 @@
     {
       "number": "5",
       "name": "Longstaff-Schwartz Strategy & Live Replay",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "6",
@@ -41,13 +41,13 @@
     {
       "number": "8",
       "name": "Markov Regimes & Full Backtest",
-      "status": "in_progress"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 5 of 8 · 75% · ready to verify"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-11-17T19:34:26.563Z"
+  "updated_at": "2026-11-17T20:33:16.328Z"
 }

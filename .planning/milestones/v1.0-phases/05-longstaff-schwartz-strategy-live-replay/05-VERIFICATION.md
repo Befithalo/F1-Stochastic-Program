@@ -1,6 +1,6 @@
 ---
 phase: 05-longstaff-schwartz-strategy-live-replay
-verified: 2026-11-14T01:44:14Z
+verified: 2026-11-17T20:28:50Z
 status: human_needed
 score: 19/20 must-haves verified
 covered_files:
@@ -28,14 +28,14 @@ covered_files:
   - tests/strategy/test_longstaff.py
   - tests/test_cli_replay.py
   - tests/test_docs.py
-covered_digest: "v3:sha256:6698b8002b8e03690be3886ef1928c8e94af187e0fbbe2051fafc748c8c94ba1"
+covered_digest: "v3:sha256:8b093f6f7fe3782709d72ff2ea3323d621365ea11d544bae0396a93f8dbea7e7"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
-  previous_status: gaps_found
-  previous_score: 17/18
+  previous_status: human_needed
+  previous_score: 19/20
   gaps_closed:
-    - "Every Bahrain replay cutoff returns a ranked recommendation with uncertainty using cutoff-visible inputs."
+    - "The prior verification fingerprint was refreshed against the current shared replay code and exact-head CI."
   gaps_remaining: []
   regressions: []
 decision_coverage:
@@ -46,12 +46,16 @@ human_verification:
   - test: "Confirm the replay display is clear enough to support a strategist's pit-timing choice."
     expected: "The ranked metrics, recommendation, reason, and fallback disclosure provide enough context to choose without treating fallback spread as calibrated confidence."
     why_human: "Whether the CLI wording and layout are useful for a real decision requires strategist judgment."
+audit_acknowledged:
+  milestone: v1.0
+  at: 2026-11-17
+  status: human_needed
 ---
 
 # Phase 5: Longstaff-Schwartz Strategy & Live Replay Verification Report
 
 **Phase Goal:** As a strategist, I want to see explained, uncertainty-aware pit rankings per driver and lap, so that I can choose.
-**Verified:** 2026-11-14T01:44:14Z
+**Verified:** 2026-11-17T20:28:50Z
 **Status:** human_needed
 **Re-verification:** Yes — after closure of the RPL-01 gap and roadmap user-story format repair.
 
@@ -90,7 +94,7 @@ User story: “As a strategist, I want to see explained, uncertainty-aware pit r
 | 16 | A supported cutoff with no legal fitted stop compound still ranks the legal stay-out action instead of returning unavailable. | ✓ VERIFIED | Ran tests/strategy/test_longstaff.py::test_policy_ranks_stay_out_when_no_second_compound_is_available — 1 passed; the real Bahrain replay also returned ranked rows at all cutoffs. |
 | 17 | Neighboring cutoffs remain independently constructed; unknown races/drivers, empty data, and locked out-of-sample races are refused. | ✓ VERIFIED | AsOfAccessor enforces race and lap bounds and rejects out-of-sample races; the linked refusal and guard tests pass in exact-head CI. |
 | 18 | DEC-101, README, and the explainer accurately disclose the fallback basis and limits without changing DEC-091's measurement question. | ✓ VERIFIED | Compared DEC-101 and user-facing documentation with fallback implementation and Phase 5 context. The docs state the cutoff boundary, generic priors, assumed offset scale, and uncalibrated limitation; decision coverage reports 8/8 honored. |
-| 19 | Required quality checks and cross-platform CI succeed for the implementation under review. | ✓ VERIFIED | Local Ruff check, Ruff format check, and mypy passed. GHA run 43536333390 reports success for both Windows and Ubuntu and full pytest. Its head is 69184aed02f14a9ba606725bd3c551db890e107c; source, tests, workflow, README, decisions, and explainer are unchanged between that commit and this checkout. [Run details](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/43536333390). |
+| 19 | Required quality checks and cross-platform CI succeed for the implementation under review. | ✓ VERIFIED | GitHub Actions run [44163005087](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/44163005087) completed successfully at exact source HEAD `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`; both `checks (ubuntu-latest)` and `checks (windows-latest)` passed the full pytest suite and workflow checks. |
 | 20 | The replay presentation is clear enough for a strategist to use when choosing a pit timing. | ? UNCERTAIN | The CLI output is present and complete, but decision usefulness and clarity require a human user-flow review. |
 
 **Score:** 19/20 truths verified (0 present, behavior-unverified)
@@ -217,5 +221,5 @@ The carried RPL-01 gap is closed: the real Bahrain replay now returns ranked rec
 
 ---
 
-_Verified: 2026-11-14T01:44:14Z_  
+_Verified: 2026-11-17T20:28:50Z_
 _Verifier: the agent (gsd-verifier)_
