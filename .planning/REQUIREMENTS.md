@@ -86,8 +86,9 @@ The proposed M2 gate is intentionally stricter than a positive point estimate: r
 **Coverage:**
 - v1 requirements: 12 total
 - Mapped to phases: 12
+- Every requirement maps to exactly one phase; duplicate mappings: 0
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-11-17*
-*Last updated: 2026-11-17 after M2 Physics scope definition*
+*Last updated: 2026-11-17 after M2 Physics roadmap creation*
