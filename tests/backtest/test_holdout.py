@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pandas as pd
 import pytest
 
+import f1si.data.asof as asof_module
 import f1si.evaluation.holdout as holdout
 from f1si.cli import build_parser
 from f1si.data import asof
@@ -115,7 +116,7 @@ def test_verify_existing_reads_only_lock_and_report(
     }
     path = tmp_path / "holdout.json"
     path.write_text(json.dumps(report), encoding="utf-8")
-    monkeypatch.setattr(holdout.asof, "catalog", lambda *_: pytest.fail("catalog access"))
+    monkeypatch.setattr(asof_module, "catalog", lambda *_: pytest.fail("catalog access"))
     monkeypatch.setattr(holdout, "OutOfSampleAccessor", lambda *_: pytest.fail("results access"))
     assert verify_holdout_report(path)["race_ids"] == report["race_ids"]
 
@@ -142,11 +143,12 @@ def test_score_freezes_predictions_before_first_classification(
             return pd.DataFrame(columns=["driver_code", "final_position"])
 
     monkeypatch.setattr(holdout, "_preflight_catalog", lambda _db: None)
-    monkeypatch.setattr(
-        holdout,
-        "_frozen_predictions",
-        lambda *_args, **_kwargs: events.append("predictions") or (),
-    )
+
+    def freeze_predictions(*_args: object, **_kwargs: object) -> tuple[()]:
+        events.append("predictions")
+        return ()
+
+    monkeypatch.setattr(holdout, "_frozen_predictions", freeze_predictions)
     monkeypatch.setattr(holdout, "OutOfSampleAccessor", FakeResults)
     result = score_holdout(Path("unused.duckdb"), report_path=tmp_path / "report.json")
     assert result["metadata"]["predictions_frozen_before_results"] is True

@@ -105,6 +105,7 @@ def _feature_history(
         laps.loc[laps["lap_end_s"].notna()]
         .groupby(["race_id", "lap_number"], as_index=False, sort=True)["lap_end_s"]
         .min()
+        .reset_index()
         .rename(columns={"lap_number": "lap", "lap_end_s": "cutoff_s"})
     )
     return asof.History(
@@ -271,9 +272,9 @@ def score_holdout(
         end = accessor.snapshot(asof.AsOf(race_id, asof.RACE_END))
         codes = end.entries.set_index("driver_number")["driver_code"]
         for event in end.pit_events.itertuples(index=False):
-            code = codes.get(int(event.driver_number))
+            code = codes.get(cast(int, event.driver_number))
             if code is not None:
-                strategy_events.append((race_id, str(code).upper(), int(event.in_lap)))
+                strategy_events.append((race_id, str(code).upper(), cast(int, event.in_lap)))
     strategy_errors: list[int] = []
     strategy_matched = 0
     strategy_agreements = 0
@@ -333,7 +334,9 @@ def score_holdout(
             if row["driver"] not in classified:
                 continue
             raw_position = classified[row["driver"]]
-            position = None if raw_position is None or pd.isna(raw_position) else int(raw_position)
+            position = (
+                None if raw_position is None or pd.isna(raw_position) else cast(int, raw_position)
+            )
             podium_target = position is not None and 0 < position <= 3
             top10_target = position is not None and 0 < position <= 10
             podium_scores.append((float(row["podium_probability"]) - float(podium_target)) ** 2)

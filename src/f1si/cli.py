@@ -1465,19 +1465,21 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "holdout":
             from f1si.evaluation.holdout import DEFAULT_REPORT, score_holdout, verify_holdout_report
 
-            output = args.output or DEFAULT_REPORT
+            holdout_output = args.output or DEFAULT_REPORT
             if args.verify_existing:
-                verify_holdout_report(output)
-                print(f"Verified locked holdout report at {output}")
+                verify_holdout_report(holdout_output)
+                print(f"Verified locked holdout report at {holdout_output}")
                 return 0
             report = score_holdout(
                 paths.db_path(data_dir),
-                report_path=output,
+                report_path=holdout_output,
                 n_simulations=args.n,
                 risk=args.risk,
                 seed=args.seed,
             )
-            print(f"Wrote locked holdout report to {output} ({len(report['race_ids'])} races)")
+            print(
+                f"Wrote locked holdout report to {holdout_output} ({len(report['race_ids'])} races)"
+            )
             return 0
         if args.command == "plot":
             reports_dir: Path = (
@@ -1523,20 +1525,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                         verify_holdout_report,
                     )
 
-                    output = args.output or DEFAULT_REPORT
+                    holdout_output = args.output or DEFAULT_REPORT
                     if args.verify_existing:
-                        verify_holdout_report(output)
-                        print(f"Verified locked holdout report at {output}")
+                        verify_holdout_report(holdout_output)
+                        print(f"Verified locked holdout report at {holdout_output}")
                         return 0
                     score_holdout(
                         paths.db_path(data_dir),
-                        report_path=output,
+                        report_path=holdout_output,
                         n_simulations=args.n,
                         risk=args.risk,
                         seed=args.seed,
                         pace_model=args.pace_model,
                     )
-                    print(f"Wrote completed locked holdout report to {output}")
+                    print(f"Wrote completed locked holdout report to {holdout_output}")
                     return 0
                 if args.diagnostics_only:
                     output: Path = args.output or Path(
