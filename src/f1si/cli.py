@@ -64,7 +64,7 @@ from f1si.plots.wear_filter import (
     render_wear_filter_plot,
     wear_filter_file_name,
 )
-from f1si.regime.markov import estimate_regime_model
+from f1si.regime.markov import RegimeEstimate, estimate_regime_model
 from f1si.regime.sc_rate import ScRateEstimate, estimate_sc_rate
 from f1si.rng import DEFAULT_SEED, make_rng
 from f1si.sim.constants import MAX_RACES
@@ -289,6 +289,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     backtest.add_argument(
         "--report", action="store_true", help="score and report the full registered race sample"
+    )
+    backtest.add_argument(
+        "--holdout",
+        action="store_true",
+        help="use the separately locked Phase 8 holdout report and score-once path",
     )
     backtest.add_argument(
         "--verify-existing",
@@ -1102,14 +1107,20 @@ def _prepare_replay_context(
     snapshot: asof.RaceSnapshot | None = None,
     pace_model: str = "linear",
     seed: int = 0,
+    history_override: asof.History | None = None,
+    regime_estimate_override: RegimeEstimate | None = None,
 ) -> _PreparedReplayContext:
     """Build all race/cutoff data once, retaining the cutoff-only replay boundary."""
 
     at = asof.AsOf(race_id, lap)
     if snapshot is None:
         snapshot = accessor.snapshot(at)
-    history = accessor.history(at)
-    regime_estimate = estimate_regime_model(history)
+    history = history_override if history_override is not None else accessor.history(at)
+    regime_estimate = (
+        regime_estimate_override
+        if regime_estimate_override is not None
+        else estimate_regime_model(history)
+    )
     if pace_model not in ("linear", "bayesian"):
         raise ValueError(f"Unknown pace model {pace_model!r}; choose 'linear' or 'bayesian'.")
     if pace_model == "bayesian":
@@ -1417,6 +1428,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "backtest":
         single_cutoff_values = (args.race, args.driver, args.lap)
+        if args.holdout and not args.report:
+            parser.error("--holdout requires --report")
+        if args.holdout and args.diagnostics_only:
+            parser.error("--holdout cannot be combined with --diagnostics-only")
         if args.report and any(value is not None for value in single_cutoff_values):
             parser.error("--report cannot be combined with --race, --driver, or --lap")
         if args.diagnostics_only and not args.report:
@@ -1468,6 +1483,28 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "backtest":
             if args.report:
+                if args.holdout:
+                    from f1si.evaluation.holdout import (
+                        DEFAULT_REPORT,
+                        score_holdout,
+                        verify_holdout_report,
+                    )
+
+                    output = args.output or DEFAULT_REPORT
+                    if args.verify_existing:
+                        verify_holdout_report(output)
+                        print(f"Verified locked holdout report at {output}")
+                        return 0
+                    score_holdout(
+                        paths.db_path(data_dir),
+                        report_path=output,
+                        n_simulations=args.n,
+                        risk=args.risk,
+                        seed=args.seed,
+                        pace_model=args.pace_model,
+                    )
+                    print(f"Wrote completed locked holdout report to {output}")
+                    return 0
                 if args.diagnostics_only:
                     output: Path = args.output or Path(
                         "reports/backtest/phase-06.json"

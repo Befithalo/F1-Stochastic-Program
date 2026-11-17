@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "phase": "08-markov-regimes-full-backtest",
+  "registered_before_scoring": true,
+  "race_ids": [
+    "2026-09", "2026-10", "2026-11", "2026-12", "2026-13",
+    "2026-14", "2026-15", "2026-16", "2026-17"
+  ],
+  "era": "reg_2026",
+  "preflight": "all locked races must be complete and out of sample before feature snapshots; reject a pre-existing report before opening the results door",
+  "training": {
+    "race_ids": [
+      "2023-01", "2023-02", "2023-03", "2023-04", "2023-05", "2023-06", "2023-07",
+      "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06", "2024-07",
+      "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06"
+    ],
+    "source": "complete feature-only RACE_END snapshots; transition labels derive from lap-end cutoffs",
+    "exclude_holdout_sequences": true
+  },
+  "simulation": {"pace_model": "linear", "n_simulations": 1000, "seed": 0, "risk": 0.5},
+  "randomness": {
+    "prediction_seed": "(base_seed + crc32(f'{race_id}:{driver}:{cutoff_lap}')) & 0x7fffffff",
+    "pace_fit_seed": "(base_seed + crc32(f'{race_id}:pace:{cutoff_lap}')) & 0x7fffffff",
+    "pace_fit_seed_scope": "shared by every driver at one race and cutoff"
+  },
+  "cutoffs": "every integer cutoff from zero through scheduled_laps minus one, in race and lap order",
+  "target_mask": [
+    "current cutoff snapshot only; each eligible driver's next-to-complete lap is predicted",
+    "target lap is not completed in the current snapshot and later completes cleanly",
+    "target compound equals the cutoff-visible compound; when current stint is visible, stint must match",
+    "freeze all race/cutoff/driver predictions before requesting final classifications"
+  ],
+  "metrics": {
+    "podium_brier": "binary final_position <= 3; unclassified starters count as failures; average within race then weight races equally",
+    "top10_brier": "binary final_position <= 10; unclassified starters count as failures; average within race then weight races equally",
+    "finish_interval_90": "inclusive empirical inverted-CDF P05/P95 endpoints; coverage only for classified finishers",
+    "strategy_agreement": "top action begins with pit, matched to each observed pit event's latest prior not-yet-visible recommendation",
+    "aggregation": "equal race weight after within-race observation means",
+    "empty_race_rule": "preserve every locked race row with zero or unavailable denominators"
+  },
+  "report_schema": {
+    "schema_version": 1,
+    "required_top_level_fields": ["schema_version", "race_ids", "metadata", "metrics", "per_race"],
+    "required_race_rows": "one ordered row for every locked 2026 race",
+    "required_denominators": "all overall and per-race metrics include explicit observation counts"
+  },
+  "result_access": "OutOfSampleAccessor.final_classification is called only after predictions for all locked races are frozen",
+  "score_policy": "score once and never tune or rescore against the holdout",
+  "lock_digest": {"algorithm": "sha256", "canonicalization": "UTF-8 JSON, sorted keys, compact separators, omitting lock_digest", "sha256": "fc93e3d26dce31e80fa277bdae8384e94f1f4e9c4ae7b674875f0e765e367321"}
+}
