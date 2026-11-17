@@ -1,0 +1,1629 @@
+{
+  "bahrain_2023_probe": {
+    "endpoints": {
+      "/car_data": {
+        "first_race_clock_s": 0.111,
+        "first_source_utc": "2023-03-05T15:03:38.611000Z",
+        "race_clock_alignment": "aligned",
+        "row_count": 45160,
+        "usable_row_count": 45160,
+        "valid_timestamp_fraction": 1.0
+      },
+      "/location": {
+        "first_race_clock_s": 0.185,
+        "first_source_utc": "2023-03-05T15:03:38.685000Z",
+        "race_clock_alignment": "aligned",
+        "row_count": 45580,
+        "usable_row_count": 45580,
+        "valid_timestamp_fraction": 1.0
+      },
+      "/weather": {
+        "first_race_clock_s": 9.078,
+        "first_source_utc": "2023-03-05T15:03:47.578000Z",
+        "race_clock_alignment": "aligned",
+        "row_count": 10,
+        "usable_row_count": 10,
+        "valid_timestamp_fraction": 1.0
+      }
+    },
+    "lights_out_utc": "2023-03-05T15:03:38.500000Z",
+    "race_id": "2023-01",
+    "session_key": 7953,
+    "status": "available",
+    "window": {
+      "duration_minutes": 10,
+      "end_utc": "2023-03-05T15:13:38.500000Z",
+      "start_utc": "2023-03-05T15:03:38.500000Z"
+    }
+  },
+  "complete_catalog_race_ids": [
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
+    "2023-08",
+    "2023-09",
+    "2023-10",
+    "2023-11",
+    "2023-12",
+    "2023-13",
+    "2023-14",
+    "2023-15",
+    "2023-16",
+    "2023-17",
+    "2023-18",
+    "2023-19",
+    "2023-20",
+    "2023-21",
+    "2023-22",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12",
+    "2024-13",
+    "2024-14",
+    "2024-15",
+    "2024-16",
+    "2024-17",
+    "2024-18",
+    "2024-19",
+    "2024-20",
+    "2024-21",
+    "2024-22",
+    "2024-23",
+    "2024-24",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12",
+    "2025-13",
+    "2025-14",
+    "2025-15",
+    "2025-16",
+    "2025-17",
+    "2025-18",
+    "2025-19",
+    "2025-20",
+    "2025-21",
+    "2025-22",
+    "2025-23",
+    "2025-24",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10",
+    "2026-11",
+    "2026-12",
+    "2026-13",
+    "2026-14",
+    "2026-15",
+    "2026-16",
+    "2026-17"
+  ],
+  "local_cache": {
+    "catalog_complete_races": 87,
+    "channels": {
+      "car_data": {
+        "races_present": 0,
+        "row_count": 0
+      },
+      "location": {
+        "races_present": 0,
+        "row_count": 0
+      },
+      "weather": {
+        "races_present": 87,
+        "row_count": 13928
+      }
+    },
+    "expected_complete_races": 87,
+    "matches_expected_catalog_size": true,
+    "races": [
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 161
+          }
+        },
+        "race_id": "2023-01"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 148
+          }
+        },
+        "race_id": "2023-02"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 222
+          }
+        },
+        "race_id": "2023-03"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 160
+          }
+        },
+        "race_id": "2023-04"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 155
+          }
+        },
+        "race_id": "2023-05"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 176
+          }
+        },
+        "race_id": "2023-06"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 154
+          }
+        },
+        "race_id": "2023-07"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 162
+          }
+        },
+        "race_id": "2023-08"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 153
+          }
+        },
+        "race_id": "2023-09"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 151
+          }
+        },
+        "race_id": "2023-10"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 164
+          }
+        },
+        "race_id": "2023-11"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 150
+          }
+        },
+        "race_id": "2023-12"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 209
+          }
+        },
+        "race_id": "2023-13"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 156
+          }
+        },
+        "race_id": "2023-14"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 176
+          }
+        },
+        "race_id": "2023-15"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 158
+          }
+        },
+        "race_id": "2023-16"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 159
+          }
+        },
+        "race_id": "2023-17"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 168
+          }
+        },
+        "race_id": "2023-18"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 190
+          }
+        },
+        "race_id": "2023-19"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 183
+          }
+        },
+        "race_id": "2023-20"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 108
+          }
+        },
+        "race_id": "2023-21"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 156
+          }
+        },
+        "race_id": "2023-22"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 157
+          }
+        },
+        "race_id": "2024-01"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 146
+          }
+        },
+        "race_id": "2024-02"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 144
+          }
+        },
+        "race_id": "2024-03"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 181
+          }
+        },
+        "race_id": "2024-04"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 165
+          }
+        },
+        "race_id": "2024-05"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 150
+          }
+        },
+        "race_id": "2024-06"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 143
+          }
+        },
+        "race_id": "2024-07"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 200
+          }
+        },
+        "race_id": "2024-08"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 113
+          }
+        },
+        "race_id": "2024-09"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 154
+          }
+        },
+        "race_id": "2024-10"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 143
+          }
+        },
+        "race_id": "2024-11"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 147
+          }
+        },
+        "race_id": "2024-12"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 155
+          }
+        },
+        "race_id": "2024-13"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 137
+          }
+        },
+        "race_id": "2024-14"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 153
+          }
+        },
+        "race_id": "2024-15"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 133
+          }
+        },
+        "race_id": "2024-16"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 152
+          }
+        },
+        "race_id": "2024-17"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 160
+          }
+        },
+        "race_id": "2024-18"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 155
+          }
+        },
+        "race_id": "2024-19"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 159
+          }
+        },
+        "race_id": "2024-20"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 201
+          }
+        },
+        "race_id": "2024-21"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 143
+          }
+        },
+        "race_id": "2024-22"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 151
+          }
+        },
+        "race_id": "2024-23"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 148
+          }
+        },
+        "race_id": "2024-24"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 178
+          }
+        },
+        "race_id": "2025-01"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 154
+          }
+        },
+        "race_id": "2025-02"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 140
+          }
+        },
+        "race_id": "2025-03"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 158
+          }
+        },
+        "race_id": "2025-04"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 142
+          }
+        },
+        "race_id": "2025-05"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 149
+          }
+        },
+        "race_id": "2025-06"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 150
+          }
+        },
+        "race_id": "2025-07"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 160
+          }
+        },
+        "race_id": "2025-08"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 155
+          }
+        },
+        "race_id": "2025-09"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 167
+          }
+        },
+        "race_id": "2025-10"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 161
+          }
+        },
+        "race_id": "2025-11"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 155
+          }
+        },
+        "race_id": "2025-12"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 223
+          }
+        },
+        "race_id": "2025-13"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 136
+          }
+        },
+        "race_id": "2025-14"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 159
+          }
+        },
+        "race_id": "2025-15"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 144
+          }
+        },
+        "race_id": "2025-16"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 156
+          }
+        },
+        "race_id": "2025-17"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 161
+          }
+        },
+        "race_id": "2025-18"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 154
+          }
+        },
+        "race_id": "2025-19"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 162
+          }
+        },
+        "race_id": "2025-20"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 152
+          }
+        },
+        "race_id": "2025-21"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 141
+          }
+        },
+        "race_id": "2025-22"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 149
+          }
+        },
+        "race_id": "2025-23"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 154
+          }
+        },
+        "race_id": "2025-24"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 148
+          }
+        },
+        "race_id": "2026-01"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 152
+          }
+        },
+        "race_id": "2026-02"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 156
+          }
+        },
+        "race_id": "2026-03"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 168
+          }
+        },
+        "race_id": "2026-04"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 160
+          }
+        },
+        "race_id": "2026-05"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 208
+          }
+        },
+        "race_id": "2026-06"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 150
+          }
+        },
+        "race_id": "2026-07"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 149
+          }
+        },
+        "race_id": "2026-08"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 156
+          }
+        },
+        "race_id": "2026-09"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 146
+          }
+        },
+        "race_id": "2026-10"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 156
+          }
+        },
+        "race_id": "2026-11"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 191
+          }
+        },
+        "race_id": "2026-12"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 176
+          }
+        },
+        "race_id": "2026-13"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 161
+          }
+        },
+        "race_id": "2026-14"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 168
+          }
+        },
+        "race_id": "2026-15"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 254
+          }
+        },
+        "race_id": "2026-16"
+      },
+      {
+        "channels": {
+          "car_data": {
+            "present": false,
+            "row_count": 0
+          },
+          "location": {
+            "present": false,
+            "row_count": 0
+          },
+          "weather": {
+            "present": true,
+            "row_count": 160
+          }
+        },
+        "race_id": "2026-17"
+      }
+    ]
+  },
+  "schema_version": 1
+}

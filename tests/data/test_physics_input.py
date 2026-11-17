@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -16,9 +17,8 @@ def _artifact_ref(kind: str):
 
 
 def test_car_data_cutoff_preserves_source_utc_and_race_clock(long_synthetic_db: Path) -> None:
-    from f1si.data.physics_input import build_physics_input
-
     from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
 
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
     cutoff = snapshot.cutoff_s
@@ -50,9 +50,8 @@ def test_car_data_cutoff_preserves_source_utc_and_race_clock(long_synthetic_db: 
 def test_future_car_data_perturbation_does_not_change_physics_input(
     long_synthetic_db: Path,
 ) -> None:
-    from f1si.data.physics_input import build_physics_input
-
     from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
 
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
     cutoff = snapshot.cutoff_s
@@ -88,9 +87,8 @@ def test_future_car_data_perturbation_does_not_change_physics_input(
 
 
 def test_physics_input_is_immutable_and_carries_versioned_refs(long_synthetic_db: Path) -> None:
-    from f1si.data.physics_input import build_physics_input
-
     from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
 
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
     prepared = build_physics_input(
@@ -108,9 +106,8 @@ def test_physics_input_is_immutable_and_carries_versioned_refs(long_synthetic_db
 
 
 def test_sparse_optional_channels_report_cached_lap_fallback(long_synthetic_db: Path) -> None:
-    from f1si.data.physics_input import build_physics_input
-
     from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
 
     snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
     prepared = build_physics_input(
@@ -121,6 +118,62 @@ def test_sparse_optional_channels_report_cached_lap_fallback(long_synthetic_db: 
 
     assert prepared.coverage["car_data"].status in {"unavailable", "sparse"}
     assert prepared.coverage["car_data"].fallback == "cached_lap_timing"
+
+
+def test_large_per_driver_sampling_gaps_select_cached_lap_fallback(long_synthetic_db: Path) -> None:
+    from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
+
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
+    cutoff = snapshot.cutoff_s
+    assert cutoff is not None
+    source_time = pd.Timestamp("2023-03-05T15:00:00Z")
+    car_data = pd.DataFrame(
+        {
+            "driver_number": [14, 14, 14],
+            "source_utc": [
+                source_time,
+                source_time + timedelta(seconds=10),
+                source_time + timedelta(seconds=20),
+            ],
+            "t_s": [0.0, 10.0, 20.0],
+            "visible_at_s": [cutoff, cutoff, cutoff],
+            "speed_kph": [300.0, 300.0, 300.0],
+        }
+    )
+    prepared = build_physics_input(
+        replace(snapshot, car_data=car_data),
+        geometry_ref=_artifact_ref("geometry"),
+        parameter_ref=_artifact_ref("parameters"),
+    )
+
+    coverage = prepared.coverage["car_data"]
+    assert coverage.sampling_gap_p95_s == pytest.approx(10.0)
+    assert coverage.sampling_gap_status == "exceeds_limit"
+    assert coverage.status == "sparse"
+    assert coverage.fallback == "cached_lap_timing"
+
+
+def test_malformed_optional_channel_without_race_clock_fails_to_cached_laps(
+    long_synthetic_db: Path,
+) -> None:
+    from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
+
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
+    cutoff = snapshot.cutoff_s
+    assert cutoff is not None
+    malformed = pd.DataFrame({"source_utc": [pd.NaT], "visible_at_s": [cutoff]})
+    prepared = build_physics_input(
+        replace(snapshot, car_data=malformed),
+        geometry_ref=_artifact_ref("geometry"),
+        parameter_ref=_artifact_ref("parameters"),
+    )
+
+    coverage = prepared.coverage["car_data"]
+    assert coverage.race_clock_alignment == "unavailable"
+    assert coverage.status == "sparse"
+    assert coverage.fallback == "cached_lap_timing"
 
 
 def test_physics_input_refuses_history_or_out_of_sample_capabilities() -> None:

@@ -15,6 +15,7 @@ from f1si.data._snapshot import AsOf, RaceInfo, RaceSnapshot
 _TIME_COLUMNS = ("weather", "car_data", "location")
 _MIN_CHANNEL_ROWS = 3
 _MIN_TIMESTAMP_FRACTION = 0.95
+_MAX_P95_GAP_S = {"weather": 180.0, "car_data": 5.0, "location": 5.0}
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class ChannelCoverage:
     row_count: int
     valid_timestamp_fraction: float
     sampling_gap_p95_s: float | None
+    sampling_gap_status: str
     race_clock_alignment: str
     fallback: str | None
 
@@ -79,27 +81,52 @@ def _cutoff_frame(frame: pd.DataFrame, cutoff_s: float | None) -> pd.DataFrame:
     return copied.loc[visible.notna() & visible.le(cutoff_s)].reset_index(drop=True)
 
 
-def _coverage(frame: pd.DataFrame) -> ChannelCoverage:
+def _coverage(channel: str, frame: pd.DataFrame) -> ChannelCoverage:
     count = len(frame)
     if not count:
-        return ChannelCoverage("unavailable", 0, 0.0, None, "unavailable", "cached_lap_timing")
+        return ChannelCoverage(
+            "unavailable", 0, 0.0, None, "unavailable", "unavailable", "cached_lap_timing"
+        )
     if "source_utc" not in frame.columns:
         valid_fraction = 0.0
     else:
         valid_fraction = float(
             pd.to_datetime(frame["source_utc"], utc=True, errors="coerce").notna().mean()
         )
-    race_clock = pd.to_numeric(frame.get("t_s", pd.Series(dtype=float)), errors="coerce")
+    race_clock = (
+        pd.to_numeric(frame["t_s"], errors="coerce")
+        if "t_s" in frame
+        else pd.Series(float("nan"), index=frame.index, dtype="float64")
+    )
     aligned_fraction = float(
         race_clock.map(lambda value: pd.notna(value) and math.isfinite(float(value))).mean()
     )
-    times = race_clock.dropna().sort_values().to_numpy(dtype="float64")
-    gaps = pd.Series(times).diff().dropna()
+    gap_groups = (
+        [
+            group["_race_clock"]
+            for _, group in frame.assign(_race_clock=race_clock).groupby(
+                "driver_number", dropna=False
+            )
+        ]
+        if "driver_number" in frame
+        else [race_clock]
+    )
+    gaps = pd.concat(
+        [group.dropna().sort_values().diff().dropna() for group in gap_groups],
+        ignore_index=True,
+    )
     p95 = None if gaps.empty else float(gaps.quantile(0.95))
+    max_gap = _MAX_P95_GAP_S[channel]
+    gap_status = (
+        "insufficient" if p95 is None else "within_limit" if p95 <= max_gap else "exceeds_limit"
+    )
     aligned = aligned_fraction >= _MIN_TIMESTAMP_FRACTION
     status = (
         "available"
-        if count >= _MIN_CHANNEL_ROWS and valid_fraction >= _MIN_TIMESTAMP_FRACTION and aligned
+        if count >= _MIN_CHANNEL_ROWS
+        and valid_fraction >= _MIN_TIMESTAMP_FRACTION
+        and aligned
+        and gap_status == "within_limit"
         else "sparse"
     )
     return ChannelCoverage(
@@ -107,6 +134,7 @@ def _coverage(frame: pd.DataFrame) -> ChannelCoverage:
         row_count=count,
         valid_timestamp_fraction=valid_fraction,
         sampling_gap_p95_s=p95,
+        sampling_gap_status=gap_status,
         race_clock_alignment="mapped" if aligned else "unavailable",
         fallback=None if status == "available" else "cached_lap_timing",
     )
@@ -205,5 +233,5 @@ def build_physics_input(
         name: _cutoff_frame(getattr(snapshot, name), snapshot.cutoff_s) for name in _TIME_COLUMNS
     }
     prepared = replace(snapshot, **frames)
-    coverage = {name: _coverage(frame) for name, frame in frames.items()}
+    coverage = {name: _coverage(name, frame) for name, frame in frames.items()}
     return PhysicsInput(prepared, geometry_ref, parameter_ref, coverage)

@@ -1498,3 +1498,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Tune on the M1 holdout; randomly split adjacent laps; declare success from synthetic recovery; or call any positive point estimate a pass.
 **Consequences:** Phase 12 owns the one-time lock and evaluation. M3 remains gated until this full contract passes; publish all target denominators, clustered intervals, and coverage.
 **Refs:** `.planning/REQUIREMENTS.md`; `.planning/research/SUMMARY.md`; `.planning/M1-BASELINE.md`; DEC-130, DEC-132
+
+## DEC-137 — Preserve optional OpenF1 evidence through a cutoff-safe PhysicsInput
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** Phase 9 adds historical car-data and location records to a cache whose existing snapshots already provide inclusive lap cutoffs. The model needs prepared evidence without cache access, and the local catalog has weather but no cached high-rate channels.
+**Decision:** Keep car data, location, and weather optional and route them through the existing rate-limited OpenF1 cache, normalized DuckDB schema, and `AsOfAccessor` snapshot. Preserve each source UTC timestamp and map `t_s` from the earliest lap-one start; retain `visible_at_s` for the inclusive `<= cutoff_s` filter. Make immutable `PhysicsInput` the prepared model-facing envelope with defensive frame copies and versioned SHA-256 artifact references. Mark a channel available only with at least three rows, at least 95% valid source timestamps, at least 95% finite race-clock mappings, and p95 per-driver sampling gaps <=5 s for car data/location or <=180 s for weather; otherwise expose sparse/unavailable quality and use cached lap timing. Never interpolate missing rows or use location as geometry.
+**Why:** A single as-of seam preserves temporal provenance, while explicit minimum coverage and gap limits prevent sparse or misaligned optional evidence from being mistaken for a complete physics signal. Keeping preparation separate preserves the existing pace-model consumers and hot path.
+**Alternatives rejected:** Reconstruct UTC from legacy weather race-clock values; query OpenF1 inside prediction; interpolate across gaps/cutoffs; make telemetry mandatory; or treat OpenF1 location as a surveyed centerline.
+**Consequences:** Phase 9 reports catalog totals and one ten-minute Bahrain 2023 probe. Geometry remains a separately sourced, validated, versioned artifact. The baseline DuckDB schema migrates additively when written; missing optional tables remain readable as empty channels.
+**Refs:** `src/f1si/data/physics_input.py`; `src/f1si/data/schema.py`; `src/f1si/data/sources/openf1.py`; `src/f1si/data/_snapshot.py`; `.planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json`; [OpenF1 API documentation](https://openf1.org/docs/); DEC-001, DEC-007, DEC-008, DEC-133, DEC-135
