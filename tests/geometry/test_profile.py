@@ -47,7 +47,11 @@ def _write_profile(root: Path, *, asset_path: str = "Sakhir.csv") -> Path:
     return manifest_path
 
 
-def test_valid_profile_preserves_units_transform_rights_and_digest(tmp_path: Path) -> None:
+def test_valid_profile_preserves_units_transform_rights_and_digest(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import VersionedArtifactRef, build_physics_input
     from f1si.geometry.profile import load_profile
 
     manifest_path = _write_profile(tmp_path)
@@ -59,7 +63,21 @@ def test_valid_profile_preserves_units_transform_rights_and_digest(tmp_path: Pat
     assert profile.manifest.transform["type"] == "identity"
     assert profile.manifest.redistribution_status == "external_local_only"
     assert len(profile.manifest.sha256) == 64
-    assert profile.total_distance_m == pytest.approx(2 * math.pi * 975, rel=0.03)
+    assert profile.total_distance_m == pytest.approx(6_500.0, rel=0.02)
+    assert profile.reference.sha256 == profile.manifest.sha256
+    assert not profile.x_m.flags.writeable
+    serialized = profile.manifest.to_dict()
+    assert serialized["transform"]["type"] == "identity"
+    assert json.loads(json.dumps(serialized))["units"]["coordinates"] == "m"
+    with pytest.raises(TypeError):
+        profile.manifest.transform["type"] = "mutated"
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
+    prepared = build_physics_input(
+        snapshot,
+        geometry_ref=profile.reference,
+        parameter_ref=VersionedArtifactRef("parameters", "1", "0" * 64),
+    )
+    assert prepared.geometry_ref == profile.reference
 
 
 @pytest.mark.parametrize(
@@ -158,9 +176,10 @@ def test_curve_with_zero_length_segments_is_rejected(tmp_path: Path) -> None:
 
 
 def test_non_finite_coordinate_property_is_rejected(tmp_path: Path) -> None:
-    from f1si.geometry.profile import GeometryProfileError, load_profile
     from hypothesis import given, settings
     from hypothesis import strategies as st
+
+    from f1si.geometry.profile import GeometryProfileError, load_profile
 
     @settings(max_examples=8, deadline=None)
     @given(st.one_of(st.just(float("nan")), st.just(float("inf")), st.just(float("-inf"))))

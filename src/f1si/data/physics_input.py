@@ -227,6 +227,10 @@ def build_physics_input(
     """Prepare immutable values from an in-sample, cutoff-limited `RaceSnapshot` only."""
     if not isinstance(snapshot, RaceSnapshot):
         raise TypeError("PhysicsInput accepts only a RaceSnapshot")
+    if not isinstance(geometry_ref, VersionedArtifactRef):
+        raise TypeError("geometry_ref must be a validated VersionedArtifactRef")
+    if not isinstance(parameter_ref, VersionedArtifactRef):
+        raise TypeError("parameter_ref must be a VersionedArtifactRef")
     if snapshot.race.out_of_sample:
         raise ValueError("out-of-sample races cannot build PhysicsInput")
     frames = {
