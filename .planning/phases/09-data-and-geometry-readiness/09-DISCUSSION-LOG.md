@@ -39,7 +39,7 @@
 | Use regulatory minima as measured car values | Treat regulatory constraints as observed vehicle specifications. | |
 
 **Choice:** Recommended identifiable-composite approach.
-**Notes:** Public-data limits and DEC-134 are carried forward.
+**Notes:** Public-data limits and DEC-134 are carried forward. Phase 9 will include a numeric evidence/identifiability sensitivity result without implementing the Phase 10 solver; predictive sensitivity that genuinely needs the solver must be labeled not estimable yet and explicitly carried into Phase 10.
 
 ## Physics input integration
 

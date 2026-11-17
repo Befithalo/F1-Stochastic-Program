@@ -24,6 +24,7 @@ Prepare an auditable, cutoff-safe physics input for the later pace models from t
 ### Parameter identifiability and assumptions
 - **D-05:** Fit and publish only effective parameter composites whose identifiability is supported by available evidence. Label absolute mass, power, aero, grip, fuel, and tire quantities as hidden assumptions unless independently identified.
 - **D-06:** For assumed quantities, record cited evidence, season-specific bounds, uncertainty, and sensitivity. Treat regulatory minima as constraints, not measured team values; do not report team-specific hidden values as recovered parameters.
+- **D-09:** Phase 9 must provide a numeric sensitivity/identifiability result for the parameter register without expanding into the Phase 10 lap solver. Report evidence-supported identifiability sensitivity now; label any predictive lap-time sensitivity that cannot be computed before the solver as `not_estimable_pre_solver` and carry it into Phase 10. Do not describe the latter as completed.
 
 ### Physics input integration
 - **D-07:** Construct an immutable, race-scoped physics input before the simulation hot path. Model code receives prepared values and no cache accessor. Preserve the existing `PaceModel` signature and leave simulator, strategy, and backtest consumers unchanged.
