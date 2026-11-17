@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "profile_id": "bahrain-2023-sakhir",
+  "source_repository": "https://github.com/TUMFTM/racetrack-database",
+  "source_revision": "e59595d1f3573b30d1ded6a08984935b957688e0",
+  "source_asset_path": "tracks/Sakhir.csv",
+  "asset_path": "Sakhir.csv",
+  "sha256": "bc3c23da42f9474dbf5700341037bb45521acaa2ad1389bd0a48540fe179ee7a",
+  "coordinate_frame": "local_cartesian_xy",
+  "transform": {
+    "type": "identity",
+    "translation_m": [0.0, 0.0],
+    "rotation_deg": 0.0,
+    "rationale": "Use the upstream local Cartesian x/y frame without rotation or translation."
+  },
+  "units": {
+    "coordinates": "m",
+    "width": "m"
+  },
+  "attribution": "TUMFTM racetrack-database, tracks/Sakhir.csv. The upstream README attributes centerline GPS points to OpenStreetMap and track-width extraction to satellite imagery; it acknowledges Andressa de Paula Suiti's width extraction algorithm.",
+  "redistribution_status": "external_local_only",
+  "rights_review": {
+    "repository_license": "GitHub repository metadata identifies LGPL-3.0.",
+    "asset_license": "No separate license or rights statement for tracks/Sakhir.csv was found in the pinned repository revision.",
+    "centerline_source": "The upstream README says the original centerline GPS points came from OpenStreetMap and were smoothed. The asset-specific attribution and database extraction terms are not detailed in the file.",
+    "width_source": "The upstream README says track widths were extracted from satellite images; the imagery provider and its terms are not identified.",
+    "conclusion": "Underlying source and asset-level redistribution terms are not fully established. Keep the raw CSV in the ignored local data/geometry directory and do not commit or redistribute it."
+  },
+  "quality": {
+    "validation_version": "1.0",
+    "minimum_width_m": 1.0,
+    "maximum_width_m": 30.0,
+    "minimum_distance_m": 4000.0,
+    "maximum_distance_m": 6500.0,
+    "closed_loop_tolerance_m": 6.0,
+    "minimum_segment_m": 0.1,
+    "maximum_curvature_inv_m": 0.12,
+    "maximum_curvature_resample_relative_delta": 0.25,
+    "maximum_curvature_smoothing_relative_delta": 0.25,
+    "maximum_smoothing_displacement_fraction": 0.5,
+    "curvature_method": "Absolute three-point circumcircle curvature on the closed centerline.",
+    "resampling_method": "Recompute p95 curvature after retaining every second source point; relative change must be <= 25%.",
+    "smoothing_method": "One circular 3-point [0.25, 0.5, 0.25] centerline pass; p95 curvature relative change must be <= 25% and maximum point displacement <= 50% of median segment length."
+  },
+  "validation": {
+    "status": "passed",
+    "validated_at": "2026-11-17",
+    "digest_verified": true,
+    "asset_path_confined": true,
+    "file_bytes": 36718,
+    "point_count": 1082,
+    "segment_count": 1082,
+    "orientation": "clockwise",
+    "total_distance_m": 5405.749125640374,
+    "seam_distance_m": 5.000515131689234,
+    "minimum_segment_m": 4.600122603262326,
+    "median_segment_m": 5.000483342531579,
+    "maximum_segment_m": 5.243783234728128,
+    "minimum_width_m": 5.096,
+    "maximum_width_m": 11.794,
+    "maximum_curvature_inv_m": 0.10032640873124295,
+    "curvature_p95_inv_m": 0.021789038458404294,
+    "resampled_curvature_p95_inv_m": 0.024734792225926033,
+    "resampled_curvature_relative_delta": 0.1351942984150146,
+    "smoothed_curvature_p95_inv_m": 0.02394547400167584,
+    "smoothed_curvature_relative_delta": 0.09896882542055381,
+    "maximum_smoothing_displacement_m": 0.5963938055828476,
+    "maximum_smoothing_displacement_fraction": 0.11926723173142562,
+    "outcome": "All recorded geometry thresholds passed without modifying source coordinates or widths."
+  }
+}
