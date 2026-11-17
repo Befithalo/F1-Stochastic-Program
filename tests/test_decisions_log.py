@@ -223,3 +223,17 @@ def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
         body = entries[entry_id][1].lower()
         for phrase in phrases:
             assert phrase.lower() in body, (entry_id, phrase)
+
+
+def test_holdout_verifier_extension_decision_is_recorded() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-128"]
+    assert title == "Verify the locked required report fields and known prediction extension"
+    for phrase in (
+        "required_top_level_fields",
+        "optional `predictions` list",
+        "rejecting unregistered top-level extensions",
+        "Do not modify the lock or scored report",
+        "Do not rescore the holdout",
+    ):
+        assert phrase.lower() in body.lower(), phrase

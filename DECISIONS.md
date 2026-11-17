@@ -1399,3 +1399,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Infer a horizon from observed laps, alter the sample or cutoff range, treat a missing scheduled-lap count as zero, or query outcome endpoints while building schedule metadata.
 **Consequences:** The holdout remains a pre-registered retrospective evaluation, not a blind evaluation, because search snippets and adjacent FIA media-kit classifications were incidentally exposed during earlier schedule research. No values from those displays were used in code, lock metrics, tuning, or report design. Publish this exposure with the report, and do not access outcomes again after the first successful score/report write.
 **Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; OpenF1 `meetings?year=2026` and `sessions?meeting_key=1308` schedule fields; Sepang Circuit official lap length; FIA 2026 Sporting Regulations B2.5.2; DEC-125, DEC-126
+
+## DEC-128 — Verify the locked required report fields and known prediction extension
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The one successful holdout score wrote all fields required by the committed lock and an additional `predictions` array containing the frozen driver/cutoff rows used for aggregation. The read-only verifier incorrectly treated `required_top_level_fields` as an exact field set and rejected the completed report.
+**Decision:** Require every top-level field named by the lock, permit the known optional `predictions` list emitted by `score_holdout`, and continue rejecting unregistered top-level extensions. Do not modify the lock or scored report; verify the existing report read-only.
+**Why:** The lock declares required fields, and the prediction array is a deliberate report artifact. Recognizing that field fixes verification without changing the registered sample, prediction, result access, metrics, or one-score boundary.
+**Alternatives rejected:** Do not rescore the holdout. Rewriting the committed lock or report after scoring, accepting arbitrary unknown fields, or removing the prediction array from the existing report would either break the one-score boundary or hide an unregistered report change.
+**Consequences:** The existing report verifies without data access or recomputation. Its outcome exposure remains a pre-registered retrospective evaluation, not a blind evaluation.
+**Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; `tests/backtest/test_holdout.py`; DEC-125, DEC-127

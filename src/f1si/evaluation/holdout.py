@@ -484,10 +484,20 @@ def verify_holdout_report(
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as err:
         raise ValueError(f"Could not read a valid holdout report at {report_path}.") from err
-    if not isinstance(report, dict) or set(report) != set(
-        lock["report_schema"]["required_top_level_fields"]
+    required_fields = set(lock["report_schema"]["required_top_level_fields"])
+    # The lock enumerates required fields, while score_holdout also persists the
+    # frozen driver/cutoff predictions used to compute the aggregates. Keep that
+    # known extension optional for compatibility with minimal verification
+    # fixtures, and reject any other unregistered top-level fields.
+    allowed_fields = required_fields | {"predictions"}
+    if (
+        not isinstance(report, dict)
+        or not required_fields.issubset(report)
+        or not set(report).issubset(allowed_fields)
     ):
         raise ValueError("The holdout report does not match the locked top-level schema.")
+    if "predictions" in report and not isinstance(report["predictions"], list):
+        raise ValueError("The holdout report predictions extension must be a list.")
     if report.get("schema_version") != lock["report_schema"]["schema_version"]:
         raise ValueError("The holdout report schema version differs from the lock.")
     if report.get("race_ids") != list(HOLDOUT_RACE_IDS):

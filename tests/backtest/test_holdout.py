@@ -152,6 +152,55 @@ def test_verify_existing_reads_only_lock_and_report(
     assert verify_holdout_report(path)["race_ids"] == report["race_ids"]
 
 
+def test_verify_existing_accepts_frozen_predictions_extension(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    report = {
+        "schema_version": 1,
+        "race_ids": list(HOLDOUT_RACE_IDS),
+        "metadata": {"locked_contract_sha256": _load_holdout_lock()["lock_digest"]["sha256"]},
+        "metrics": {},
+        "per_race": {
+            race_id: {
+                "era": "reg_2026",
+                "prediction_count": 0,
+                "scored_driver_cutoffs": 0,
+            }
+            for race_id in HOLDOUT_RACE_IDS
+        },
+        "predictions": [{"race_id": HOLDOUT_RACE_IDS[0], "available": False}],
+    }
+    path = tmp_path / "holdout-with-predictions.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setattr(asof_module, "catalog", lambda *_: pytest.fail("catalog access"))
+    monkeypatch.setattr(holdout, "OutOfSampleAccessor", lambda *_: pytest.fail("results access"))
+
+    assert verify_holdout_report(path)["predictions"] == report["predictions"]
+
+
+def test_verify_existing_rejects_unregistered_top_level_extension(tmp_path: Path) -> None:
+    report = {
+        "schema_version": 1,
+        "race_ids": list(HOLDOUT_RACE_IDS),
+        "metadata": {"locked_contract_sha256": _load_holdout_lock()["lock_digest"]["sha256"]},
+        "metrics": {},
+        "per_race": {
+            race_id: {
+                "era": "reg_2026",
+                "prediction_count": 0,
+                "scored_driver_cutoffs": 0,
+            }
+            for race_id in HOLDOUT_RACE_IDS
+        },
+        "unexpected": [],
+    }
+    path = tmp_path / "holdout-with-unknown-field.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="locked top-level schema"):
+        verify_holdout_report(path)
+
+
 def test_score_freezes_predictions_before_first_classification(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
