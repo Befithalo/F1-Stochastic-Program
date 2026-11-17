@@ -27,7 +27,9 @@ from f1si.backtest.pace_evaluation import (
 from f1si.data.asof import AsOf, RaceEnd, RaceSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
-LOCK_PATH = ROOT / ".planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json"
+LOCK_PATH = (
+    ROOT / ".planning/milestones/v1.0-phases/07-bayesian-pace-model/07-05-evaluation-lock.json"
+)
 REPORT_PATH = ROOT / "reports/pace/phase-07.json"
 
 

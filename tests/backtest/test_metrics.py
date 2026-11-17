@@ -462,7 +462,9 @@ def test_modified_lock_digest_is_rejected_before_data_access(tmp_path: Path) -> 
 
     lock_path = (
         Path(__file__).parents[2]
-        / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+        / ".planning/milestones/v1.0-phases"
+        / "08-markov-regimes-full-backtest"
+        / "08-in-sample-evaluation-lock.json"
     )
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
     lock["race_ids"][0] = "2024-01"

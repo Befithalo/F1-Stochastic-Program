@@ -51,7 +51,9 @@ PHASE_08_RACES = (
 def test_phase_08_in_sample_lock_records_exact_calendar_and_settings() -> None:
     lock_path = (
         Path(__file__).parents[2]
-        / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+        / ".planning/milestones/v1.0-phases"
+        / "08-markov-regimes-full-backtest"
+        / "08-in-sample-evaluation-lock.json"
     )
     lock = json.loads(lock_path.read_text(encoding="utf-8"))
 

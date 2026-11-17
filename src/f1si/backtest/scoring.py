@@ -46,7 +46,9 @@ PHASE_6_PROBABILITY_EVIDENCE_SHA256 = (
 IN_SAMPLE_LOCK_SHA256 = "b13c4ba36eb3b39420407f0c5372fad2224b25eb1c4f260b43a85f78ba751a88"
 IN_SAMPLE_LOCK_PATH = (
     Path(__file__).resolve().parents[3]
-    / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+    / ".planning/milestones/v1.0-phases"
+    / "08-markov-regimes-full-backtest"
+    / "08-in-sample-evaluation-lock.json"
 )
 
 

@@ -33,7 +33,9 @@ from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, RaceSnapshot
 from f1si.pace.linear import LinearPaceFit, _classify, fit_linear_pace
 from f1si.pace.training import build_bayesian_training_panel
 
-DEFAULT_LOCK = Path(".planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json")
+DEFAULT_LOCK = Path(
+    ".planning/milestones/v1.0-phases/07-bayesian-pace-model/07-05-evaluation-lock.json"
+)
 DEFAULT_REPORT = Path("reports/pace/phase-07.json")
 LOCKED_RACES = ("2025-01", "2025-02", "2025-03")
 MODEL_CONFIG = {

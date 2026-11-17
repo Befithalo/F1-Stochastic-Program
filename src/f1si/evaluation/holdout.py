@@ -27,7 +27,7 @@ IN_SAMPLE_RACE_IDS: Final = (
 )
 LOCK_PATH: Final = (
     Path(__file__).resolve().parents[3]
-    / ".planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json"
+    / ".planning/milestones/v1.0-phases/08-markov-regimes-full-backtest/08-holdout-lock.json"
 )
 DEFAULT_REPORT: Final = Path("reports/backtest/phase-08-holdout.json")
 LOCK_SHA256: Final = "7c181dd855048b14e5d338bec31acdd0868046b62aabe781589ee2b350adc2d6"
