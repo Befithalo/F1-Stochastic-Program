@@ -39,6 +39,7 @@ def _write_profile(root: Path, *, asset_path: str = "Sakhir.csv") -> Path:
             "minimum_distance_m": 4_000.0,
             "maximum_distance_m": 6_500.0,
             "closed_loop_tolerance_m": 1.0,
+            "maximum_curvature_inv_m": 0.02,
         },
     }
     manifest_path = root / "manifest.json"
@@ -61,7 +62,20 @@ def test_valid_profile_preserves_units_transform_rights_and_digest(tmp_path: Pat
     assert profile.total_distance_m == pytest.approx(2 * math.pi * 975, rel=0.03)
 
 
-@pytest.mark.parametrize("failure", ["missing", "digest", "escape", "malformed", "open_loop"])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing",
+        "digest",
+        "escape",
+        "malformed",
+        "open_loop",
+        "zero_width",
+        "degenerate",
+        "distance",
+        "curvature",
+    ],
+)
 def test_invalid_or_unavailable_profile_fails_closed(tmp_path: Path, failure: str) -> None:
     from f1si.geometry.profile import GeometryProfileError, load_profile
 
@@ -83,11 +97,85 @@ def test_invalid_or_unavailable_profile_fails_closed(tmp_path: Path, failure: st
         asset.write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
         manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    elif failure == "zero_width":
+        text = asset.read_text(encoding="utf-8").replace(",12.00", ",0.00")
+        asset.write_text(text, encoding="utf-8")
+        manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    elif failure == "degenerate":
+        asset.write_text("x_m,y_m,width_m\n" + "0,0,12\n" * 65, encoding="utf-8")
+        manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    elif failure == "distance":
+        points = [
+            (
+                14_000 * math.cos(2 * math.pi * index / 64),
+                5_500 * math.sin(2 * math.pi * index / 64),
+                12.0,
+            )
+            for index in range(65)
+        ]
+        raw = "x_m,y_m,width_m\n" + "".join(
+            f"{x:.6f},{y:.6f},{width:.2f}\n" for x, y, width in points
+        )
+        asset.write_text(raw, encoding="utf-8")
+        manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    elif failure == "curvature":
+        points = [
+            (
+                1_400 * math.cos(2 * math.pi * index / 64) + (150.0 if index == 16 else 0.0),
+                550 * math.sin(2 * math.pi * index / 64),
+                12.0,
+            )
+            for index in range(65)
+        ]
+        raw = "x_m,y_m,width_m\n" + "".join(
+            f"{x:.6f},{y:.6f},{width:.2f}\n" for x, y, width in points
+        )
+        asset.write_text(raw, encoding="utf-8")
+        manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     elif failure == "missing":
         asset.unlink()
 
     with pytest.raises((GeometryProfileError, ValueError, FileNotFoundError)):
         load_profile(manifest_path, asset_root=tmp_path)
+
+
+def test_curve_with_zero_length_segments_is_rejected(tmp_path: Path) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    asset = tmp_path / manifest["asset_path"]
+    asset.write_text("x_m,y_m,width_m\n" + "0,0,12\n" * 65, encoding="utf-8")
+    manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises((GeometryProfileError, ValueError)):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+def test_non_finite_coordinate_property_is_rejected(tmp_path: Path) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+    from hypothesis import given, settings
+    from hypothesis import strategies as st
+
+    @settings(max_examples=8, deadline=None)
+    @given(st.one_of(st.just(float("nan")), st.just(float("inf")), st.just(float("-inf"))))
+    def check_coordinate_is_rejected(value: float) -> None:
+        manifest_path = _write_profile(tmp_path)
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        asset = tmp_path / manifest["asset_path"]
+        asset.write_text(f"x_m,y_m,width_m\n{value!r},0,12\n", encoding="utf-8")
+        manifest["sha256"] = hashlib.sha256(asset.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+        with pytest.raises((GeometryProfileError, ValueError)):
+            load_profile(manifest_path, asset_root=tmp_path)
+
+    check_coordinate_is_rejected()
 
 
 def test_asset_path_must_remain_inside_geometry_root(tmp_path: Path) -> None:

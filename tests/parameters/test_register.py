@@ -23,12 +23,26 @@ def test_register_classifies_effective_terms_and_hidden_assumptions(
     assert records["fuel_s_per_lap"].classification == "fitted_effective"
     assert records["fuel_s_per_lap"].evidence
     assert records["fuel_s_per_lap"].uncertainty is not None
-    for hidden in ("mass_kg", "power_w", "drag_area_m2", "downforce_n", "grip_mu"):
+    for hidden in (
+        "mass_kg",
+        "power_w",
+        "drag_area_m2",
+        "drag_coefficient",
+        "downforce_n",
+        "grip_mu",
+        "starting_fuel_kg",
+        "fuel_burn_kg_per_lap",
+        "tire_friction_mu",
+        "tire_heat_capacity_j_k",
+        "tire_cooling_w_k",
+    ):
         assert records[hidden].classification == "hidden_assumption"
         assert records[hidden].value is None
         assert records[hidden].evidence
         assert records[hidden].season_bounds
         assert records[hidden].uncertainty is not None
+        assert records[hidden].sensitivity_status
+        assert records[hidden].constraint_status in {"constraint", "assumption", "observation"}
 
 
 def test_register_does_not_label_unidentified_terms_as_recovered(long_synthetic_db: Path) -> None:
@@ -57,6 +71,9 @@ def test_evidence_sensitivity_is_numeric_and_predictive_sensitivity_is_pre_solve
 
     assert report["evidence_sensitivity"]["eligible_race_count"] > 0
     assert report["evidence_sensitivity"]["sample_count"] > 0
+    assert report["evidence_sensitivity"]["identified_race_count"] >= 0
+    assert report["evidence_sensitivity"]["coefficient_standard_error"] is not None
+    assert report["evidence_sensitivity"]["leave_one_race_out"]
     assert report["predictive_lap_time_sensitivity"] == "not_estimable_pre_solver"
     assert all(race_id.startswith(("2023-", "2024-", "2025-")) for race_id in report["race_ids"])
     assert "results" not in json.dumps(report).lower()
@@ -72,9 +89,20 @@ def test_closeout_contract_carries_coverage_and_exact_m1_baseline(tmp_path: Path
     coverage = {
         "local_cache": {
             "catalog_complete_races": 1,
-            "channels": {"weather": {}, "car_data": {}, "location": {}},
+            "channels": {
+                "weather": {"row_count": 20},
+                "car_data": {"row_count": 0},
+                "location": {"row_count": 0},
+            },
         },
-        "bahrain_2023_probe": {"status": "unavailable", "reason": "service returned no rows"},
+        "bahrain_2023_probe": {
+            "status": "unavailable",
+            "reason": "service returned no rows",
+            "endpoints": {
+                endpoint: {"row_count": 0, "race_clock_alignment": "unavailable"}
+                for endpoint in ("/car_data", "/location", "/weather")
+            },
+        },
     }
 
     rendered = render_phase_report(sensitivity, coverage)
@@ -91,7 +119,10 @@ def test_closeout_contract_carries_coverage_and_exact_m1_baseline(tmp_path: Path
     assert "not_estimable_pre_solver" in rendered
 
 
-@pytest.mark.parametrize("name", ["mass_kg", "power_w", "drag_area_m2", "grip_mu"])
+@pytest.mark.parametrize(
+    "name",
+    ["mass_kg", "power_w", "drag_area_m2", "grip_mu", "starting_fuel_kg", "tire_heat_capacity_j_k"],
+)
 def test_hidden_physical_parameter_requires_evidence_bounds_and_uncertainty(name: str) -> None:
     from f1si.parameters.register import ParameterRecord
 
