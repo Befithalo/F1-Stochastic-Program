@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "phase": "08-markov-regimes-full-backtest",
+  "registered_before_scoring": true,
+  "race_ids": [
+    "2026-09", "2026-10", "2026-11", "2026-12", "2026-13",
+    "2026-14", "2026-15", "2026-16", "2026-17"
+  ],
+  "era": "reg_2026",
+  "preflight": "all locked races must be complete and out of sample before feature snapshots; reject a pre-existing report before opening the results door",
+  "training": {
+    "race_ids": [
+      "2023-01", "2023-02", "2023-03", "2023-04", "2023-05", "2023-06", "2023-07",
+      "2024-01", "2024-02", "2024-03", "2024-04", "2024-05", "2024-06", "2024-07",
+      "2025-01", "2025-02", "2025-03", "2025-04", "2025-05", "2025-06"
+    ],
+    "source": "complete feature-only RACE_END snapshots; transition labels derive from lap-end cutoffs",
+    "exclude_holdout_sequences": true
+  },
+  "simulation": {"pace_model": "linear", "n_simulations": 1000, "seed": 0, "risk": 0.5},
+  "randomness": {
+    "prediction_seed": "(base_seed + crc32(f'{race_id}:{driver}:{cutoff_lap}')) & 0x7fffffff",
+    "pace_fit_seed": "(base_seed + crc32(f'{race_id}:pace:{cutoff_lap}')) & 0x7fffffff",
+    "pace_fit_seed_scope": "shared by every driver at one race and cutoff"
+  },
+  "cutoffs": "every integer cutoff from zero through scheduled_laps minus one, in race and lap order",
+  "schedule": {
+    "rule": "Use the locked ex-ante scheduled lap count when RaceInfo.scheduled_laps is null; if local metadata is present, it must equal the locked count.",
+    "provenance": {
+      "2026-09": "Official race schedule lap count matched to the local locked circuit key silverstone.",
+      "2026-10": "Official race schedule lap count matched to the local locked circuit key spa.",
+      "2026-11": "Official race schedule lap count matched to the local locked circuit key hungaroring.",
+      "2026-12": "Official race schedule lap count matched to the local locked circuit key zandvoort.",
+      "2026-13": "Official race schedule lap count matched to the local locked circuit key monza.",
+      "2026-14": "Official race schedule lap count matched to the local locked circuit key madring.",
+      "2026-15": "Official race schedule lap count matched to the local locked circuit key baku.",
+      "2026-16": "OpenF1 schedule-only meetings?year=2026 identifies meeting_key 1308 as the Bahrain Grand Prix in Malaysia; sessions?meeting_key=1308 identifies its Race session on October 4. The official Sepang Circuit lap length is 5.543 km. FIA 2026 Sporting Regulations B2.5.2 requires the least whole-lap distance exceeding 305 km; ceil(305/5.543)=56 laps, or 310.408 km.",
+      "2026-17": "Official race schedule lap count matched to the local locked circuit key marina_bay."
+    },
+    "events": {
+      "2026-09": {"circuit": "silverstone", "scheduled_laps": 52},
+      "2026-10": {"circuit": "spa", "scheduled_laps": 44},
+      "2026-11": {"circuit": "hungaroring", "scheduled_laps": 70},
+      "2026-12": {"circuit": "zandvoort", "scheduled_laps": 72},
+      "2026-13": {"circuit": "monza", "scheduled_laps": 53},
+      "2026-14": {"circuit": "madring", "scheduled_laps": 57},
+      "2026-15": {"circuit": "baku", "scheduled_laps": 51},
+      "2026-16": {"circuit": "sepang", "scheduled_laps": 56},
+      "2026-17": {"circuit": "marina_bay", "scheduled_laps": 61}
+    }
+  },
+  "target_mask": [
+    "one available best-action finish distribution per driver and cutoff snapshot",
+    "join the frozen prediction to that driver's final classification; unclassified starters count as failures for podium and top-ten scores",
+    "finish-interval coverage is evaluated only for classified finishers",
+    "freeze all race/cutoff/driver predictions before requesting final classifications"
+  ],
+  "metrics": {
+    "podium_brier": "binary final_position <= 3; unclassified starters count as failures; average within race then weight races equally",
+    "top10_brier": "binary final_position <= 10; unclassified starters count as failures; average within race then weight races equally",
+    "finish_interval_90": "inclusive empirical inverted-CDF P05/P95 endpoints; coverage only for classified finishers",
+    "strategy_agreement": "top action begins with pit, matched to each observed pit event's latest prior not-yet-visible recommendation",
+    "aggregation": "equal race weight after within-race observation means",
+    "empty_race_rule": "preserve every locked race row with zero or unavailable denominators"
+  },
+  "report_schema": {
+    "schema_version": 1,
+    "required_top_level_fields": ["schema_version", "race_ids", "metadata", "metrics", "per_race"],
+    "required_race_rows": "one ordered row for every locked 2026 race",
+    "required_denominators": "podium/top-ten driver-cutoff counts, classified-finisher interval counts, and observed/matched stop counts are explicit overall and per race"
+  },
+  "result_access": "OutOfSampleAccessor.final_classification is called only after predictions for all locked races are frozen",
+  "score_policy": "score once and never tune or rescore against the holdout",
+  "lock_digest": {"algorithm": "sha256", "canonicalization": "UTF-8 JSON, sorted keys, compact separators, omitting lock_digest", "sha256": "7c181dd855048b14e5d338bec31acdd0868046b62aabe781589ee2b350adc2d6"}
+}

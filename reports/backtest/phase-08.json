@@ -1,0 +1,891 @@
+{
+  "carry_forward_diagnostic": {
+    "driver": "ALO",
+    "historical_phase_03_interval": [
+      4,
+      6
+    ],
+    "historical_phase_03_observed_finish": 3,
+    "note": "Carry-forward reference miss; it is not used to adjust the empirical endpoints.",
+    "observed_finish": 3,
+    "race_id": "2023-01",
+    "tunes_interval_endpoints": false
+  },
+  "metadata": {
+    "aggregation": "equal race weight after within-race observation means",
+    "base_seed": 0,
+    "baseline": "past-only grid-position event rates with five neutral pseudo-starts",
+    "bootstrap_resamples": 2000,
+    "bootstrap_seed": 61409,
+    "continuation_fit_scheme": "two-fold cross-fit on the registered path batch",
+    "continuation_fit_scoring_isolation": "each scoring fold is excluded from its regression-fit paths",
+    "era_by_race": {
+      "2023-01": "ground_effect_2022_2025",
+      "2023-02": "ground_effect_2022_2025",
+      "2023-03": "ground_effect_2022_2025",
+      "2023-04": "ground_effect_2022_2025",
+      "2023-05": "ground_effect_2022_2025",
+      "2023-06": "ground_effect_2022_2025",
+      "2023-07": "ground_effect_2022_2025",
+      "2024-01": "ground_effect_2022_2025",
+      "2024-02": "ground_effect_2022_2025",
+      "2024-03": "ground_effect_2022_2025",
+      "2024-04": "ground_effect_2022_2025",
+      "2024-05": "ground_effect_2022_2025",
+      "2024-06": "ground_effect_2022_2025",
+      "2024-07": "ground_effect_2022_2025",
+      "2025-01": "ground_effect_2022_2025",
+      "2025-02": "ground_effect_2022_2025",
+      "2025-03": "ground_effect_2022_2025",
+      "2025-04": "ground_effect_2022_2025",
+      "2025-05": "ground_effect_2022_2025",
+      "2025-06": "ground_effect_2022_2025"
+    },
+    "first_race_baseline": "neutral podium and top-10 rates based on field size",
+    "locked_contract_sha256": "b13c4ba36eb3b39420407f0c5372fad2224b25eb1c4f260b43a85f78ba751a88",
+    "n_simulations_per_prediction": 1000,
+    "pace_model": "linear",
+    "paired_model_baseline_mask": "same finite model and baseline probabilities per row",
+    "risk_aversion": 0.5,
+    "uncertainty": "paired 95% percentile bootstrap resampling whole races"
+  },
+  "metrics": {
+    "brier_observation_count": 22213,
+    "era_summaries": {
+      "ground_effect_2022_2025": {
+        "brier_observation_count": 22213,
+        "finish_interval_classified_finisher_count": 20001,
+        "matched_stop_event_count": 695,
+        "observed_stop_event_count": 712,
+        "prediction_row_count": 22762,
+        "race_count": 20,
+        "strategy_recommendation_count": 22213,
+        "wear_proxy_measurement_count": 17126
+      }
+    },
+    "finish_interval_90": {
+      "classified_finishers": 20001,
+      "convention": "inclusive empirical inverted-CDF P05/P95 endpoints",
+      "coverage": {
+        "mean": 0.8225971034295473,
+        "per_race": {
+          "2023-01": 0.8379772961816305,
+          "2023-02": 0.8277777777777777,
+          "2023-03": 0.9401622718052738,
+          "2023-04": 0.8693743139407245,
+          "2023-05": 0.875438596491228,
+          "2023-06": 0.8306342780026991,
+          "2023-07": 0.8537878787878788,
+          "2024-01": 0.9157894736842105,
+          "2024-02": 0.8755555555555555,
+          "2024-03": 0.72920892494929,
+          "2024-04": 0.6109134045077106,
+          "2024-05": 0.8245798319327731,
+          "2024-06": 0.8088642659279779,
+          "2024-07": 0.8195488721804511,
+          "2025-01": 0.8618090452261307,
+          "2025-02": 0.5546875,
+          "2025-03": 0.9320754716981132,
+          "2025-04": 0.7514619883040936,
+          "2025-05": 0.9044444444444445,
+          "2025-06": 0.8278508771929824
+        },
+        "race_count": 20
+      },
+      "covered": 16508,
+      "per_race_classified_finisher_count": {
+        "2023-01": 969,
+        "2023-02": 900,
+        "2023-03": 986,
+        "2023-04": 911,
+        "2023-05": 1140,
+        "2023-06": 1482,
+        "2023-07": 1320,
+        "2024-01": 1140,
+        "2024-02": 900,
+        "2024-03": 986,
+        "2024-04": 843,
+        "2024-05": 952,
+        "2024-06": 1083,
+        "2024-07": 1197,
+        "2025-01": 398,
+        "2025-02": 896,
+        "2025-03": 1060,
+        "2025-04": 1026,
+        "2025-05": 900,
+        "2025-06": 912
+      },
+      "race_cluster_95": {
+        "cluster_count": 20,
+        "high": 0.8626792720946624,
+        "low": 0.7780969904071853,
+        "mean": 0.8225971034295473
+      }
+    },
+    "podium_brier": {
+      "baseline": {
+        "mean": 0.07369252428076148,
+        "per_race": {
+          "2023-01": 0.1275,
+          "2023-02": 0.10520833333333333,
+          "2023-03": 0.1201530612244898,
+          "2023-04": 0.07998075795903258,
+          "2023-05": 0.08503086419753085,
+          "2023-06": 0.058875,
+          "2023-07": 0.11229338842975208,
+          "2024-01": 0.09066525473679699,
+          "2024-02": 0.048590121173469385,
+          "2024-03": 0.10208135019318118,
+          "2024-04": 0.03545132368399296,
+          "2024-05": 0.04432513071517581,
+          "2024-06": 0.0572227633729273,
+          "2024-07": 0.0447160640018169,
+          "2025-01": 0.055427994930978025,
+          "2025-02": 0.03786753045217788,
+          "2025-03": 0.03645199877208303,
+          "2025-04": 0.088818083896656,
+          "2025-05": 0.04379947314049587,
+          "2025-06": 0.09939199140133995
+        },
+        "race_count": 20
+      },
+      "model": {
+        "mean": 0.055455723438951866,
+        "per_race": {
+          "2023-01": 0.05290775789473684,
+          "2023-02": 0.044798740000000004,
+          "2023-03": 0.05280830344827586,
+          "2023-04": 0.0379590631786772,
+          "2023-05": 0.04547363771929825,
+          "2023-06": 0.060436553846153845,
+          "2023-07": 0.05312306742424243,
+          "2024-01": 0.0295992798245614,
+          "2024-02": 0.033099099,
+          "2024-03": 0.047026861161524505,
+          "2024-04": 0.12522305189620758,
+          "2024-05": 0.0432969625,
+          "2024-06": 0.07065751578947368,
+          "2024-07": 0.040290770634920633,
+          "2025-01": 0.09434262652439024,
+          "2025-02": 0.031661845535714286,
+          "2025-03": 0.04293168396226415,
+          "2025-04": 0.04898893157894737,
+          "2025-05": 0.041216423,
+          "2025-06": 0.11327229385964913
+        },
+        "race_count": 20
+      },
+      "model_minus_baseline_95": {
+        "cluster_count": 20,
+        "high": 0.0006251328912339664,
+        "low": -0.035584739735727976,
+        "mean": -0.018236800841809626
+      }
+    },
+    "race_denominators": {
+      "2023-01": {
+        "brier_observation_count": 1140,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 969,
+        "matched_stop_event_count": 50,
+        "observed_stop_event_count": 50,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 1140,
+        "wear_proxy_measurement_count": 1024
+      },
+      "2023-02": {
+        "brier_observation_count": 1000,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 900,
+        "matched_stop_event_count": 24,
+        "observed_stop_event_count": 24,
+        "prediction_row_count": 1000,
+        "strategy_recommendation_count": 1000,
+        "wear_proxy_measurement_count": 864
+      },
+      "2023-03": {
+        "brier_observation_count": 1160,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 986,
+        "matched_stop_event_count": 65,
+        "observed_stop_event_count": 65,
+        "prediction_row_count": 1160,
+        "strategy_recommendation_count": 1160,
+        "wear_proxy_measurement_count": 0
+      },
+      "2023-04": {
+        "brier_observation_count": 1013,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 911,
+        "matched_stop_event_count": 23,
+        "observed_stop_event_count": 23,
+        "prediction_row_count": 1020,
+        "strategy_recommendation_count": 1013,
+        "wear_proxy_measurement_count": 912
+      },
+      "2023-05": {
+        "brier_observation_count": 1140,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1140,
+        "matched_stop_event_count": 20,
+        "observed_stop_event_count": 20,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 1140,
+        "wear_proxy_measurement_count": 1053
+      },
+      "2023-06": {
+        "brier_observation_count": 1560,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1482,
+        "matched_stop_event_count": 37,
+        "observed_stop_event_count": 37,
+        "prediction_row_count": 1560,
+        "strategy_recommendation_count": 1560,
+        "wear_proxy_measurement_count": 992
+      },
+      "2023-07": {
+        "brier_observation_count": 1320,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1320,
+        "matched_stop_event_count": 43,
+        "observed_stop_event_count": 43,
+        "prediction_row_count": 1320,
+        "strategy_recommendation_count": 1320,
+        "wear_proxy_measurement_count": 1219
+      },
+      "2024-01": {
+        "brier_observation_count": 1140,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1140,
+        "matched_stop_event_count": 43,
+        "observed_stop_event_count": 43,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 1140,
+        "wear_proxy_measurement_count": 1039
+      },
+      "2024-02": {
+        "brier_observation_count": 1000,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 900,
+        "matched_stop_event_count": 19,
+        "observed_stop_event_count": 19,
+        "prediction_row_count": 1000,
+        "strategy_recommendation_count": 1000,
+        "wear_proxy_measurement_count": 861
+      },
+      "2024-03": {
+        "brier_observation_count": 1102,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 986,
+        "matched_stop_event_count": 36,
+        "observed_stop_event_count": 36,
+        "prediction_row_count": 1102,
+        "strategy_recommendation_count": 1102,
+        "wear_proxy_measurement_count": 960
+      },
+      "2024-04": {
+        "brier_observation_count": 1002,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 843,
+        "matched_stop_event_count": 37,
+        "observed_stop_event_count": 54,
+        "prediction_row_count": 1060,
+        "strategy_recommendation_count": 1002,
+        "wear_proxy_measurement_count": 808
+      },
+      "2024-05": {
+        "brier_observation_count": 1120,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 952,
+        "matched_stop_event_count": 40,
+        "observed_stop_event_count": 40,
+        "prediction_row_count": 1120,
+        "strategy_recommendation_count": 1120,
+        "wear_proxy_measurement_count": 879
+      },
+      "2024-06": {
+        "brier_observation_count": 1140,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1083,
+        "matched_stop_event_count": 28,
+        "observed_stop_event_count": 28,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 1140,
+        "wear_proxy_measurement_count": 983
+      },
+      "2024-07": {
+        "brier_observation_count": 1260,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1197,
+        "matched_stop_event_count": 27,
+        "observed_stop_event_count": 27,
+        "prediction_row_count": 1260,
+        "strategy_recommendation_count": 1260,
+        "wear_proxy_measurement_count": 1161
+      },
+      "2025-01": {
+        "brier_observation_count": 656,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 398,
+        "matched_stop_event_count": 82,
+        "observed_stop_event_count": 82,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 656,
+        "wear_proxy_measurement_count": 0
+      },
+      "2025-02": {
+        "brier_observation_count": 1120,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 896,
+        "matched_stop_event_count": 25,
+        "observed_stop_event_count": 25,
+        "prediction_row_count": 1120,
+        "strategy_recommendation_count": 1120,
+        "wear_proxy_measurement_count": 1036
+      },
+      "2025-03": {
+        "brier_observation_count": 1060,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1060,
+        "matched_stop_event_count": 21,
+        "observed_stop_event_count": 21,
+        "prediction_row_count": 1060,
+        "strategy_recommendation_count": 1060,
+        "wear_proxy_measurement_count": 963
+      },
+      "2025-04": {
+        "brier_observation_count": 1140,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 1026,
+        "matched_stop_event_count": 42,
+        "observed_stop_event_count": 42,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 1140,
+        "wear_proxy_measurement_count": 1001
+      },
+      "2025-05": {
+        "brier_observation_count": 1000,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 900,
+        "matched_stop_event_count": 19,
+        "observed_stop_event_count": 19,
+        "prediction_row_count": 1000,
+        "strategy_recommendation_count": 1000,
+        "wear_proxy_measurement_count": 795
+      },
+      "2025-06": {
+        "brier_observation_count": 1140,
+        "era": "ground_effect_2022_2025",
+        "finish_interval_classified_finisher_count": 912,
+        "matched_stop_event_count": 14,
+        "observed_stop_event_count": 14,
+        "prediction_row_count": 1140,
+        "strategy_recommendation_count": 1140,
+        "wear_proxy_measurement_count": 576
+      }
+    },
+    "team_strategy_comparison": {
+      "bootstrap_resamples": 2000,
+      "bootstrap_seed": 71633,
+      "confidence_level": 0.95,
+      "description": "Descriptive comparison with observed team behavior; no competitive performance claim is made.",
+      "event_count": 695,
+      "interpretation": "retrospective comparison with observed team behavior",
+      "matched_stop_event_count": 695,
+      "matching": "latest recommendation cutoff strictly before the observed in-lap",
+      "observed_stop_event_count": 712,
+      "per_race_denominators": {
+        "2023-01": {
+          "matched_stop_event_count": 50,
+          "observed_stop_event_count": 50,
+          "recommendation_count": 1140
+        },
+        "2023-02": {
+          "matched_stop_event_count": 24,
+          "observed_stop_event_count": 24,
+          "recommendation_count": 1000
+        },
+        "2023-03": {
+          "matched_stop_event_count": 65,
+          "observed_stop_event_count": 65,
+          "recommendation_count": 1160
+        },
+        "2023-04": {
+          "matched_stop_event_count": 23,
+          "observed_stop_event_count": 23,
+          "recommendation_count": 1013
+        },
+        "2023-05": {
+          "matched_stop_event_count": 20,
+          "observed_stop_event_count": 20,
+          "recommendation_count": 1140
+        },
+        "2023-06": {
+          "matched_stop_event_count": 37,
+          "observed_stop_event_count": 37,
+          "recommendation_count": 1560
+        },
+        "2023-07": {
+          "matched_stop_event_count": 43,
+          "observed_stop_event_count": 43,
+          "recommendation_count": 1320
+        },
+        "2024-01": {
+          "matched_stop_event_count": 43,
+          "observed_stop_event_count": 43,
+          "recommendation_count": 1140
+        },
+        "2024-02": {
+          "matched_stop_event_count": 19,
+          "observed_stop_event_count": 19,
+          "recommendation_count": 1000
+        },
+        "2024-03": {
+          "matched_stop_event_count": 36,
+          "observed_stop_event_count": 36,
+          "recommendation_count": 1102
+        },
+        "2024-04": {
+          "matched_stop_event_count": 37,
+          "observed_stop_event_count": 54,
+          "recommendation_count": 1002
+        },
+        "2024-05": {
+          "matched_stop_event_count": 40,
+          "observed_stop_event_count": 40,
+          "recommendation_count": 1120
+        },
+        "2024-06": {
+          "matched_stop_event_count": 28,
+          "observed_stop_event_count": 28,
+          "recommendation_count": 1140
+        },
+        "2024-07": {
+          "matched_stop_event_count": 27,
+          "observed_stop_event_count": 27,
+          "recommendation_count": 1260
+        },
+        "2025-01": {
+          "matched_stop_event_count": 82,
+          "observed_stop_event_count": 82,
+          "recommendation_count": 656
+        },
+        "2025-02": {
+          "matched_stop_event_count": 25,
+          "observed_stop_event_count": 25,
+          "recommendation_count": 1120
+        },
+        "2025-03": {
+          "matched_stop_event_count": 21,
+          "observed_stop_event_count": 21,
+          "recommendation_count": 1060
+        },
+        "2025-04": {
+          "matched_stop_event_count": 42,
+          "observed_stop_event_count": 42,
+          "recommendation_count": 1140
+        },
+        "2025-05": {
+          "matched_stop_event_count": 19,
+          "observed_stop_event_count": 19,
+          "recommendation_count": 1000
+        },
+        "2025-06": {
+          "matched_stop_event_count": 14,
+          "observed_stop_event_count": 14,
+          "recommendation_count": 1140
+        }
+      },
+      "race_count": 20,
+      "resampling_unit": "race",
+      "stop_timing_error_laps": {
+        "absolute": {
+          "mean": 4.625709583076322,
+          "per_race": {
+            "2023-01": 3.710526315789474,
+            "2023-02": 3.9565217391304346,
+            "2023-03": 3.923076923076923,
+            "2023-04": 4.05,
+            "2023-05": 2.95,
+            "2023-06": 2.0,
+            "2023-07": 3.025,
+            "2024-01": 3.175,
+            "2024-02": 3.6666666666666665,
+            "2024-03": 2.323529411764706,
+            "2024-04": 5.470588235294118,
+            "2024-05": 4.0,
+            "2024-06": 2.391304347826087,
+            "2024-07": 2.7083333333333335,
+            "2025-01": 8.707692307692307,
+            "2025-02": 3.5,
+            "2025-03": 2.5,
+            "2025-04": 3.575,
+            "2025-05": 3.1666666666666665,
+            "2025-06": 23.714285714285715
+          },
+          "race_cluster_95": {
+            "cluster_count": 20,
+            "high": 6.970691214606329,
+            "low": 3.182213922353839,
+            "mean": 4.625709583076322
+          },
+          "race_count": 20
+        },
+        "signed": {
+          "mean": 1.173995884542641,
+          "per_race": {
+            "2023-01": 3.710526315789474,
+            "2023-02": 3.869565217391304,
+            "2023-03": 3.769230769230769,
+            "2023-04": 3.35,
+            "2023-05": 2.35,
+            "2023-06": 1.4193548387096775,
+            "2023-07": 2.575,
+            "2024-01": 2.975,
+            "2024-02": 3.4444444444444446,
+            "2024-03": 1.5588235294117647,
+            "2024-04": 0.5294117647058824,
+            "2024-05": 4.0,
+            "2024-06": 1.9565217391304348,
+            "2024-07": 2.375,
+            "2025-01": -2.3692307692307693,
+            "2025-02": 3.25,
+            "2025-03": 1.8,
+            "2025-04": 3.575,
+            "2025-05": 3.0555555555555554,
+            "2025-06": -23.714285714285715
+          },
+          "race_cluster_95": {
+            "cluster_count": 20,
+            "high": 2.9176567637493958,
+            "low": -1.696940388573616,
+            "mean": 1.173995884542641
+          },
+          "race_count": 20
+        }
+      },
+      "top_action_agreement": {
+        "mean": 0.1722318204724809,
+        "per_race": {
+          "2023-01": 0.0,
+          "2023-02": 0.041666666666666664,
+          "2023-03": 0.03076923076923077,
+          "2023-04": 0.08695652173913043,
+          "2023-05": 0.35,
+          "2023-06": 0.1891891891891892,
+          "2023-07": 0.23255813953488372,
+          "2024-01": 0.09302325581395349,
+          "2024-02": 0.10526315789473684,
+          "2024-03": 0.4166666666666667,
+          "2024-04": 0.0,
+          "2024-05": 0.0,
+          "2024-06": 0.25,
+          "2024-07": 0.18518518518518517,
+          "2025-01": 0.0,
+          "2025-02": 0.12,
+          "2025-03": 0.38095238095238093,
+          "2025-04": 0.0,
+          "2025-05": 0.10526315789473684,
+          "2025-06": 0.8571428571428571
+        },
+        "race_cluster_95": {
+          "cluster_count": 20,
+          "high": 0.26801762579245847,
+          "low": 0.09402306531935976,
+          "mean": 0.1722318204724809
+        },
+        "race_count": 20
+      },
+      "top_action_frequency": {
+        "action_counts": {
+          "pit now": 762,
+          "pit now (HARD)": 2318,
+          "pit now (MEDIUM)": 874,
+          "pit now (SOFT)": 59,
+          "stay out": 6198,
+          "wait and decide next lap": 12002
+        },
+        "recommendation_count": 22213,
+        "wait_count": 12002,
+        "wait_share": 0.5403142304056183
+      },
+      "unmatched_stop_event_count": 17,
+      "visibility_verified_event_count": 695
+    },
+    "top10_brier": {
+      "baseline": {
+        "mean": 0.16908559918855448,
+        "per_race": {
+          "2023-01": 0.25,
+          "2023-02": 0.22361111111111112,
+          "2023-03": 0.25,
+          "2023-04": 0.22916538129318856,
+          "2023-05": 0.16975308641975306,
+          "2023-06": 0.17750000000000002,
+          "2023-07": 0.18305785123966942,
+          "2024-01": 0.11318399562757202,
+          "2024-02": 0.13021354591836734,
+          "2024-03": 0.20059881225687662,
+          "2024-04": 0.10540530051009092,
+          "2024-05": 0.1270783463156377,
+          "2024-06": 0.18173504264987245,
+          "2024-07": 0.12238103661193057,
+          "2025-01": 0.176466422327649,
+          "2025-02": 0.25450452450772926,
+          "2025-03": 0.0714013724023229,
+          "2025-04": 0.17661886529618145,
+          "2025-05": 0.13530863636363638,
+          "2025-06": 0.10372865291950113
+        },
+        "race_count": 20
+      },
+      "model": {
+        "mean": 0.1446454616400021,
+        "per_race": {
+          "2023-01": 0.14296615263157894,
+          "2023-02": 0.148346036,
+          "2023-03": 0.22905648706896553,
+          "2023-04": 0.08814074333662389,
+          "2023-05": 0.13264478070175437,
+          "2023-06": 0.157157375,
+          "2023-07": 0.13657016212121212,
+          "2024-01": 0.0669078456140351,
+          "2024-02": 0.10631426100000001,
+          "2024-03": 0.15480598003629764,
+          "2024-04": 0.18095123453093814,
+          "2024-05": 0.09835057946428571,
+          "2024-06": 0.1277447052631579,
+          "2024-07": 0.06409977142857143,
+          "2025-01": 0.21922673170731707,
+          "2025-02": 0.2511068714285714,
+          "2025-03": 0.0607964141509434,
+          "2025-04": 0.15645952894736842,
+          "2025-05": 0.074287825,
+          "2025-06": 0.29697574736842103
+        },
+        "race_count": 20
+      },
+      "model_minus_baseline_95": {
+        "cluster_count": 20,
+        "high": 0.008202608548237175,
+        "low": -0.05255718404956888,
+        "mean": -0.02444013754855239
+      }
+    },
+    "wear_band_retrospective_proxy": {
+      "coverage": {
+        "covered": 14095,
+        "denominator": 17126,
+        "rate": 0.8230176340067733
+      },
+      "coverage_by_race": {
+        "2023-01": {
+          "coverage": 0.951171875,
+          "covered": 974,
+          "denominator": 1024
+        },
+        "2023-02": {
+          "coverage": 0.7083333333333334,
+          "covered": 612,
+          "denominator": 864
+        },
+        "2023-03": {
+          "coverage": null,
+          "covered": null,
+          "denominator": 0
+        },
+        "2023-04": {
+          "coverage": 0.7971491228070176,
+          "covered": 727,
+          "denominator": 912
+        },
+        "2023-05": {
+          "coverage": 0.8490028490028491,
+          "covered": 894,
+          "denominator": 1053
+        },
+        "2023-06": {
+          "coverage": 0.5211693548387096,
+          "covered": 517,
+          "denominator": 992
+        },
+        "2023-07": {
+          "coverage": 0.8506972928630024,
+          "covered": 1037,
+          "denominator": 1219
+        },
+        "2024-01": {
+          "coverage": 0.9566891241578441,
+          "covered": 994,
+          "denominator": 1039
+        },
+        "2024-02": {
+          "coverage": 0.6573751451800233,
+          "covered": 566,
+          "denominator": 861
+        },
+        "2024-03": {
+          "coverage": 0.8927083333333333,
+          "covered": 857,
+          "denominator": 960
+        },
+        "2024-04": {
+          "coverage": 0.6596534653465347,
+          "covered": 533,
+          "denominator": 808
+        },
+        "2024-05": {
+          "coverage": 0.8020477815699659,
+          "covered": 705,
+          "denominator": 879
+        },
+        "2024-06": {
+          "coverage": 0.9664292980671414,
+          "covered": 950,
+          "denominator": 983
+        },
+        "2024-07": {
+          "coverage": 0.896640826873385,
+          "covered": 1041,
+          "denominator": 1161
+        },
+        "2025-01": {
+          "coverage": null,
+          "covered": null,
+          "denominator": 0
+        },
+        "2025-02": {
+          "coverage": 0.8388030888030888,
+          "covered": 869,
+          "denominator": 1036
+        },
+        "2025-03": {
+          "coverage": 0.8130841121495327,
+          "covered": 783,
+          "denominator": 963
+        },
+        "2025-04": {
+          "coverage": 0.8061938061938062,
+          "covered": 807,
+          "denominator": 1001
+        },
+        "2025-05": {
+          "coverage": 0.8540880503144654,
+          "covered": 679,
+          "denominator": 795
+        },
+        "2025-06": {
+          "coverage": 0.9548611111111112,
+          "covered": 550,
+          "denominator": 576
+        }
+      },
+      "coverage_denominator": 17126,
+      "early_fit_bias_by_race": {
+        "2023-01": -0.006681722887236333,
+        "2023-02": 0.054677586059074704,
+        "2023-03": null,
+        "2023-04": -0.009700714501278108,
+        "2023-05": 0.015529535947334137,
+        "2023-06": 0.004337547769621881,
+        "2023-07": 0.02073752495064201,
+        "2024-01": -0.014469895912433658,
+        "2024-02": -0.13744155291828195,
+        "2024-03": -0.017085225200188788,
+        "2024-04": -0.5356491617815764,
+        "2024-05": 0.016091131786051757,
+        "2024-06": 0.008495020898000643,
+        "2024-07": 0.01446420505767162,
+        "2025-01": null,
+        "2025-02": 0.08767474078200609,
+        "2025-03": -0.014644177079321108,
+        "2025-04": 0.004509769009168943,
+        "2025-05": -0.019846743622459445,
+        "2025-06": 0.03214433925020179
+      },
+      "early_fit_bias_s_per_lap": -0.02760321068850012,
+      "early_fit_definition": "cutoff posterior mean minus retrospective proxy for estimates using at most eight clean laps",
+      "kalman_parameters_changed": false,
+      "label": "retrospective proxy, not latent ground truth",
+      "measurement_count": 17126,
+      "own_lap_evidence": {
+        "interpretation": "share of same-cutoff, same-compound clean laps from the current stint",
+        "mean_share": 0.0612586993247005,
+        "measurement_count": 13245,
+        "share_by_race": {
+          "2023-01": 0.03789319560857573,
+          "2023-02": 0.06607851179075326,
+          "2023-03": null,
+          "2023-04": 0.05229791382137443,
+          "2023-05": 0.05550349991562549,
+          "2023-06": 0.09139563895526792,
+          "2023-07": 0.07161685135705576,
+          "2024-01": 0.037846511733490115,
+          "2024-02": 0.08736978578304137,
+          "2024-03": 0.04163753819477148,
+          "2024-04": 0.05693993633668518,
+          "2024-05": 0.05500901168713595,
+          "2024-06": 0.059579665526278705,
+          "2024-07": 0.06576865333337385,
+          "2025-01": null,
+          "2025-02": 0.05263975708971628,
+          "2025-03": 0.06331508928170469,
+          "2025-04": 0.06552439053197721,
+          "2025-05": 0.058741676121889394,
+          "2025-06": 0.08349896077589235
+        }
+      },
+      "per_race_measurements": {
+        "2023-01": 1024,
+        "2023-02": 864,
+        "2023-03": 0,
+        "2023-04": 912,
+        "2023-05": 1053,
+        "2023-06": 992,
+        "2023-07": 1219,
+        "2024-01": 1039,
+        "2024-02": 861,
+        "2024-03": 960,
+        "2024-04": 808,
+        "2024-05": 879,
+        "2024-06": 983,
+        "2024-07": 1161,
+        "2025-01": 0,
+        "2025-02": 1036,
+        "2025-03": 963,
+        "2025-04": 1001,
+        "2025-05": 795,
+        "2025-06": 576
+      },
+      "proxy_definition": "existing fuel-plus-compound pace fit on race-end laps after excluding the evaluated driver stint; the remaining laps form retrospective proxy evidence",
+      "tuned_on_evaluation_races": false,
+      "unavailable_races": {
+        "2023-03": "no estimable leave-stint-out wear reference in the available clean laps",
+        "2025-01": "no estimable leave-stint-out wear reference in the available clean laps"
+      }
+    }
+  },
+  "race_ids": [
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06"
+  ],
+  "schema_version": 1
+}

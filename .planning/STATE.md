@@ -1,48 +1,44 @@
 ---
 gsd_state_version: "1.0"
 milestone: v1.0
-current_phase: 06
-current_phase_name: MVP Backtest, Streamlit View & README
-current_plan: 10
-status: ready_to_plan
-stopped_at: Phase 6 complete (12/12) — ready to discuss Phase 7
-last_updated: 2026-11-16T08:31:22.486Z
-last_activity: 2026-11-15
-last_activity_desc: Completed Plan 06-11 and exact-head Ubuntu/Windows CI; owner approval is pending
-state_head: afa2aeee9fd888bba452a0c7103fe9062531a0bb
+status: Awaiting next milestone
+stopped_at: M1 v1.0 closed; M2 Physics planning is next
+last_updated: "2026-11-17T20:33:16.275Z"
+last_activity: 2026-11-17
+last_activity_desc: Milestone v1.0 completed and archived
+state_head: 9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 44
-  completed_plans: 44
+  completed_phases: 8
+  total_plans: 55
+  completed_plans: 55
 milestone_name: milestone
+closeout_type: override_closeout
+current_phase: 8
+current_phase_name: Markov Regimes & Full Backtest (M1 archived)
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-10-22)
+See: .planning/PROJECT.md (updated 2026-11-17)
 
 **Core value:** For any driver at any lap of a replayed race, a pit-strategy recommendation whose uncertainty is honest: calibrated, free of look-ahead, verified against synthetic ground truth.
-**Current focus:** Phase 7 — bayesian pace model
+**Current focus:** M2 Physics — requirements and roadmap
 
 ## Current Position
 
-Phase: 7
-Current Plan: Not started
-Total Plans in Phase: 12
-Plan: 10 of 12
-Status: Ready to plan
-Last activity: 2026-11-16
-
-Progress: [====------] 38%
+Phase: M1 v1.0 archived; preparing M2
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-17 — Milestone v1.0 completed and archived
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 29
+- Total plans completed: 22
 - Average duration: -
 - Total execution time: -
 
@@ -60,6 +56,7 @@ Progress: [====------] 38%
 | 3 | 7 | - | - |
 | Phase 04 P01 | 1h | 3 tasks | 12 files |
 | 4 | 5 | - | - |
+| 7 | 5 | - | - |
 **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |
@@ -76,6 +73,10 @@ Progress: [====------] 38%
 | Phase 06 P07 | 7min | 2 tasks | 5 files |
 | Phase 06 P09 | 13min | 2 tasks | 5 files |
 | Phase 06 P08 | 42m | 3 tasks | 9 files |
+| Phase 08 P01 | 27min | 2 tasks | 8 files |
+| Phase 08 P02 | 49m | 2 tasks | 6 files |
+| Phase 08 P03 | 4h42m | 3 tasks | 21 files |
+| Phase 08 P04 | 15min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -143,29 +144,56 @@ Progress: [====------] 38%
 - [Phase 06]: D-11's graphite dashboard was rejected after the owner inspected it; D-12 through D-15 supersede its visual choices with a light, editorial, replay-first page and an ex-ante schedule-horizon requirement. Preserve D-07/D-08 data semantics and the one-page scope.
 - [Phase 06]: Reserve purple for the recommended strategy; label any overall-best lap Best in neutral fog.
 - [Phase 06]: Retain compact same-sample finish quantiles and opt-in selected-driver history; reduce simulation history to percentile bands before UI rendering.
+- [Phase 08]: Use green, vsc, sc, red, wet order and Dirichlet(1) smoothing for race-local one-lap transitions.
+- [Phase 08]: Keep green pit loss measured; treat VSC at 0.75x and SC at 0.5x as assumptions, with red and wet at green cost.
+- [Phase 08]: Require a one-hot cutoff regime when a Markov transition matrix is supplied; legacy states without a matrix retain the existing SC path.
+- [Phase 08]: DEC-121: cutoff-visible regimes use explicit control and rainfall precedence
+- [Phase 08]: DEC-122: race-local one-lap transitions use Dirichlet(1) smoothing
+- [Phase 08]: DEC-123: green pit loss is measured; SC and VSC discounts are assumptions
+- [Phase 08]: DEC-124/D-04: Freeze the ordered 20-race 2023–2025 sample and locked linear-pace scoring settings before prediction.
+- [Phase 08]: Continuation regression uses two-fold cross-fitting; each scoring fold is excluded from the paths used to fit its regression.
+- [Phase 08]: D-05 holdout stays separate; no 2026 outcomes were accessed in Plan 08-03.
+- [Phase 08]: Lock the 2026-09 through 2026-17 holdout with linear pace, 1,000 simulations, seed 0, risk 0.5, and CRC32 race/driver/cutoff seeds.
+- [Phase 08]: Build Markov transition inputs only from complete 2023-2025 RACE_END feature snapshots; never use a 2026 sequence for fit.
+- [Phase 08]: Freeze all holdout predictions before requesting final classifications; verify-existing reads only lock and report.
 
 ### Pending Todos
 
-- GitHub Actions must run on the current Phase 5 commits on both Ubuntu and Windows before phase closeout. The local branch agent-05-01 is not on origin.
+- Commit and merge the M1 archive, tag v1.0, then run Ubuntu and Windows CI on the final merge commit.
 
 ### Blockers/Concerns
 
-- Phase 5 current-branch CI is pending; the latest available main run is for Phase 4 commit fcec2f2, not these commits.
-- Keep 2026 races out-of-sample because of the regulation break.
-- Fuel load and tire wear are hidden variables; state this in README.
-- The prior Windows Application Control OS error 4551 is resolved with verified PSF-signed CPython 3.12.10 at %LOCALAPPDATA%/Programs/Python/Python312/python.exe.
+- PAC-06 remains unmet: the locked Bayesian pace MAE was 0.538745 s versus 0.364033 s for linear pace. M2 must compare a hybrid model to the data-only Bayesian model on a separately locked held-out-stint set; do not retune or rescore the M1 evaluation.
+- Seven UAT, verification, and deferred items were acknowledged in the v1.0 override closeout and are preserved in the Deferred Items table and milestone archive. Phases 1, 5, and 8 still carry human judgment or UAT items.
+- The separate 2026 holdout report exists and was scored after its predictions were frozen; it is pre-registered but retrospectively unblinded. Keep it out of the M1 baseline and do not tune on it.
+- Fuel load, tire temperature, and tire wear remain hidden or latent variables; disclose assumptions and uncertainty.
 
 ### Quick Tasks Completed
 
 | # | Description | Date | Commit | Status | Directory |
 |---|-------------|------|--------|--------|-----------|
-| 261114-814 | Route scoring RNG creation through f1si.rng.make_rng without changing seeded output | 2026-11-14 | 1c36457 | Gaps | [261114-814-route-scoring-rng-creation-through-f1si-](./quick/261114-814-route-scoring-rng-creation-through-f1si-/) |
-| 2 | Repair the Phase 6 scoring-test snapshot fixture so its fake entries match the as-of accessor contract | 2026-11-14 | c000b74 | — | — |
-| 261115-166 | Merge only the user-selected Streamlit-compatible rules from the supplied F1 design brief into Phase 6 06-UI-SPEC.md. Ignore plugin and screenshot instructions. Update no app code and do not build the dashboard. Stop after the spec merge, brief summary, and a proposed post-approval build plan. | 2026-11-15 | 79da677 | Passed | [261115-166-merge-only-the-user-selected-streamlit-c](./quick/261115-166-merge-only-the-user-selected-streamlit-c/) |
-| 261116-0hq | UI design pass on the Streamlit replay page: race-strip decision band (prototype B), merged options, humanized copy, contrast to 4.5:1 text and 3:1 marks, stint crash fix | 2026-11-16 | 0b428bd | Passed | [261116-0hq-ui-design-pass-on-the-streamlit-replay-p](./quick/261116-0hq-ui-design-pass-on-the-streamlit-replay-p/) |
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close, most recent first:
+
+| Category | Item | Status | Deferred At | Milestone |
+|----------|------|--------|-------------|-----------|
+| quick_tasks | 261116-0hq-ui-design-pass-on-the-streamlit-replay-p | completed artifact archived in v1.0 | 2026-11-17 | v1.0 |
+| uat_gaps | 01/01-HUMAN-UAT.md | partial; 2 scenarios | 2026-11-17 | v1.0 |
+| verification_gaps | 01/01-VERIFICATION.md | human_needed | 2026-11-17 | v1.0 |
+| verification_gaps | 05/05-VERIFICATION.md | human_needed | 2026-11-17 | v1.0 |
+| verification_gaps | 08/08-VERIFICATION.md | human_needed | 2026-11-17 | v1.0 |
+| deferred_items | 05/deferred-items.md: docs verification sequencing note | acknowledged | 2026-11-17 | v1.0 |
+| deferred_items | 06/deferred-items.md: pre-existing RNG factory import-ban findings in scoring.py | acknowledged | 2026-11-17 | v1.0 |
 
 ## Session Continuity
 
-Last session: 2026-11-15T07:16:45.425Z
-Stopped at: Completed 06-08-PLAN.md
-Resume file: None
+Last session: 2026-11-17T08:58:39.889Z
+Stopped at: M1 v1.0 archived; finish merge and final CI before M2 execution
+Resume file: .planning/milestones/v1.0-phases/08-markov-regimes-full-backtest/08-VERIFICATION.md
+
+## Operator Next Steps
+
+- Finish M1 release merge, push, and final Ubuntu/Windows CI.
+- Start M2 Physics with GSD after the M1 merge.

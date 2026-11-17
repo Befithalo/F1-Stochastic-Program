@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="7.285" timestamp="2026-11-16T15:50:52.473938-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.backtest.test_walk_forward" name="test_phase_08_in_sample_lock_records_exact_calendar_and_settings" time="0.005"><failure message="AssertionError: assert ['2023-01', '...2024-02', ...] == ['2023-01', '...2023-06', ...]&#10;  &#10;  At index 4 diff: '2024-01' != '2023-05'&#10;  Right contains 10 more items, first extra item: '2024-04'&#10;  Use -v to get more diff">def test_phase_08_in_sample_lock_records_exact_calendar_and_settings() -&gt; None:
+        lock_path = (
+            Path(__file__).parents[2]
+            / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+        )
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    
+&gt;       assert lock["race_ids"] == list(PHASE_08_RACES)
+E       AssertionError: assert ['2023-01', '...2024-02', ...] == ['2023-01', '...2023-06', ...]
+E         
+E         At index 4 diff: '2024-01' != '2023-05'
+E         Right contains 10 more items, first extra item: '2024-04'
+E         Use -v to get more diff
+
+tests\backtest\test_walk_forward.py:70: AssertionError</failure></testcase></testsuite></testsuites>

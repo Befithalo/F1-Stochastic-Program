@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "phase": "08-markov-regimes-full-backtest",
+  "registered_before_scoring": true,
+  "race_ids": [
+    "2023-01",
+    "2023-02",
+    "2023-03",
+    "2023-04",
+    "2023-05",
+    "2023-06",
+    "2023-07",
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06"
+  ],
+  "era_by_race": {
+    "2023-01": "ground_effect_2022_2025",
+    "2023-02": "ground_effect_2022_2025",
+    "2023-03": "ground_effect_2022_2025",
+    "2023-04": "ground_effect_2022_2025",
+    "2023-05": "ground_effect_2022_2025",
+    "2023-06": "ground_effect_2022_2025",
+    "2023-07": "ground_effect_2022_2025",
+    "2024-01": "ground_effect_2022_2025",
+    "2024-02": "ground_effect_2022_2025",
+    "2024-03": "ground_effect_2022_2025",
+    "2024-04": "ground_effect_2022_2025",
+    "2024-05": "ground_effect_2022_2025",
+    "2024-06": "ground_effect_2022_2025",
+    "2024-07": "ground_effect_2022_2025",
+    "2025-01": "ground_effect_2022_2025",
+    "2025-02": "ground_effect_2022_2025",
+    "2025-03": "ground_effect_2022_2025",
+    "2025-04": "ground_effect_2022_2025",
+    "2025-05": "ground_effect_2022_2025",
+    "2025-06": "ground_effect_2022_2025"
+  },
+  "sample_boundary": {
+    "ordering": "calendar order; include every listed race and do not substitute, omit, or reorder rows",
+    "preflight": "every listed race must be present in the cache with complete load status and must not be out of sample before prediction starts",
+    "training": "cutoff prediction inputs use only earlier completed in-sample races and the current cutoff-visible snapshot; final outcomes are unavailable to prediction generation"
+  },
+  "simulation": {
+    "pace_model": "linear",
+    "n_simulations": 1000,
+    "base_seed": 0,
+    "risk": 0.5
+  },
+  "randomness": {
+    "prediction_seed": "(base_seed + crc32(f'{race_id}:{driver}:{cutoff_lap}')) & 0x7fffffff",
+    "pace_fit_seed": "(base_seed + crc32(f'{race_id}:pace:{cutoff_lap}')) & 0x7fffffff",
+    "pace_fit_seed_scope": "shared by all drivers at one race and cutoff",
+    "bootstrap_resamples": 2000,
+    "brier_bootstrap_seed": "base_seed + 61409",
+    "strategy_bootstrap_seed": "base_seed + 71633"
+  },
+  "cutoff_and_target": {
+    "cutoff": "after the leader completes cutoff_lap; cutoff 0 is pre-race",
+    "target": "for each eligible driver, the next-to-complete lap, lap_number = laps_done_at_cutoff + 1",
+    "target_mask": [
+      "the target lap is not visible as completed in the cutoff snapshot",
+      "the target lap is completed in the race and passes the same clean-lap classifier used by the linear pace model",
+      "predictors use only cutoff-known current compound and tire age plus one, and the driver's next lap number",
+      "target compound matches the cutoff-known compound; when the snapshot exposes a current stint, target stint must match it",
+      "paired pace comparisons use identical rows with finite model and baseline predictions and finite target time"
+    ],
+    "observation_rule": "freeze the complete prediction trace before opening final results; missing or ineligible targets affect that race's explicit denominator and never remove its registered race row"
+  },
+  "metrics": {
+    "podium_brier": "binary outcome finish_position <= 3; unclassified starters count as failures; average rows within each race, then weight races equally",
+    "top10_brier": "binary outcome finish_position <= 10; unclassified starters count as failures; average rows within each race, then weight races equally",
+    "paired_probability_mask": "model and past-only grid baseline share identical finite prediction and observed-row masks",
+    "finish_interval_90": "inclusive empirical inverted-CDF P05/P95 endpoints; coverage is evaluated only for classified finishers",
+    "team_strategy_comparison": "compare each observed pit event with the latest recommendation strictly before its in-lap and not already visible at the selected cutoff; signed timing error is planned_stop_lap minus observed in_lap; agreement means the top action begins with pit",
+    "wear_band_retrospective_proxy": "Phase 6 fuel-plus-compound fit on race-end laps excluding the evaluated driver stint; label as retrospective proxy, not latent ground truth",
+    "aggregation": "equal race weight after within-race observation means",
+    "uncertainty": "paired 95% percentile bootstrap resampling whole races; strategy comparison uses race as its resampling unit",
+    "empty_race_rule": "preserve the registered race row and its zero or unavailable denominators; do not substitute another race"
+  },
+  "report_schema": {
+    "schema_version": 1,
+    "required_top_level_fields": [
+      "schema_version",
+      "race_ids",
+      "metadata",
+      "metrics",
+      "carry_forward_diagnostic"
+    ],
+    "required_race_rows": "one ordered row for every registered race ID",
+    "required_era_rows": "per-era summaries include every era represented in the locked sample",
+    "required_denominators": "each reported metric includes its overall and per-race observation counts; era summaries include their contributing race and observation counts",
+    "out_of_sample_era": "reg_2026 is reported separately in the later holdout report"
+  },
+  "holdout_boundary": {
+    "race_ids": [
+      "2026-09",
+      "2026-10",
+      "2026-11",
+      "2026-12",
+      "2026-13",
+      "2026-14",
+      "2026-15",
+      "2026-16",
+      "2026-17"
+    ],
+    "training": "use only earlier 2023-2025 in-sample completed races plus the current holdout cutoff snapshot; never train on another 2026 holdout race",
+    "result_access": "the dedicated holdout evaluator is the only results door; access once after the holdout lock and implementation are committed",
+    "score_policy": "score once and never tune or rescore against the holdout"
+  },
+  "lock_digest": {
+    "algorithm": "sha256",
+    "canonicalization": "UTF-8 JSON with sorted keys and compact separators after removing this lock_digest field",
+    "sha256": "b13c4ba36eb3b39420407f0c5372fad2224b25eb1c4f260b43a85f78ba751a88"
+  }
+}

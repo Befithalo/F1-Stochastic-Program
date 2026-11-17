@@ -77,6 +77,11 @@ def lap_step(
     mean_tab: NDArray[np.float64],
     sd_tab: NDArray[np.float64],
     u_sc: NDArray[np.float64],
+    u_regime: NDArray[np.float64],
+    use_markov: bool,
+    regime_transition: NDArray[np.float64],
+    regime_index: NDArray[np.int64],
+    pit_cost_by_regime: NDArray[np.float64],
     z_off: NDArray[np.float64],
     z_wear: NDArray[np.float64],
     eps: NDArray[np.float64],
@@ -128,15 +133,21 @@ def lap_step(
     arr = np.empty(n_cars)
     pitted = np.zeros(n_cars, dtype=np.bool_)
     for r in range(n):
-        # 1. safety-car start
+        # 1. safety-car start or the cutoff-safe Markov regime for this lap
         sc_started = False
-        if sc_left[r] == 0 and u_sc[r] < sc_rate:
-            sc_left[r] = sc_duration
-            sc_started = True
-        if sc_fresh[r]:
-            sc_started = True
-            sc_fresh[r] = False
-        sc_active = sc_left[r] > 0
+        if use_markov:
+            sc_active = regime_index[r] == 2
+            if sc_fresh[r]:
+                sc_started = True
+                sc_fresh[r] = False
+        else:
+            if sc_left[r] == 0 and u_sc[r] < sc_rate:
+                sc_left[r] = sc_duration
+                sc_started = True
+            if sc_fresh[r]:
+                sc_started = True
+                sc_fresh[r] = False
+            sc_active = sc_left[r] > 0
         # 2. free times
         for c in range(n_cars):
             k = comp[r, c]
@@ -148,7 +159,11 @@ def lap_step(
                 + eps[r, c] * sd_tab[c, k, a_idx]
             )
         leader_time = free[order[r, 0]]
-        pit_loss = pit_loss_sc if sc_active else pit_loss_green
+        pit_loss = (
+            pit_cost_by_regime[regime_index[r]]
+            if use_markov
+            else (pit_loss_sc if sc_active else pit_loss_green)
+        )
         # 3. pit decisions and 4. arrivals
         for c in range(n_cars):
             pitted[c] = False
@@ -178,6 +193,18 @@ def lap_step(
                 stops_done[r, c] = k_stop + 1
             else:
                 age[r, c] += 1
+        if use_markov:
+            previous = regime_index[r]
+            threshold = 0.0
+            for state in range(5):
+                threshold += regime_transition[previous, state]
+                if u_regime[r] <= threshold:
+                    regime_index[r] = state
+                    break
+            next_state = regime_index[r]
+            sc_fresh[r] = previous != 2 and next_state == 2
+            sc_left[r] = 1 if previous == 2 and next_state != 2 else 2
+
         # 5. green lap: front to back, pit reordering, dirty-air hold or pass
         if not sc_active:
             for p in range(1, n_cars):
@@ -225,5 +252,5 @@ def lap_step(
         for c in range(n_cars):
             clock[r, c] = arr[c]
         sc_mask[r] = sc_active
-        if sc_left[r] > 0:
+        if not use_markov and sc_left[r] > 0:
             sc_left[r] -= 1

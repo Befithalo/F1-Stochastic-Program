@@ -16,6 +16,11 @@ PHASE5 = ROOT / "docs" / "explained" / "phase-05.md"
 PHASE6 = ROOT / "docs" / "explained" / "phase-06.md"
 README = ROOT / "README.md"
 PHASE6_REPORT = ROOT / "reports" / "backtest" / "phase-06.json"
+PHASE7 = ROOT / "docs" / "explained" / "phase-07.md"
+PHASE7_REPORT = ROOT / "reports" / "pace" / "phase-07.json"
+PHASE8 = ROOT / "docs" / "explained" / "phase-08.md"
+PHASE8_IN_SAMPLE_REPORT = ROOT / "reports" / "backtest" / "phase-08.json"
+PHASE8_HOLDOUT_REPORT = ROOT / "reports" / "backtest" / "phase-08-holdout.json"
 
 HEADINGS = (
     "## What was built and why",
@@ -53,6 +58,28 @@ def test_interview_questions_have_answers(path: Path) -> None:
     assert 3 <= len(answers) <= 5
     for answer in answers:
         assert len(answer.strip()) >= 40
+
+
+def test_phase8_published_results_match_both_locked_reports() -> None:
+    in_sample = json.loads(PHASE8_IN_SAMPLE_REPORT.read_text(encoding="utf-8"))["metrics"]
+    holdout = json.loads(PHASE8_HOLDOUT_REPORT.read_text(encoding="utf-8"))["metrics"]
+    published = README.read_text(encoding="utf-8") + _text(PHASE8)
+
+    expected = (
+        f"{in_sample['podium_brier']['model']['mean']:.5f}",
+        f"{in_sample['podium_brier']['baseline']['mean']:.5f}",
+        f"{in_sample['top10_brier']['model']['mean']:.5f}",
+        f"{in_sample['top10_brier']['baseline']['mean']:.5f}",
+        f"{in_sample['finish_interval_90']['coverage']['mean']:.2%}",
+        f"{holdout['podium_brier']:.5f}",
+        f"{holdout['top10_brier']:.5f}",
+        f"{holdout['finish_interval_90']['coverage']:.2%}",
+        f"{holdout['strategy']['signed_timing_error_laps']:+.3f}",
+        f"{holdout['strategy']['agreement']:.2%}",
+    )
+    assert all(value in published for value in expected)
+    assert "pre-registered but retrospectively unblinded" in published
+    assert "must not be tuned or rescored" in published
 
 
 def test_tour_covers_every_module() -> None:
@@ -225,6 +252,31 @@ def test_phase5_decisions_record_assumptions_and_revisit_path() -> None:
         "revisit",
     ):
         assert phrase in text
+
+
+def test_phase7_published_result_matches_locked_report() -> None:
+    report = json.loads(PHASE7_REPORT.read_text(encoding="utf-8"))
+    readme = README.read_text(encoding="utf-8")
+    explainer = _text(PHASE7)
+
+    assert report["status"] == "completed"
+    assert report["pac_06_met"] is False
+    assert report["paired_targets"] >= report["metric"]["minimum_paired_targets"]
+    assert report["fit_summary"]["successes"] == report["fit_summary"]["attempts"]
+    assert report["fit_summary"]["failures"] == 0
+    assert report["unique_driver_target_laps"] == 1344
+    assert report["per_race"]["2025-01"]["paired_targets"] == 0
+    assert report["per_race"]["2025-02"]["paired_targets"] == 776
+    assert report["per_race"]["2025-03"]["paired_targets"] == 572
+    assert report["improvement_percent"] == pytest.approx(-47.99337920124119)
+
+    for text in (readme, explainer):
+        assert "PAC-06" in text
+        assert "not met" in text
+        assert f"{report['paired_targets']:,}" in text
+        assert f"{report['linear_mae_s']:.4f}" in text
+        assert f"{report['bayesian_mae_s']:.4f}" in text
+        assert "reports/pace/phase-07.json" in text
 
 
 def test_phase6_published_results_match_completed_report_and_disclosures() -> None:

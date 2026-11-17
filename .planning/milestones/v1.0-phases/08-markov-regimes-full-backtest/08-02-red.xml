@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.181" timestamp="2026-11-16T14:54:28.384344-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.regime.test_markov" name="test_simultaneous_control_events_keep_highest_priority" time="0.009"><failure message="AssertionError: assert 'sc' == 'red'&#10;  &#10;  - red&#10;  + sc">def test_simultaneous_control_events_keep_highest_priority() -&gt; None:
+        control = pd.DataFrame(
+            [
+                {"t_s": 10.0, "seq": 0, "status": "5"},
+                {"t_s": 10.0, "seq": 1, "status": "4"},
+            ]
+        )
+&gt;       assert label_regime(control, pd.DataFrame(), cutoff_s=10.0) == "red"
+E       AssertionError: assert 'sc' == 'red'
+E         
+E         - red
+E         + sc
+
+tests\regime\test_markov.py:69: AssertionError</failure></testcase></testsuite></testsuites>

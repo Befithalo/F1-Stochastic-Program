@@ -71,7 +71,13 @@ _NETWORK_REASON: Final = "network only through the rate-limited client"
 _RNG_CTOR_REASON: Final = "only f1si.rng.make_rng creates generators (FND-03)"
 
 # Modules that replay a race and so legitimately hold the accessor or ask for RACE_END.
-_REPLAY_DRIVERS: Final = ("f1si.data.asof", "f1si.cli", "f1si.backtest", "f1si.replay")
+_REPLAY_DRIVERS: Final = (
+    "f1si.data.asof",
+    "f1si.cli",
+    "f1si.backtest",
+    "f1si.replay",
+    "f1si.evaluation.holdout",
+)
 
 POLICY: Final[tuple[Rule, ...]] = (
     _rule("duckdb", ("f1si.data._db",), "only the storage module opens the database (D-02)"),

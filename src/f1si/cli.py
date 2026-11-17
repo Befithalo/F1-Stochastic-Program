@@ -8,7 +8,10 @@ and `wear-filter` (a driver's tyre-wear rate and 95%% band, replayed as-of every
 Exit codes: 0 ok, 1 user-facing error, 2 some races failed.
 """
 
+from __future__ import annotations
+
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -17,6 +20,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -60,11 +64,12 @@ from f1si.plots.wear_filter import (
     render_wear_filter_plot,
     wear_filter_file_name,
 )
+from f1si.regime.markov import RegimeEstimate, estimate_regime_model
 from f1si.regime.sc_rate import ScRateEstimate, estimate_sc_rate
 from f1si.rng import DEFAULT_SEED, make_rng
 from f1si.sim.constants import MAX_RACES
 from f1si.sim.numpy_backend import NumpySimulator, SafetyCarModel
-from f1si.state import CarState, RaceState, build_race_state
+from f1si.state import CarState, PaceStateFit, RaceState, build_race_state
 from f1si.strategy.free_track import FreeTrackOptimizer, PlanRefusedError
 from f1si.strategy.longstaff import LongstaffSchwartzPolicy, StrategyAnalysis
 
@@ -81,6 +86,12 @@ _FRIENDLY_VALUE_ERRORS = frozenset(
     }
 )
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
+_BAYESIAN_FIT_CONFIG = "hierarchical-v1;advi-50000;draws-256;loss-window-1000;relative-max-0.06"
+_BAYESIAN_FIT_CACHE: dict[tuple[str, int, str, str, int], BayesianPaceFit] = {}
+
+if TYPE_CHECKING:
+    from f1si.pace.bayesian import BayesianPaceFit
+    from f1si.pace.training import BayesianTrainingPanel
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -257,6 +268,12 @@ def build_parser() -> argparse.ArgumentParser:
         help=("risk aversion in [0, 1]: 0 weights mean, 1 weights worst-decile CVaR (default 0.5)"),
     )
     replay.add_argument("--seed", type=int, default=0, metavar="S", help="random seed (default 0)")
+    replay.add_argument(
+        "--pace-model",
+        choices=("linear", "bayesian"),
+        default="linear",
+        help="pace estimator for replay (default: linear)",
+    )
     backtest = sub.add_parser("backtest", help="score the registered sample or make one prediction")
     backtest.add_argument("--race", help="registered race ID, for example 2023-01")
     backtest.add_argument("--driver", metavar="CODE", help="driver code, e.g. ALO")
@@ -265,7 +282,23 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument("--risk", type=float, default=0.5, help="risk aversion in [0, 1]")
     backtest.add_argument("--seed", type=int, default=0, help="seed for repeatable predictions")
     backtest.add_argument(
+        "--pace-model",
+        choices=("linear", "bayesian"),
+        default="linear",
+        help="pace estimator for predictions (default: linear)",
+    )
+    backtest.add_argument(
         "--report", action="store_true", help="score and report the full registered race sample"
+    )
+    backtest.add_argument(
+        "--holdout",
+        action="store_true",
+        help="use the separately locked Phase 8 holdout report and score-once path",
+    )
+    backtest.add_argument(
+        "--verify-existing",
+        action="store_true",
+        help="verify an existing locked report without prediction or results access",
     )
     backtest.add_argument(
         "--diagnostics-only",
@@ -275,8 +308,8 @@ def build_parser() -> argparse.ArgumentParser:
     backtest.add_argument(
         "--output",
         type=Path,
-        default=Path("reports/backtest/phase-06.json"),
-        help="completed report path (default: reports/backtest/phase-06.json)",
+        default=None,
+        help="completed report path (default: reports/backtest/phase-08.json)",
     )
     backtest.add_argument(
         "--workers",
@@ -284,6 +317,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=4,
         help="bounded report prediction workers, 1 through 4 (default: 4)",
     )
+    holdout = sub.add_parser(
+        "holdout", help="score or verify the separately locked Phase 8 holdout"
+    )
+    holdout_mode = holdout.add_mutually_exclusive_group(required=True)
+    holdout_mode.add_argument(
+        "--score", action="store_true", help="run the single locked holdout score"
+    )
+    holdout_mode.add_argument(
+        "--verify-existing",
+        action="store_true",
+        help="verify an existing holdout report without predictions or result access",
+    )
+    holdout.add_argument("--output", type=Path, default=None, help="holdout report path")
+    holdout.add_argument("--n", type=int, default=1_000, help="locked simulation count")
+    holdout.add_argument("--risk", type=float, default=0.5, help="locked risk setting")
+    holdout.add_argument("--seed", type=int, default=0, help="locked base seed")
     backfill = sub.add_parser(
         "backfill-scheduled-laps",
         help="fill missing 2023-2025 race lap counts from FastF1",
@@ -1016,6 +1065,55 @@ class _PreparedReplayContext:
     is_fallback: bool
 
 
+def _build_bayesian_training_panel(
+    snapshot: asof.RaceSnapshot, history: asof.History
+) -> BayesianTrainingPanel:
+    """Keep PyMC imports off the default linear replay path."""
+    from f1si.pace.training import build_bayesian_training_panel
+
+    return build_bayesian_training_panel(snapshot, history)
+
+
+def _fit_bayesian_panel(panel: BayesianTrainingPanel, *, seed: int) -> BayesianPaceFit:
+    """Lazy wrapper kept as the injectable composition seam for the Bayesian fitter."""
+    from f1si.pace.bayesian import fit_bayesian_panel
+
+    return fit_bayesian_panel(panel, seed=seed)
+
+
+def _cached_bayesian_fit(
+    panel: BayesianTrainingPanel,
+    *,
+    race_id: str,
+    cutoff_lap: int,
+    seed: int,
+) -> BayesianPaceFit:
+    """Cache only by immutable cutoff, training-data, model-config and seed identity."""
+    content = panel.rows.to_json(orient="split", date_format="iso", double_precision=15)
+    lookups = {
+        "driver": sorted(
+            (int(number), str(identity))
+            for number, identity in panel.current_driver_id_by_number.items()
+        ),
+        "team": sorted(
+            (int(number), str(team)) for number, team in panel.current_team_by_number.items()
+        ),
+        "event": panel.current_event_id,
+        "era": panel.current_era,
+    }
+    digest = hashlib.sha256(content.encode("utf-8"))
+    digest.update(json.dumps(lookups, sort_keys=True, separators=(",", ":")).encode("utf-8"))
+    key = (race_id, cutoff_lap, digest.hexdigest(), _BAYESIAN_FIT_CONFIG, int(seed))
+    cached = _BAYESIAN_FIT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    fit = _fit_bayesian_panel(panel, seed=seed)
+    _BAYESIAN_FIT_CACHE[key] = fit
+    if len(_BAYESIAN_FIT_CACHE) > 64:
+        del _BAYESIAN_FIT_CACHE[next(iter(_BAYESIAN_FIT_CACHE))]
+    return fit
+
+
 def _prepare_replay_context(
     accessor: asof.AsOfAccessor,
     race_id: str,
@@ -1023,18 +1121,85 @@ def _prepare_replay_context(
     lap: int,
     *,
     snapshot: asof.RaceSnapshot | None = None,
+    pace_model: str = "linear",
+    seed: int = 0,
+    history_override: asof.History | None = None,
+    regime_estimate_override: RegimeEstimate | None = None,
 ) -> _PreparedReplayContext:
     """Build all race/cutoff data once, retaining the cutoff-only replay boundary."""
 
     at = asof.AsOf(race_id, lap)
     if snapshot is None:
         snapshot = accessor.snapshot(at)
-    history = accessor.history(at)
+    history = history_override if history_override is not None else accessor.history(at)
+    regime_estimate = (
+        regime_estimate_override
+        if regime_estimate_override is not None
+        else estimate_regime_model(history)
+    )
+    if pace_model not in ("linear", "bayesian"):
+        raise ValueError(f"Unknown pace model {pace_model!r}; choose 'linear' or 'bayesian'.")
+    if pace_model == "bayesian":
+        panel = _build_bayesian_training_panel(snapshot, history)
+        bayesian_fit = _cached_bayesian_fit(
+            panel,
+            race_id=race_id,
+            cutoff_lap=lap,
+            seed=seed,
+        )
+        pit_fit = fit_linear_pace(snapshot)
+        pit = measure_pit_loss(snapshot, pit_fit)
+        state = build_race_state(
+            snapshot,
+            cast(PaceStateFit, bayesian_fit),
+            laps_total=laps_total,
+            pit_loss_s=pit.median_s,
+            regime_estimate=regime_estimate,
+        )
+        estimate = estimate_sc_rate(history)
+        bayesian_compounds = bayesian_fit.fitted_compounds
+        bayesian_wear_sd_by_compound = {
+            name: bayesian_fit.wear_se(name) for name in bayesian_compounds
+        }
+        bayesian_fallback: SparsePaceFallback | None = None
+        bayesian_model: PaceModel = cast(PaceModel, bayesian_fit)
+        bayesian_is_fallback = len(bayesian_compounds) < 2
+        if bayesian_is_fallback:
+            bayesian_fallback = SparsePaceFallback(snapshot)
+            bayesian_model = bayesian_fallback
+            bayesian_compounds = DRY_COMPOUNDS
+            bayesian_wear_sd_by_compound = bayesian_fallback.wear_sd_by_compound
+            state = replace(
+                state,
+                cars=tuple(
+                    replace(
+                        car,
+                        pace_offset_s=bayesian_fallback.driver_offsets[car.driver_number],
+                        pace_offset_sd=PACE_OFFSET_SD_S,
+                    )
+                    for car in state.cars
+                ),
+            )
+        return _PreparedReplayContext(
+            snapshot,
+            state,
+            bayesian_model,
+            bayesian_compounds,
+            estimate,
+            bayesian_wear_sd_by_compound,
+            bayesian_fallback,
+            bayesian_is_fallback,
+        )
     fit = fit_linear_pace(snapshot)
     pit = measure_pit_loss(snapshot, fit)
     wear = current_stint_snapshots(filter_stints(snapshot, fit))
     state = build_race_state(
-        snapshot, fit, laps_total=laps_total, pit_loss_s=pit.median_s, wear_filter=wear
+        snapshot,
+        fit,
+        laps_total=laps_total,
+        pit_loss_s=pit.median_s,
+        wear_filter=wear,
+        regime_estimate=regime_estimate,
     )
     estimate = estimate_sc_rate(history)
     # A legal dry strategy must use two different compounds. A one-compound fit cannot price a
@@ -1085,11 +1250,20 @@ def _replay_at_cutoff(
     seed: int,
     prepared_context: _PreparedReplayContext | None = None,
     retain_position_history: bool = False,
+    pace_model: str = "linear",
+    model_seed: int | None = None,
 ) -> _ReplayCutoff:
     """Rebuild every input from one cutoff and fall back without leaving its as-of snapshot."""
 
     if prepared_context is None:
-        prepared_context = _prepare_replay_context(accessor, race_id, laps_total, lap)
+        prepared_context = _prepare_replay_context(
+            accessor,
+            race_id,
+            laps_total,
+            lap,
+            pace_model=pace_model,
+            seed=seed if model_seed is None else model_seed,
+        )
     policy = LongstaffSchwartzPolicy(
         prepared_context.model,
         compounds=prepared_context.compounds,
@@ -1178,6 +1352,7 @@ def _cmd_replay(
     n_simulations: int,
     risk_aversion: float,
     seed: int,
+    pace_model: str = "linear",
 ) -> int:
     """Replay cutoff-local policy evidence, or print one selected cutoff."""
     from f1si.strategy.longstaff import _risk
@@ -1202,7 +1377,7 @@ def _cmd_replay(
     db = paths.db_path(data_dir)
     race_id = asof.resolve_slug(db, slug)
     accessor = asof.AsOfAccessor(db)
-    from f1si.backtest.walk_forward import _race_laps_total
+    from f1si.backtest.walk_forward import _model_seed, _race_laps_total
 
     try:
         first = accessor.snapshot(asof.AsOf(race_id, 0))
@@ -1226,7 +1401,16 @@ def _cmd_replay(
     for cutoff_lap in cutoffs:
         try:
             result = _replay_at_cutoff(
-                accessor, race_id, laps_total, code, cutoff_lap, n_simulations, risk, seed
+                accessor,
+                race_id,
+                laps_total,
+                code,
+                cutoff_lap,
+                n_simulations,
+                risk,
+                seed,
+                pace_model=pace_model,
+                model_seed=_model_seed(race_id, cutoff_lap, seed),
             )
         except OutOfSampleLockedError as err:
             return _refuse(f"{err} 2026 races are out-of-sample and cannot be replayed.")
@@ -1260,16 +1444,43 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "backtest":
         single_cutoff_values = (args.race, args.driver, args.lap)
+        if args.holdout and not args.report:
+            parser.error("--holdout requires --report")
+        if args.holdout and args.diagnostics_only:
+            parser.error("--holdout cannot be combined with --diagnostics-only")
         if args.report and any(value is not None for value in single_cutoff_values):
             parser.error("--report cannot be combined with --race, --driver, or --lap")
         if args.diagnostics_only and not args.report:
             parser.error("--diagnostics-only requires --report")
+        if args.verify_existing and not args.report:
+            parser.error("--verify-existing requires --report")
+        if args.verify_existing and args.diagnostics_only:
+            parser.error("--verify-existing cannot be combined with --diagnostics-only")
         if not args.report and any(value is None for value in single_cutoff_values):
             parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
         if args.command == "backfill-scheduled-laps":
             return _cmd_backfill_scheduled_laps(data_dir, args.output)
+        if args.command == "holdout":
+            from f1si.evaluation.holdout import DEFAULT_REPORT, score_holdout, verify_holdout_report
+
+            holdout_output = args.output or DEFAULT_REPORT
+            if args.verify_existing:
+                verify_holdout_report(holdout_output)
+                print(f"Verified locked holdout report at {holdout_output}")
+                return 0
+            report = score_holdout(
+                paths.db_path(data_dir),
+                report_path=holdout_output,
+                n_simulations=args.n,
+                risk=args.risk,
+                seed=args.seed,
+            )
+            print(
+                f"Wrote locked holdout report to {holdout_output} ({len(report['race_ids'])} races)"
+            )
+            return 0
         if args.command == "plot":
             reports_dir: Path = (
                 args.reports_dir if args.reports_dir is not None else paths.reports_dir()
@@ -1296,12 +1507,49 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_wear_filter(data_dir, wf_reports, args.slug, args.driver, args.lap)
         if args.command == "replay":
             return _cmd_replay(
-                data_dir, args.slug, args.driver, args.lap, args.n, args.risk, args.seed
+                data_dir,
+                args.slug,
+                args.driver,
+                args.lap,
+                args.n,
+                args.risk,
+                args.seed,
+                args.pace_model,
             )
         if args.command == "backtest":
             if args.report:
-                output: Path = args.output
+                if args.holdout:
+                    from f1si.evaluation.holdout import (
+                        DEFAULT_REPORT,
+                        score_holdout,
+                        verify_holdout_report,
+                    )
+
+                    holdout_output = args.output or DEFAULT_REPORT
+                    if args.verify_existing:
+                        verify_holdout_report(holdout_output)
+                        print(f"Verified locked holdout report at {holdout_output}")
+                        return 0
+                    score_holdout(
+                        paths.db_path(data_dir),
+                        report_path=holdout_output,
+                        n_simulations=args.n,
+                        risk=args.risk,
+                        seed=args.seed,
+                        pace_model=args.pace_model,
+                    )
+                    print(f"Wrote completed locked holdout report to {holdout_output}")
+                    return 0
                 if args.diagnostics_only:
+                    output: Path = args.output or Path(
+                        "reports/backtest/phase-06.json"
+                        if args.pace_model == "linear"
+                        else "reports/backtest/phase-07-bayesian.json"
+                    )
+                    if args.pace_model != "linear":
+                        raise ValueError(
+                            "--pace-model bayesian cannot extend the existing Phase 6 linear report"
+                        )
                     if not output.is_file():
                         raise ValueError(
                             f"No existing report found at {output}; run f1si backtest --report "
@@ -1326,7 +1574,25 @@ def main(argv: Sequence[str] | None = None) -> int:
                         seed=args.seed,
                     )
                 else:
-                    from f1si.backtest.scoring import score_registered_sample
+                    from f1si.backtest.scoring import (
+                        score_registered_sample,
+                        verify_backtest_report,
+                    )
+
+                    output = args.output or Path("reports/backtest/phase-08.json")
+                    if args.verify_existing:
+                        report = verify_backtest_report(output)
+                        print(f"Verified locked backtest report at {output}")
+                        return 0
+                    if args.pace_model != "linear":
+                        raise ValueError(
+                            "The locked 2023-2025 backtest requires --pace-model linear."
+                        )
+                    if output.exists():
+                        raise ValueError(
+                            f"Refusing to overwrite existing backtest report at {output}; "
+                            "use --verify-existing to check it."
+                        )
 
                     report = score_registered_sample(
                         paths.db_path(data_dir),
@@ -1334,12 +1600,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                         risk=args.risk,
                         seed=args.seed,
                         workers=args.workers,
+                        pace_model=args.pace_model,
                     )
                 output.parent.mkdir(parents=True, exist_ok=True)
-                output.write_text(
-                    json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n",
-                    encoding="utf-8",
-                )
+                contents = json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n"
+                if args.diagnostics_only:
+                    output.write_text(contents, encoding="utf-8")
+                else:
+                    try:
+                        with output.open("x", encoding="utf-8") as report_file:
+                            report_file.write(contents)
+                    except FileExistsError as err:
+                        raise ValueError(
+                            "Refusing to overwrite backtest report created during scoring at "
+                            f"{output}."
+                        ) from err
                 print(f"Wrote completed backtest report to {output}")
                 print(
                     "Report includes one-to-one team-stop comparisons with race-cluster "
@@ -1356,6 +1631,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 n_simulations=args.n,
                 risk=args.risk,
                 seed=args.seed,
+                pace_model=args.pace_model,
             )
             if row.analysis is None:
                 print(f"Prediction unavailable: {row.unavailable_reason or 'no supported model'}")

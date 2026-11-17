@@ -26,28 +26,28 @@
     {
       "number": "5",
       "name": "Longstaff-Schwartz Strategy & Live Replay",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "6",
       "name": "MVP Backtest, Streamlit View & README",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "7",
       "name": "Bayesian Pace Model",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "8",
       "name": "Markov Regimes & Full Backtest",
-      "status": "pending"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 6 of 8 · executing"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-11-15T07:16:32.032Z"
+  "updated_at": "2026-11-17T20:33:16.328Z"
 }

@@ -55,6 +55,11 @@ class Case:
             "mean_tab": mean,
             "sd_tab": np.zeros((c, K, A)),
             "u_sc": np.full(n, self.u_sc),
+            "u_regime": np.zeros(n, dtype=np.float64),
+            "use_markov": False,
+            "regime_transition": np.eye(5, dtype=np.float64),
+            "regime_index": np.zeros(n, dtype=np.int64),
+            "pit_cost_by_regime": np.full(5, 22.0, dtype=np.float64),
             "z_off": np.zeros((n, c)),
             "z_wear": np.zeros((n, K)),
             "eps": np.zeros((n, c)),
@@ -85,6 +90,11 @@ def run(state: dict[str, Any], lap: int = 5, *, python: bool = False, **over: An
         a["mean_tab"],
         a["sd_tab"],
         a["u_sc"],
+        a.get("u_regime", np.zeros_like(a["u_sc"])),
+        a.get("use_markov", False),
+        a.get("regime_transition", np.eye(5, dtype=np.float64)),
+        a.get("regime_index", np.zeros_like(a["u_sc"], dtype=np.int64)),
+        a.get("pit_cost_by_regime", np.full(5, 22.0, dtype=np.float64)),
         a["z_off"],
         a["z_wear"],
         a["eps"],
@@ -278,7 +288,7 @@ def _random_state(seed: int) -> dict[str, Any]:
 
 
 def _copy(st: dict[str, Any]) -> dict[str, Any]:
-    return {k: v.copy() for k, v in st.items()}
+    return {k: v.copy() if isinstance(v, np.ndarray) else v for k, v in st.items()}
 
 
 KEYS = ("order", "clock", "age", "comp", "stops_done", "sc_left", "pit_paid", "stop_taken")

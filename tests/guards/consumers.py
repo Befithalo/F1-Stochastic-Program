@@ -10,12 +10,15 @@ from pathlib import Path
 from typing import Final
 
 import numpy as np
+import pytest
 
-from f1si.backtest.walk_forward import cutoff_consumer
+from f1si.backtest.walk_forward import _race_laps_total, cutoff_consumer
 from f1si.cli import _replay_at_cutoff
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
+from f1si.evaluation.holdout import build_in_sample_regime_sequences
 from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
+from f1si.pace.training import build_bayesian_training_panel
 from f1si.plots.stints import prepare_stint_plot_data
 from f1si.plots.wear import prepare_wear_plot_data
 from f1si.regime.sc_rate import estimate_sc_rate
@@ -67,6 +70,12 @@ def linear_fit(db_path: Path, at: AsOf) -> object:
         lap=np.array([5, 6], dtype=np.int64)[: len(driver)],
     )
     return fit.report, tuple(float(v) for v in (*mean, *sd))
+
+
+def bayesian_training_panel(db_path: Path, at: AsOf) -> object:
+    """The clean historical/current panel and category maps visible at the selected cutoff."""
+    accessor = AsOfAccessor(db_path)
+    return build_bayesian_training_panel(accessor.snapshot(at), accessor.history(at))
 
 
 def pit_loss(db_path: Path, at: AsOf) -> object:
@@ -165,6 +174,52 @@ def strategy_replay(db_path: Path, at: AsOf) -> object:
     return (status, evidence, result.analysis.reason)
 
 
+def bayesian_strategy_replay(db_path: Path, at: AsOf) -> object:
+    """The Bayesian-selected replay seam, with a cheap deterministic fit for property checks."""
+    accessor = AsOfAccessor(db_path)
+    first = accessor.snapshot(AsOf(at.race_id, 0))
+    laps_total = _race_laps_total(accessor, at.race_id, first)
+    lap = at.lap if isinstance(at.lap, int) else laps_total - 1
+    snapshot = first if lap == 0 else accessor.snapshot(AsOf(at.race_id, lap))
+    if snapshot.entries.empty:
+        return ("unavailable", "No entrants are available.")
+    code = sorted(str(value) for value in snapshot.entries["driver_code"])[0]
+    from f1si import cli
+
+    # The exact as-of panel is separately registered above. Keep this end-to-end policy
+    # property lightweight by replacing only ADVI; the model-selection and cache path still
+    # consumes the real cutoff-local training panel.
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            cli,
+            "_fit_bayesian_panel",
+            lambda _panel, *, seed: fit_linear_pace(snapshot),
+        )
+        try:
+            result = _replay_at_cutoff(
+                accessor,
+                at.race_id,
+                laps_total,
+                code,
+                lap,
+                n_simulations=1,
+                risk=0.5,
+                seed=0,
+                pace_model="bayesian",
+                model_seed=0,
+            )
+        except ValueError as err:
+            return ("unavailable", str(err))
+    if result.analysis is None:
+        return ("unavailable", result.unavailable_reason)
+    status = "fallback" if result.is_fallback else "available"
+    evidence = tuple(
+        (option.action, option.mean_finish, option.spread, option.cvar10, option.score)
+        for option in result.analysis.options
+    )
+    return (status, evidence, result.analysis.reason)
+
+
 CONSUMERS: Final[dict[str, Consumer]] = {
     "snapshot": snapshot,
     "history": history,
@@ -173,6 +228,7 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "cars": cars,
     "stint_plot_data": stint_plot_data,
     "linear_fit": linear_fit,
+    "bayesian_training_panel": bayesian_training_panel,
     "pit_loss": pit_loss,
     "race_state": race_state,
     "race_state_filter": race_state_filter,
@@ -180,7 +236,15 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "sc_rate": sc_rate,
     "wear_filter": wear_filter,
     "strategy_replay": strategy_replay,
+    "bayesian_strategy_replay": bayesian_strategy_replay,
     "walk_forward_cutoff": cutoff_consumer,
+}
+
+# The holdout feature-fit route receives its accessor capability directly. Keep it registered
+# separately from generic `(db_path, at)` consumers: its fixed 2023-2025 RACE_END reads are used
+# only for the later 2026 holdout and are not cutoff-local predictions for an in-sample anchor.
+HOLDOUT_ACCESSOR_CONSUMERS: Final = {
+    "in_sample_regime_sequences": build_in_sample_regime_sequences,
 }
 
 
@@ -232,6 +296,10 @@ EXEMPT: Final[dict[str, str]] = {
     "f1si.pace.linear.LinearPaceFit.wear_se": "pure lookup of already fitted values",
     "f1si.pace.linear.LinearPaceFit.pace_offset": "pure lookup of already fitted values",
     "f1si.pace.linear.LinearPaceFit.pace_offset_se": "pure lookup of already fitted values",
+    "f1si.state.PaceStateFit.wear_rate": "pure protocol field of a fitted state pace model",
+    "f1si.state.PaceStateFit.wear_se": "pure protocol field of a fitted state pace model",
+    "f1si.state.PaceStateFit.pace_offset": "pure protocol field of a fitted state pace model",
+    "f1si.state.PaceStateFit.pace_offset_se": "pure protocol field of a fitted state pace model",
     "f1si.plots.wear.build_wear_figure": "pure drawing of already-prepared WearPlotData",
     "f1si.plots.wear.render_wear_plot": "writes a figure of prepared WearPlotData to disk",
     "f1si.plots.wear.wear_file_name": "string function of a validated slug",

@@ -1267,3 +1267,190 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Skipping started out-lap stints (hides a stop the state already counts); embedding SVG as data-URI images; showing the exception text on the page.
 **Consequences:** `prepare_stint_bar_data` returns `laps_completed` and `in_progress`; the stint tooltip shows laps completed instead of a last lap. `tests/plots/test_replay_charts.py` and the network test `test_alo_stint_chart_and_replay_after_lap_15` cover the Bahrain 2023 ALO lap-15 case.
 **Refs:** `src/f1si/plots/replay_charts.py`, `src/f1si/plots/altair_charts.py`, `src/f1si/app.py`, `tests/plots/test_replay_charts.py`, `tests/real/test_bahrain_2023.py`, DEC-112, DEC-114
+
+## DEC-116 — Gate operational pace fits on synthetic-calibrated ADVI convergence
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** A 10,000-step ADVI fit passed a loose loss-stability check while missing known synthetic intercept by 0.81 seconds and fuel slope by 0.029 seconds per lap. The fit feeds race replay and the Bayesian backtest, so an underfit approximation must not be reported as converged.
+**Decision:** Require at least 50,000 ADVI iterations, finite loss throughout, and no more than 6% relative movement between the medians of the first and second halves of the trailing 1,000 loss values. Check this before posterior sampling and raise `PaceFitError` on failure. Keep only compact means, marginal SDs, and 90% intervals in the report. Validate the common model graph against a four-chain NUTS reference using R-hat <= 1.05, bulk ESS >= 100, and divergence fraction <= 1%; record depth-cap hits and NUTS-minus-ADVI differences.
+**Why:** The higher floor was selected from seeded known-truth recovery, where 50,000 steps recovered the declared effects and 10,000 did not. The loss check is a refusal gate, not a claim that a stable variational approximation is identical to the exact posterior.
+**Alternatives rejected:** Keep a 10,000-step fit with a loose 10% loss limit; silently return an underfit or linear fallback; demand exact agreement between ADVI and NUTS.
+**Consequences:** The multi-era recovery fit measured 90.755% coverage within its 90% residual interval. The bounded NUTS reference measured max R-hat 1.006, min bulk ESS 928.4, one divergence in 1,600 draws, and one depth-12 hit. NUTS-minus-ADVI mean deltas were -0.0017 s for intercept and -0.000089 s/lap for fuel. Operational fits may take longer and fail explicitly if the loss remains unstable.
+**Refs:** `src/f1si/pace/bayesian.py`; `tests/pace/test_bayesian_model.py`; `tests/pace/test_bayesian_recovery.py`; DEC-113
+
+## DEC-117 — Keep the Bayesian pace selector cutoff-local and opt-in
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Phase 7 adds the hierarchical pace fit to replay and walk-forward evaluation while the existing linear report and reproducible predictions remain the compatibility baseline. The 2025 Bayesian holdout also needs to remain a distinct, pre-registered score.
+**Decision:** Keep `linear` as the default pace model and expose Bayesian pace explicitly at replay and backtest composition points. At each race/cutoff, fit from the snapshot and earlier-only history; share one model-fit seed across drivers and cache only on race, cutoff, panel content and current identity maps, model configuration, and seed. A Bayesian CLI report writes to a separate default path from the Phase 6 linear report.
+**Why:** The model can be evaluated through the existing strategy and simulator contracts without changing the already measured linear predictions. A content-bound cutoff cache avoids duplicate fitting across drivers while remaining deterministic and invalidating on changed training inputs.
+**Alternatives rejected:** Replacing the linear default; caching only by race or lap; writing Bayesian results over the frozen Phase 6 report; fitting the model from current-race results.
+**Consequences:** Linear replay and scoring remain the defaults. Bayesian report selection is available for reproducible experimentation, with a separate artifact path. Future-scramble policy checks keep the real cutoff-local training-panel builder but substitute a cheap deterministic fit to bound CI resources; real ADVI convergence and recovery remain covered by the dedicated recovery tests.
+**Refs:** `src/f1si/cli.py`; `src/f1si/backtest/walk_forward.py`; `src/f1si/backtest/scoring.py`; `tests/guards/consumers.py`; DEC-116
+
+## DEC-118 — Score the locked Bayesian pace holdout once
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Phase 7 needs a real-data accuracy check after synthetic recovery and replay integration. The first three 2025 races are chronological targets with enough cached timing data for a grouped walk-forward evaluation, and all 2023–2025 rows are within the same regulation era.
+**Decision:** Before scoring, freeze 2025-01 through 2025-03, every leader-lap cutoff from pre-race lap 0 through the penultimate leader cutoff, the next-to-complete lap for each driver, the common clean-target mask, model settings, CRC32 seed derivation, paired next-lap MAE, a 500-target minimum, and a 15% reduction gate. Predict from cutoff-known compound and tyre age; only after all cutoff predictions are complete, read target laps through the as-of door and score identical finite rows. Run once; a failed gate is reported as unmet without changing the split or tuning on these races.
+**Why:** A chronological grouped split keeps each target in its race context and prevents later laps from entering its own fit. The same paired rows make the MAE comparison attributable to the pace model, while the committed lock and one-shot report guard prevent result-driven sample changes.
+**Alternatives rejected:** Select or replace races after seeing scores; use target lap fields as prediction features; let either model use a different target mask; rerun the score after adjusting model settings.
+**Consequences:** The split, cutoff ranges, clean-target rule, seed, model configuration, minimum sample and success threshold are committed in `07-05-evaluation-lock.json` before the report exists. The score will disclose per-race denominators and the single-era limitation. Failure to meet the gate is not repaired by a new holdout.
+**Refs:** `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; `src/f1si/backtest/pace_evaluation.py`; `src/f1si/pace/training.py`; `src/f1si/data/asof.py`; DEC-116, DEC-117
+
+## DEC-119 — Isolate each locked cutoff fit to release inference memory
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** The pre-score execution reached about 2.5 GB of working memory while fitting repeated 50,000-step ADVI cutoffs, with less than 0.5 GB free on the host. No target laps or scores had been read.
+**Decision:** Run each locked race/cutoff Bayesian fit and its cutoff-feature predictions in a short-lived spawned worker process. Return only finite prediction means and compact convergence fields, then let the process exit before fitting the next cutoff. Keep the committed races, cutoffs, training inputs, model settings, target mask, seeds, and metric unchanged.
+**Why:** Process exit releases PyTensor and PyMC allocations between fits; compact outputs keep the evaluator parent small and preserve the one-fit-per-cutoff walk-forward method.
+**Alternatives rejected:** Continue in one process until host memory is exhausted; reduce the locked fit budget or change the score protocol after execution began; read a partial target score.
+**Consequences:** A cutoff worker opens only its own `AsOf` snapshot and earlier-only `History`, and it never receives target lap rows. Fits take additional process-start time; the committed evaluator records total runtime and fit failures.
+**Refs:** `src/f1si/backtest/pace_evaluation.py`; `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; DEC-118
+
+## DEC-120 — Publish the locked Bayesian pace score, including the unmet gate
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** DEC-118 fixed the first three 2025 races, paired clean next-lap MAE, a minimum of 500 targets, and a 15% improvement requirement before scoring. DEC-119 isolated each cutoff fit so the complete locked evaluation could run within available memory.
+**Decision:** Publish the completed one-shot report as measured. It contains 1,348 paired targets (1,344 unique driver-target laps), linear MAE 0.364033 seconds, Bayesian MAE 0.538745 seconds, and a -47.993% MAE reduction, meaning Bayesian MAE was 47.993% higher. The 500-target minimum passed but the 15% improvement gate did not; PAC-06 is not met. The locked 2025-01 race remains included with zero paired targets; 2025-02 contributed 776 and 2025-03 contributed 572. All 74 cutoff fits succeeded. Do not change the race group or tune and rescore this holdout.
+**Why:** Reporting the registered outcome preserves the distinction between synthetic parameter recovery and real predictive accuracy. Keeping the zero-row race visible preserves the pre-registered sample and makes the denominator auditable.
+**Alternatives rejected:** Claim that synthetic recovery establishes real predictive superiority; remove 2025-01 or select replacement races; adjust the model after the holdout score and rerun it.
+**Consequences:** README, explainer and phase summary report the measured error increase and unmet PAC-06 gate. The 2023–2025 real data all belong to one regulation era, so the evaluation does not identify a real between-era effect.
+**Refs:** reports/pace/phase-07.json; .planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json; src/f1si/backtest/pace_evaluation.py; README.md; docs/explained/phase-07.md; DEC-116, DEC-118, DEC-119
+
+## DEC-121 — Label regimes from cutoff-visible control and rainfall
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Phase 8 adds five-state transition inputs while replay and simulation must describe only conditions visible at the selected cutoff. Race-control timelines can include simultaneous messages, and rainfall alone must not erase a higher-priority control state.
+**Decision:** Label each observed leader lap from the latest visible track-control and rainfall rows. Resolve control events tied at the latest timestamp by red > safety car > virtual safety car > neutral; status codes 6 and 7 both mean VSC, yellow is neutral, and rainfall marks wet only when no higher-priority control state is active. Missing rainfall is not wet. Do not infer regime from tyre compound or future weather.
+**Why:** Cutoff-only inputs preserve the as-of boundary, and explicit same-time priority prevents row ordering from changing a red or safety-car state.
+**Alternatives rejected:** Use later race-control or weather rows; let rainfall override red/SC/VSC; infer wet conditions from tyres; treat yellow as an unmodelled state.
+**Consequences:** The regime vocabulary remains green, VSC, SC, red and wet. This label is a compact observation contract; it does not reconstruct hidden track conditions between observations.
+**Refs:** src/f1si/regime/markov.py; tests/regime/test_markov.py; .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md
+
+## DEC-122 — Fit race-local one-lap regime transitions with Dirichlet(1)
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Simulation requires a transition matrix learned only from races completed before the target cutoff. Joining adjacent race sequences would fabricate a transition between unrelated events, while unobserved destinations must retain finite prior mass.
+**Decision:** Count one transition for every adjacent observed leader-lap pair within each earlier completed race, keeping race sequences separate. Add exactly one pseudocount to every destination in every source row (Dirichlet(1)), then normalize each row.
+**Why:** Race-local counts preserve the unit of observation and prevent cross-race transitions. Equal pseudocounts keep zero-count destinations possible without favoring any regime.
+**Alternatives rejected:** Join the concatenated history into one sequence; use current or future race observations; use no smoothing or a destination-specific prior.
+**Consequences:** Rows remain finite and normalized even for unobserved source regimes. The prior has a larger influence when transition counts are sparse, so the matrix is not a claim of precisely measured long-run probabilities.
+**Refs:** src/f1si/regime/markov.py; tests/regime/test_markov.py; .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md
+
+## DEC-123 — Keep green pit loss measured and regime discounts explicit assumptions
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** Pit-stop loss is observed under green conditions, but comparable regime-specific stop measurements are not established for the Markov simulator.
+**Decision:** Use measured green pit loss as the baseline. Set VSC cost to 0.75x and SC cost to 0.5x as explicit assumptions; set red and wet cost equal to green unless defensible measurements become available. Keep all five costs serialized with the cutoff regime and transition matrix.
+**Why:** The simulator needs a finite cost under every modeled state. A disclosed baseline and provisional multipliers make that input inspectable without presenting unsupported discounts as measurements.
+**Alternatives rejected:** Describe the VSC/SC multipliers as measured; assign unsupported red/wet discounts; omit costs for regimes and silently reuse a different state's value.
+**Consequences:** Simulated pit cost follows the current regime and the configured five-value vector. The VSC and SC multipliers remain assumptions and require later empirical validation before being described as calibrated.
+**Refs:** src/f1si/state.py; src/f1si/sim/kernel.py; src/f1si/sim/numpy_backend.py; tests/test_state_builder.py; tests/sim/test_safety_car.py
+
+## DEC-124 — Freeze the 20-race in-sample score contract before prediction
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** The regime-aware backtest must be comparable with Phase 6 while retaining a complete calendar-first 2023–2025 sample and auditable denominators.
+**Decision:** Register exactly 2023-01 through 2023-07, 2024-01 through 2024-07, and 2025-01 through 2025-06, in calendar order. Before prediction, lock the complete-race preflight, cutoff and clean-target mask, linear pace model, 1,000 simulations, seed 0, risk 0.5, CRC32 seed derivation, Phase 6 probability, finish-interval, team-call and wear-proxy metrics, race-equal aggregation, race-cluster bootstrap, and report schema. Preserve each race row, including explicit zero or unavailable denominators; do not substitute a race.
+**Why:** A committed contract makes the 20-race extension comparable with the measured ten-race Phase 6 report and prevents sample, target, setting, or metric choices from changing after predictions or outcomes are seen.
+**Alternatives rejected:** Select races by availability after scoring; omit an incomplete race; change from linear pace, alter simulation or random settings, or replace Phase 6 metrics after seeing results.
+**Consequences:** The in-sample result is one ground-effect-era evaluation with per-race and per-era denominators. Its report cannot establish between-era performance because all registered races are from 2023–2025.
+**Refs:** .planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json; reports/backtest/phase-06.json; src/f1si/backtest/metrics.py; DEC-111, DEC-117
+
+## DEC-125 — Isolate the 2026 holdout and score it once
+
+**Date:** 2026-11-16
+**Status:** Accepted
+**Context:** The 2026 regulation change defines an out-of-sample era, and its second-half races must not influence in-sample training, model choices, or report design.
+**Decision:** Freeze the separate holdout as rounds 9–17 of the 2026 calendar: 2026-09 through 2026-17. Use only completed 2023–2025 history and each holdout race's cutoff-visible snapshot for its predictions; never use another 2026 holdout race as training history. Access 2026 outcomes only through the dedicated holdout evaluator after its lock and implementation are committed, score once, and do not tune or rescore against that result.
+**Why:** The regulation boundary makes 2026 a separate evaluation population. A fixed, one-time results door keeps holdout performance independent of in-sample decisions.
+**Alternatives rejected:** Open 2026 outcomes during planning or implementation; train on earlier holdout outcomes; change holdout races or settings after scoring; rerun a failed or disappointing score.
+**Consequences:** The 2026 result remains a distinct reg_2026 report and does not alter the 2023–2025 in-sample result. The score is reported as measured, including any unmet quality gate.
+**Refs:** .planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json; .planning/phases/08-markov-regimes-full-backtest/08-CONTEXT.md; src/f1si/data/out_of_sample.py; DEC-124
+
+## DEC-126 — Keep the 2026 holdout pending without an ex-ante Sepang horizon
+
+**Date:** 2026-11-17
+**Status:** Accepted; superseded by DEC-127
+**Context:** The single prescribed holdout score invocation stopped during schedule preflight because scheduled race distance was unavailable for locked event 2026-16 (Sepang). Local cutoff-visible metadata has no scheduled-laps values for the 2026 holdout rounds, and no authoritative ex-ante Sepang horizon is present in the committed lock or local calendar metadata.
+**Decision:** Do not infer or borrow a scheduled horizon from observed 2026 laps, do not access final classifications, and do not retry the score. Leave the holdout report absent and Phase 8 incomplete until an authoritative ex-ante schedule source for the locked event is added through a separately reviewed decision.
+**Why:** A fabricated horizon would change the locked cutoff contract and compromise the registered holdout. The score command failed before requesting final classifications, so no score was produced.
+**Alternatives rejected:** Guess a Sepang lap count; derive it from observed 2026 data; alter the locked event, cutoff, or sample; retry the one-time score.
+**Consequences:** DEC-125's evaluation remains pending and neither its holdout quality gate nor Phase 8 completion can be claimed. During external schedule research, search result snippets displayed outcome information and an opened FIA media-kit PDF displayed adjacent season classifications. No outcome values were copied into code, locks, metrics, tuning, or reports. This exposure means any eventual report must be described as a pre-registered retrospective evaluation, not blind.
+**Refs:** .planning/phases/08-markov-regimes-full-backtest/08-05-SUMMARY.md; .planning/phases/08-markov-regimes-full-backtest/08-VALIDATION.md; DEC-125
+
+## DEC-127 — Complete the registered holdout with locked ex-ante schedule distances
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The sole prescribed score invocation failed during feature-only preflight because OpenF1 supplied no scheduled lap count. It failed before `final_classification`, so the one successful outcome-accessing score has not occurred. Ex-ante schedule-only metadata is now available for every registered race without consulting 2026 outcome fields.
+**Decision:** Lock the scheduled lap count and circuit provenance for each of the nine registered 2026 holdout races. Use the locked horizon only when local schedule metadata is null; fail closed if local metadata disagrees. For 2026-16, use the schedule-only OpenF1 meeting/session fields, Sepang Circuit's 5.543 km lap length, and FIA 2026 Sporting Regulations B2.5.2: the least whole-lap distance exceeding 305 km gives 56 laps (310.408 km). The earlier failed pre-result invocation does not consume the one successful result-accessing score; run the prescribed scoring command once after this lock, implementation, and tests are committed.
+**Why:** An explicit ex-ante horizon makes each locked cutoff reproducible while preserving the race sample and keeping observed 2026 laps and results outside schedule resolution.
+**Alternatives rejected:** Infer a horizon from observed laps, alter the sample or cutoff range, treat a missing scheduled-lap count as zero, or query outcome endpoints while building schedule metadata.
+**Consequences:** The holdout remains a pre-registered retrospective evaluation, not a blind evaluation, because search snippets and adjacent FIA media-kit classifications were incidentally exposed during earlier schedule research. No values from those displays were used in code, lock metrics, tuning, or report design. Publish this exposure with the report, and do not access outcomes again after the first successful score/report write.
+**Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; OpenF1 `meetings?year=2026` and `sessions?meeting_key=1308` schedule fields; Sepang Circuit official lap length; FIA 2026 Sporting Regulations B2.5.2; DEC-125, DEC-126
+
+## DEC-128 — Verify the locked required report fields and known prediction extension
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The one successful holdout score wrote all fields required by the committed lock and an additional `predictions` array containing the frozen driver/cutoff rows used for aggregation. The read-only verifier incorrectly treated `required_top_level_fields` as an exact field set and rejected the completed report.
+**Decision:** Require every top-level field named by the lock, permit the known optional `predictions` list emitted by `score_holdout`, and continue rejecting unregistered top-level extensions. Do not modify the lock or scored report; verify the existing report read-only.
+**Why:** The lock declares required fields, and the prediction array is a deliberate report artifact. Recognizing that field fixes verification without changing the registered sample, prediction, result access, metrics, or one-score boundary.
+**Alternatives rejected:** Do not rescore the holdout. Rewriting the committed lock or report after scoring, accepting arbitrary unknown fields, or removing the prediction array from the existing report would either break the one-score boundary or hide an unregistered report change.
+**Consequences:** The existing report verifies without data access or recomputation. Its outcome exposure remains a pre-registered retrospective evaluation, not a blind evaluation.
+**Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; `tests/backtest/test_holdout.py`; DEC-125, DEC-127
+
+## DEC-129 — Validate the frozen prediction rows in the holdout report
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The read-only holdout verifier accepts the scorer's optional `predictions` extension, but only checks that it is a list. Malformed rows could therefore pass as part of a valid report.
+**Decision:** Validate every prediction row against the exact keys emitted by `_frozen_predictions`. Require a locked race ID, non-empty driver, boolean availability, correctly typed nullable fields, and a cutoff lap within that race's locked schedule. Require finite probabilities in [0, 1], valid scheduled-lap stop and finish bounds, and an ordered finish interval when a prediction is available. Reject malformed or extra fields while continuing to allow reports without the optional extension.
+**Why:** The frozen trace should be trustworthy when present, and its validation can use only the committed lock and saved JSON without recomputing predictions or accessing outcome sources.
+**Alternatives rejected:** Accept arbitrary objects because the extension is optional; infer schema from report values; modify or rescore the committed holdout report.
+**Consequences:** Verification now rejects incomplete, mistyped, out-of-schedule, non-finite, or out-of-range prediction rows. The existing scored report remains read-only and is not opened or rescored as part of this change.
+**Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; `tests/backtest/test_holdout.py`; DEC-125, DEC-128
+
+## DEC-130 — Carry the unmet Bayesian pace gate into M2
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The locked Phase 7 evaluation met its 500-target minimum but the Bayesian model's 0.538745 s MAE was 47.993% higher than the 0.364033 s linear baseline. The user directed M1 closeout and continuation into M2 after this measured result was reported.
+**Decision:** Close M1 with PAC-06 explicitly recorded as unmet and carried forward. Do not retune or rescore the locked Phase 7 holdout, and do not describe its synthetic recovery result as real-data superiority. M2's hybrid model must pass its separately locked held-out-stint comparison against the data-only Bayesian model before the M3 gate is considered met.
+**Why:** The result is a real failed evaluation gate, while the user authorized milestone closeout and set M2's independent hybrid-vs-Bayesian held-out-stint gate. Preserving the miss keeps M1 history truthful and gives M2 a measurable target.
+**Alternatives rejected:** Mark PAC-06 passed; change or rescore the locked sample; or leave M1 without the user-directed closeout and M2 continuation.
+**Consequences:** The archived M1 requirements retain PAC-06 as not met, and the M1 audit/closeout names it as an accepted open gate. M2 must use a new, pre-registered real-data split and report the Phase 7 result as historical context.
+**Refs:** `.planning/phases/07-bayesian-pace-model/07-05-evaluation-lock.json`; `reports/pace/phase-07.json`; `.planning/ROADMAP.md`; DEC-118, DEC-120
+
+## DEC-131 — Verify the locked pace report without rescoring
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** Phase 7 code review found that `--verify-existing` accepted a report containing only `status: completed` and the correct lock digest, without requiring the locked races, metrics, or fit diagnostics.
+**Decision:** Make read-only verification validate the exact schema version 1 report fields, locked race order and configuration, per-race and aggregate metric consistency, the PAC-06 gate result, fit counts and diagnostics, era limit, and timestamp/runtime types. Never refit or rescore while verifying.
+**Why:** A lock digest proves which protocol a report names, but it does not prove the report contains complete results or internally consistent values. Schema and arithmetic checks make the existing artifact auditable without opening the data cache or results door.
+**Alternatives rejected:** Trust only `status` and digest; recompute predictions to validate a saved report; or modify/rescore the locked evaluation.
+**Consequences:** The committed Phase 7 report remains unchanged and must pass the stricter read-only verifier. Malformed, truncated, or internally inconsistent reports fail before any database access.
+**Refs:** `src/f1si/backtest/pace_evaluation.py`; `tests/backtest/test_bayesian_accuracy.py`; `reports/pace/phase-07.json`; DEC-118, DEC-120, DEC-129
+
+## DEC-132 — Use the final 20-race in-sample report as the M1 baseline
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** M2 phase summaries need a stable M1 reference for Brier score, interval coverage, signed stop-timing error, and team-call agreement. M1 has a 10-race MVP checkpoint, a final 20-race 2023-2025 in-sample report, and a separate 2026 holdout whose outcome information was incidentally exposed during schedule research.
+**Decision:** Use the locked `reports/backtest/phase-08.json` 20-race in-sample result as the canonical M1 baseline: podium Brier 0.055456, top-10 Brier 0.144645, inclusive P05-P95 coverage 82.26% (16,508/20,001), signed stop-timing error +1.174 laps, and team-call agreement 17.22% (695 matched stops). Copy these values and denominators from `.planning/M1-BASELINE.md` into every M2 phase-end report. Keep the Phase 6 checkpoint and 2026 holdout separate; never pool or rescore them for the M2 baseline.
+**Why:** The final 20-race report is the completed M1 in-sample evaluation and provides the required strategy metrics under one locked sample and model. Separating the 2026 report preserves its different era, lack of a grid baseline, and retrospective-unblinding disclosure.
+**Alternatives rejected:** Use only the 10-race MVP checkpoint; pool the 2026 holdout with 2023-2025; or recompute historical metrics during M2.
+**Consequences:** M2 summaries have a fixed, traceable comparison baseline while the underlying report remains unchanged. The failed PAC-06 pace result remains a separate historical gate, not a strategy metric.
+**Refs:** `.planning/M1-BASELINE.md`; `reports/backtest/phase-08.json`; `reports/backtest/phase-08-holdout.json`; DEC-124, DEC-125, DEC-130

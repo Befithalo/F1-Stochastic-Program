@@ -41,7 +41,7 @@ REQUIRED_REFS = frozenset(
         "D-16",
     }
 )
-MIN_ENTRIES = 106
+MIN_ENTRIES = 120
 
 
 def _entries() -> list[tuple[str, str, str]]:
@@ -223,3 +223,76 @@ def test_phase6_method_decisions_are_sequential_and_guard_the_report() -> None:
         body = entries[entry_id][1].lower()
         for phrase in phrases:
             assert phrase.lower() in body, (entry_id, phrase)
+
+
+def test_holdout_verifier_extension_decision_is_recorded() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-128"]
+    assert title == "Verify the locked required report fields and known prediction extension"
+    for phrase in (
+        "required_top_level_fields",
+        "optional `predictions` list",
+        "rejecting unregistered top-level extensions",
+        "Do not modify the lock or scored report",
+        "Do not rescore the holdout",
+    ):
+        assert phrase.lower() in body.lower(), phrase
+
+
+def test_frozen_prediction_row_validation_decision_is_recorded() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-129"]
+    assert title == "Validate the frozen prediction rows in the holdout report"
+    for phrase in (
+        "exact keys emitted by `_frozen_predictions`",
+        "within that race's locked schedule",
+        "finite probabilities in [0, 1]",
+        "without recomputing predictions or accessing outcome sources",
+        "not opened or rescored",
+    ):
+        assert phrase.lower() in body.lower(), phrase
+
+
+def test_unmet_bayesian_pace_gate_is_carried_into_m2() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-130"]
+    assert title == "Carry the unmet Bayesian pace gate into M2"
+    for phrase in (
+        "PAC-06 explicitly recorded as unmet",
+        "Do not retune or rescore the locked Phase 7 holdout",
+        "0.538745 s MAE",
+        "0.364033 s linear baseline",
+        "held-out-stint comparison against the data-only Bayesian model",
+        "new, pre-registered real-data split",
+    ):
+        assert phrase.lower() in body.lower(), phrase
+
+
+def test_bayesian_report_verification_decision_is_recorded() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-131"]
+    assert title == "Verify the locked pace report without rescoring"
+    for phrase in (
+        "exact schema version 1 report fields",
+        "per-race and aggregate metric consistency",
+        "fit counts and diagnostics",
+        "Never refit or rescore",
+        "before any database access",
+    ):
+        assert phrase.lower() in body.lower(), phrase
+
+
+def test_m1_backtest_baseline_decision_is_recorded() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-132"]
+    assert title == "Use the final 20-race in-sample report as the M1 baseline"
+    for phrase in (
+        "reports/backtest/phase-08.json",
+        "podium Brier 0.055456",
+        "top-10 Brier 0.144645",
+        "82.26% (16,508/20,001)",
+        "signed stop-timing error +1.174 laps",
+        "team-call agreement 17.22%",
+        "never pool or rescore",
+    ):
+        assert phrase.lower() in body.lower(), phrase

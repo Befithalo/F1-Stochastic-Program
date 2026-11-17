@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -423,7 +423,172 @@ def test_cluster_bootstrap_is_paired_race_level_and_seed_reproducible() -> None:
     assert first["cluster_count"] == 3
 
 
-def test_preflight_requires_all_ten_races_before_scoring(
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"n_simulations": 999},
+        {"risk": 0.4},
+        {"seed": 1},
+        {"pace_model": "bayesian"},
+        {"n_resamples": 1_000},
+    ],
+)
+def test_changed_locked_score_settings_fail_before_preflight_or_prediction(
+    monkeypatch: pytest.MonkeyPatch, override: dict[str, object]
+) -> None:
+    from f1si.backtest import scoring
+
+    monkeypatch.setattr(
+        scoring,
+        "_preflight_database",
+        lambda *_args: pytest.fail("cache preflight ran before lock settings validation"),
+    )
+    monkeypatch.setattr(
+        scoring,
+        "run_walk_forward",
+        lambda *_args, **_kwargs: pytest.fail("prediction ran with changed lock settings"),
+    )
+
+    with pytest.raises(
+        ValueError, match="Scoring settings differ from the committed in-sample lock"
+    ):
+        scoring.score_registered_sample(Path("cache.duckdb"), **cast(Any, override))
+
+
+def test_modified_lock_digest_is_rejected_before_data_access(tmp_path: Path) -> None:
+    import json
+
+    from f1si.backtest import scoring
+
+    lock_path = (
+        Path(__file__).parents[2]
+        / ".planning/phases/08-markov-regimes-full-backtest/08-in-sample-evaluation-lock.json"
+    )
+    lock = json.loads(lock_path.read_text(encoding="utf-8"))
+    lock["race_ids"][0] = "2024-01"
+    changed_lock = tmp_path / "changed-lock.json"
+    changed_lock.write_text(json.dumps(lock), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="lock digest"):
+        scoring._load_in_sample_lock(changed_lock)
+
+
+def _valid_locked_report() -> dict[str, Any]:
+    from f1si.backtest import scoring
+    from f1si.backtest.walk_forward import REGISTERED_RACE_IDS
+
+    lock = scoring._load_in_sample_lock()
+    race_denominators: dict[str, dict[str, Any]] = {
+        race_id: {
+            "era": lock["era_by_race"][race_id],
+            "prediction_row_count": 1,
+            "brier_observation_count": 1,
+            "finish_interval_classified_finisher_count": 1,
+            "strategy_recommendation_count": 0,
+            "observed_stop_event_count": 0,
+            "matched_stop_event_count": 0,
+            "wear_proxy_measurement_count": 0,
+        }
+        for race_id in REGISTERED_RACE_IDS
+    }
+    count_fields = (
+        "prediction_row_count",
+        "brier_observation_count",
+        "finish_interval_classified_finisher_count",
+        "strategy_recommendation_count",
+        "observed_stop_event_count",
+        "matched_stop_event_count",
+        "wear_proxy_measurement_count",
+    )
+    era_summaries = {
+        era: {
+            "race_count": sum(row["era"] == era for row in race_denominators.values()),
+            **{
+                name: sum(int(row[name]) for row in race_denominators.values() if row["era"] == era)
+                for name in count_fields
+            },
+        }
+        for era in set(lock["era_by_race"].values())
+    }
+    return {
+        "schema_version": 1,
+        "race_ids": list(REGISTERED_RACE_IDS),
+        "metadata": {
+            "base_seed": 0,
+            "risk_aversion": 0.5,
+            "n_simulations_per_prediction": 1_000,
+            "pace_model": "linear",
+            "bootstrap_resamples": 2_000,
+            "bootstrap_seed": 61_409,
+            "locked_contract_sha256": scoring.IN_SAMPLE_LOCK_SHA256,
+            "era_by_race": lock["era_by_race"],
+        },
+        "metrics": {
+            "podium_brier": {},
+            "top10_brier": {},
+            "brier_observation_count": len(REGISTERED_RACE_IDS),
+            "finish_interval_90": {"classified_finishers": len(REGISTERED_RACE_IDS)},
+            "team_strategy_comparison": {},
+            "wear_band_retrospective_proxy": {},
+            "race_denominators": race_denominators,
+            "era_summaries": era_summaries,
+        },
+        "carry_forward_diagnostic": {},
+    }
+
+
+def test_verify_existing_reads_only_report_and_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    from f1si.backtest import scoring
+
+    report = _valid_locked_report()
+    report_path = tmp_path / "phase-08.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    monkeypatch.setattr(
+        scoring,
+        "run_walk_forward",
+        lambda *_args, **_kwargs: pytest.fail("verify-existing generated predictions"),
+    )
+    monkeypatch.setattr(
+        scoring,
+        "_new_results_accessor",
+        lambda *_args, **_kwargs: pytest.fail("verify-existing opened final results"),
+    )
+    monkeypatch.setattr(
+        "f1si.backtest.scoring.asof.AsOfAccessor",
+        lambda *_args, **_kwargs: pytest.fail("verify-existing opened race history"),
+    )
+
+    assert scoring.verify_backtest_report(report_path) == report
+
+
+@pytest.mark.parametrize("tamper", ["missing-race", "empty-race", "changed-seed"])
+def test_verify_existing_rejects_incomplete_or_changed_locked_report(
+    tmp_path: Path, tamper: str
+) -> None:
+    import json
+
+    from f1si.backtest import scoring
+
+    report = _valid_locked_report()
+    metrics = report["metrics"]
+    if tamper == "missing-race":
+        metrics["race_denominators"].pop("2025-06")
+    elif tamper == "empty-race":
+        metrics["race_denominators"]["2025-06"]["prediction_row_count"] = 0
+    else:
+        report["metadata"]["base_seed"] = 4
+    report_path = tmp_path / "phase-08.json"
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"denominators|prediction rows|metadata"):
+        scoring.verify_backtest_report(report_path)
+
+
+def test_preflight_requires_all_twenty_races_before_scoring(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from f1si.backtest import scoring
@@ -586,6 +751,10 @@ def test_predictions_freeze_before_first_results_open_and_score(
     assert score_positions
     assert max(results_positions) < min(score_positions)
     assert report["metrics"]["brier_observation_count"] == len(REGISTERED_RACE_IDS)
+    race_denominators = report["metrics"]["race_denominators"]
+    assert tuple(race_denominators) == REGISTERED_RACE_IDS
+    assert all(row["prediction_row_count"] == 1 for row in race_denominators.values())
+    assert report["metrics"]["era_summaries"]["ground_effect_2022_2025"]["race_count"] == 20
 
 
 @pytest.mark.parametrize("duplicate", [False, True])

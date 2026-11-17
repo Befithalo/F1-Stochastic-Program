@@ -1,0 +1,78 @@
+---
+phase: "07"
+slug: "bayesian-pace-model"
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
+created: "2026-11-16"
+---
+
+# Phase 07 — Validation Strategy
+
+> Per-phase validation contract for feedback sampling during execution.
+
+## Test Infrastructure
+
+| Property | Value |
+|----------|-------|
+| **Framework** | pytest 9.x with pytest-cov |
+| **Config file** | pyproject.toml |
+| **Quick run command** | uv run pytest tests/pace/test_bayesian_model.py -q |
+| **Full suite command** | uv run pytest --cov=f1si --cov-report=term |
+| **Estimated runtime** | ~25 minutes for the full suite including the bounded NUTS reference |
+
+## Sampling Rate
+
+- **After every task commit:** Run the task's focused automated command below.
+- **After every plan wave:** Run that plan's full verification command.
+- **Before phase verification:** Run the full suite, strict type/lint/format checks, and CI on the exact pushed head.
+- **Max feedback latency:** 30 seconds for routine unit tests; the dedicated NUTS reference test may exceed this budget and runs only at its named task.
+
+## Per-Task Verification Map
+
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 07-01-01 | 01 | 1 | PAC-05 | — | Deterministic finite fit; explicit failure | unit/conformance | uv run pytest tests/pace/test_bayesian_model.py tests/conformance/test_suites.py -q | Created | pass |
+| 07-01-02 | 01 | 1 | PAC-05 | — | Shared uncertainty is drawn once | integration | uv run pytest tests/sim/test_bayesian_pace.py tests/test_state_builder.py -q; uv run pytest tests/sim/test_reproducibility.py -q | Created | pass |
+| 07-02-01 | 02 | 2 | PAC-05, DAT-03, DAT-04 | T-07-01 | No future rows/results enter fit | unit/guard | uv run pytest tests/pace/test_bayesian_training.py -q; uv run pytest tests/guards/test_future_scramble.py -q | Created | pass |
+| 07-02-02 | 02 | 2 | PAC-05, DAT-05 | T-07-01 | Stable identities and era boundary | unit | uv run pytest tests/pace/test_bayesian_model.py tests/pace/test_bayesian_training.py -q | Created | pass |
+| 07-03-01 | 03 | 3 | PAC-06 | — | Failed inference is reported | unit | uv run pytest tests/pace/test_bayesian_model.py -q | Created | pass |
+| 07-03-02 | 03 | 3 | PAC-06 | — | Synthetic truth and uncertainty are measured | recovery/reference | uv run pytest tests/pace/test_bayesian_recovery.py -q | Created | pass |
+| 07-04-01 | 04 | 4 | PAC-05, RPL-01, BKT-01 | T-07-01 | Same-cutoff history and snapshot | integration | uv run pytest tests/test_cli_replay.py tests/backtest/test_walk_forward.py tests/guards/test_future_scramble.py -q | Existing + TDD | pass |
+| 07-04-02 | 04 | 4 | PAC-05, RPL-01 | T-07-01 | Future scramble leaves output unchanged | guard | uv run pytest tests/guards/test_future_scramble.py -q | Existing | pass |
+| 07-05-01 | 05 | 5 | PAC-06 | T-07-01 | Lock race/sample before scoring | unit | uv run pytest tests/backtest/test_bayesian_accuracy.py -q | TDD task | pass |
+| 07-05-02 | 05 | 5 | PAC-05, PAC-06, UI-03 | — | Publish actual result and denominator; preserve an unmet PAC-06 gate | docs/evaluation | uv run pytest tests/backtest/test_bayesian_accuracy.py tests/test_decisions_log.py tests/test_docs.py -q | TDD task | pass (PAC-06 not met) |
+
+## Wave 0 Requirements
+
+Existing pytest, synthetic fixtures, shared PaceModel conformance checks, and future-scramble infrastructure cover the test harness. Each new test file is created first within its own TDD task; no separate Wave 0 task is needed.
+
+## Manual-Only Verifications
+
+All Phase 7 acceptance criteria are automated. No UI review or manual checkpoint is in scope.
+
+## Validation Sign-Off
+
+- [x] All tasks have automated verification.
+- [x] Sampling continuity: every task has a focused automated command.
+- [x] Wave 0 is not needed; existing test infrastructure is in place.
+- [x] No watch-mode flags.
+- [x] Full suite passed; report-verifier fix passed focused tests and the locked report verifies read-only.
+- [x] Exact-head Ubuntu and Windows CI pass after all closeout changes.
+- [x] nyquist_compliant: true set after plan verification and successful execution.
+
+**Executed checks (2026-11-17):**
+
+| Command | Result |
+|---------|--------|
+| `uv run pytest --cov=f1si --cov-report=term` | Passed: 1,243 passed, 33 deselected, 8 warnings in 1,494.58s; total coverage 87%. This run included `test_seeded_multiera_panel_recovers_pace_effects_and_predictive_coverage` and the bounded four-chain NUTS reference. |
+| `uv run pytest tests/backtest/test_bayesian_accuracy.py tests/test_decisions_log.py -q` | Passed after DEC-131: 42 tests in 1.55s. |
+| `uv run python -m f1si.backtest.pace_evaluation --verify-existing` | Passed read-only against the committed lock and report; no fit, target read, or result access. |
+| `uv run ruff check .` | Passed. |
+| `uv run ruff format --check .` | Passed: 192 files already formatted. |
+| `uv run mypy` | Passed: no issues in 178 source files. |
+| GitHub Actions exact-head checks | Passed: run [44163005087](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/44163005087), SHA `9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d`; Ubuntu and Windows jobs both successful. |
+
+The exact-head CI run executed the full workflow after the DEC-131 report-verifier change; Ubuntu and Windows both passed. PAC-06 remains unmet; the user-directed M1 closeout override does not change that measured result.
+
+**Approval:** automated validation complete; the separate PAC-06 real-data gate remains unmet under the recorded M1 override.
