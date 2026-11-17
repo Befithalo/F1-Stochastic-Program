@@ -19,7 +19,7 @@ created: "2026-11-17"
 |----------|-------|
 | **Framework** | pytest 9.x + Hypothesis |
 | **Config file** | pyproject.toml |
-| **Quick run command** | uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q |
+| **Quick run command** | uv run pytest tests/data/test_physics_input.py tests/data/test_coverage_audit.py tests/data/test_asof.py -q |
 | **Full suite command** | uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest --cov=f1si --cov-report=term |
 | **Estimated runtime** | Under 60 minutes in CI; exact local runtime to be recorded by the executor |
 
@@ -41,16 +41,17 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 09-01-T01 | 09-01-PLAN.md | 0 | DAT-01 | T-09-01 | Specify exact-cutoff inclusion, future-row exclusion, UTC provenance, fallback, and holdout boundary | Contract collection | uv run pytest tests/data/test_physics_input.py --collect-only -q | Wave 0 creates it | pending |
+| 09-01-T01 | 09-01-PLAN.md | 0 | DAT-01 | T-09-01 | Specify exact-cutoff inclusion, future-row exclusion, UTC provenance, fallback, holdout boundary, all-catalog counts, and one bounded probe | Contract collection | uv run pytest tests/data/test_physics_input.py tests/data/test_coverage_audit.py --collect-only -q | Wave 0 creates both modules | pending |
 | 09-01-T02 | 09-01-PLAN.md | 0 | GEO-01 | T-09-03 | Specify provenance, geometry quality, path confinement, missing-asset, and digest rejection | Contract collection | uv run pytest tests/geometry/test_profile.py --collect-only -q | Wave 0 creates it | pending |
-| 09-01-T03 | 09-01-PLAN.md | 0 | PAR-01 | T-09-04 | Specify effective-versus-assumed classification, evidence, bounds, uncertainty, and sensitivity fields | Contract collection | uv run pytest tests/parameters/test_register.py --collect-only -q | Wave 0 creates it | pending |
+| 09-01-T03 | 09-01-PLAN.md | 0 | PAR-01 | T-09-04 | Specify effective-versus-assumed classification, evidence, bounds, numeric sensitivity, pre-solver status, and closeout coverage/baseline fields | Contract collection | uv run pytest tests/parameters/test_register.py --collect-only -q | Wave 0 creates it | pending |
 | 09-02-T01 | 09-02-PLAN.md | 1 | DAT-01 | T-09-05 | Preserve source time and exclude post-cutoff telemetry through the as-of door | Integration | uv run pytest tests/data/test_physics_input.py -k "car_data_cutoff or physics_input_is_immutable" -q | Created by 09-01-T01 | pending |
 | 09-02-T02 | 09-02-PLAN.md | 1 | DAT-01 | T-09-06 | Validate timestamped optional payloads and report sparse-channel fallback | Unit + integration | uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q | Created by 09-01-T01 | pending |
+| 09-02-T03 | 09-02-PLAN.md | 1 | DAT-01 | T-09-17 | Audit every complete local race and perform the single bounded Bahrain 2023 probe through the rate-limited cache | Integration + report generation | uv run python -m f1si.data.coverage_audit --database data/f1si.duckdb --http-cache-dir data/http-cache --output .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --probe-race 2023-01 | Created by 09-01-T01 | pending |
 | 09-03-T01 | 09-03-PLAN.md | 2 | GEO-01 | T-09-11 | Reject path escapes, missing/altered digest, malformed geometry, units, or quality failures | Unit + integration | uv run pytest tests/geometry/test_profile.py -q | Created by 09-01-T02 | pending |
 | 09-03-T02 | 09-03-PLAN.md | 2 | GEO-01 | T-09-11 | Pin source revision and record file-level rights, transform, attribution, and digest | Integration + provenance review | uv run pytest tests/geometry/test_profile.py tests/data/test_physics_input.py -q | Created by 09-01-T02 and 09-01-T01 | pending |
 | 09-04-T01 | 09-04-PLAN.md | 3 | PAR-01 | T-09-13 | Keep hidden physical values distinct and require citations, era bounds, and uncertainty | Unit + serialization | uv run pytest tests/parameters/test_register.py -k "register or assumption" -q | Created by 09-01-T03 | pending |
 | 09-04-T02 | 09-04-PLAN.md | 3 | PAR-01 | T-09-16 | Use only in-sample RaceSnapshot data, report numeric evidence sensitivity, and exclude results/2026 | Unit + report contract | uv run pytest tests/parameters/test_register.py -k "sensitivity or report" -q | Created by 09-01-T03 | pending |
-| 09-04-T03 | 09-04-PLAN.md | 3 | PAR-01 | T-09-16 | Produce reproducible numeric sensitivity output and required phase-closeout disclosures | Report generation | uv run python -m f1si.parameters.report --database data/f1si.duckdb --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json | Created by 09-04-T02 | pending |
+| 09-04-T03 | 09-04-PLAN.md | 3 | PAR-01 | T-09-16 | Produce numeric sensitivity, include OpenF1 coverage totals/probe outcome, and publish the required baseline and closeout disclosures | Report generation | uv run python -m f1si.parameters.report --database data/f1si.duckdb --coverage-report .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json --phase-report .planning/phases/09-data-and-geometry-readiness/09-PHASE-REPORT.md | Created by 09-04-T02 | pending |
 
 *Status: pending · green · red · flaky*
 
@@ -58,7 +59,7 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 
 ## Wave 0 Requirements
 
-- [ ] **09-01-T01 / Plan 09-01 / Wave 0:** tests/data/test_physics_input.py — cutoff filtering, source UTC and race-clock preservation, per-channel coverage, fallback, immutability, and results/holdout boundary.
+- [ ] **09-01-T01 / Plan 09-01 / Wave 0:** tests/data/test_physics_input.py and tests/data/test_coverage_audit.py — cutoff filtering, source UTC/race-clock preservation, per-channel coverage/fallback, immutability, results/holdout boundary, all-catalog counts, and one bounded Bahrain probe with explicit-unavailable behavior.
 - [ ] **09-01-T02 / Plan 09-01 / Wave 0:** tests/geometry/test_profile.py — manifest and digest, units/transform, quality validation, path confinement, and fail-closed behavior.
 - [ ] **09-01-T03 / Plan 09-01 / Wave 0:** tests/parameters/test_register.py — fitted-effective versus hidden-assumption classification, evidence, era bounds, uncertainty, and sensitivity fields.
 - [ ] Wave 0 tasks collect all acceptance tests before production implementation; later plans turn each suite green.

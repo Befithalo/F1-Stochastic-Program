@@ -237,24 +237,15 @@ This returns a `RaceSnapshot` with the cutoff and snapshot frames; time-indexed 
 | A1 | New modules can live under `src/f1si/data/physics_input.py`, `src/f1si/geometry/`, and `src/f1si/parameters/`. | Recommended Project Structure | Planner may need to align with the repository's eventual architecture map. |
 | A2 | Candidate geometry quality checks should include closure, segment/width validity, distance plausibility, and curvature stability. | Pattern 3 | Thresholds affect whether the asset is accepted; choose and document them against the actual asset. |
 | A3 | `hashlib` is sufficient for SHA-256 verification without another dependency. | Supporting Stack | Low impact; standard library support can be confirmed during implementation. |
-| A4 | Numeric lap-time sensitivity results may depend on the Phase 10 solver, while Phase 9 can version the bounds and define the sensitivity report contract. | Open Questions | A literal Phase 9 sensitivity deliverable may require a screening calculation; scope could expand into Phase 10 solver work if not resolved in planning. |
+| A4 | Phase 9 sensitivity is a numeric evidence/identifiability stability result from cutoff-safe 2023-2025 snapshots and the existing linear pace fit; predictive lap-time sensitivity is not estimable before Phase 10. | Resolved Question 3 | Leave-one-race-out coefficient stability is required; the screening result never identifies hidden team parameters. |
 
-## Open Questions
+## Resolved Questions
 
-1. **What exact Sakhir asset and redistribution terms will be pinned?**
-   - What we know: TUMFTM lists Sakhir and documents centerline/width format, OSM/satellite-derived source material, and variable quality. Its repository interface labels LGPL-3.0. `[CITED: https://github.com/TUMFTM/racetrack-database]`
-   - What's unclear: File-specific reuse terms, OSM-derived data obligations, and a precise version/retrieval reference were not established by this research lookup.
-   - Recommendation: Require a file-level license/attribution review in the plan. If unresolved, retain the asset outside the repo and record path/reference + SHA-256; do not include geometry bytes in Git.
+1. **RESOLVED — Sakhir asset and redistribution terms.** Use the TUMFTM `tracks/Sakhir.csv` candidate at an immutable upstream revision. The official repository README states LGPL-3.0 for the repository, describes centerlines derived from OpenStreetMap and widths from satellite imagery, and notes variable quality; these facts do not establish asset-level or underlying-source redistribution rights. The execution acceptance criterion must capture the exact immutable revision and the file's SHA-256. Reference the asset as local/external; do not commit geometry bytes unless file-level terms and underlying-source terms are confirmed. `[CITED: https://github.com/TUMFTM/racetrack-database]`
 
-2. **Which races have useful optional telemetry/location coverage?**
-   - What we know: The current cache DB has weather but no telemetry/location tables; the current adapter requests weather but not high-rate endpoints. `[VERIFIED: local DuckDB read-only audit; src/f1si/data/sources/openf1.py:68, 283-308]`
-   - What's unclear: Actual high-rate endpoint coverage and timestamp alignment for candidate sessions; this research did not make OpenF1 requests.
-   - Recommendation: Plan a cached-data coverage audit that makes no direct model fetches, reports each race/channel, and allows zero eligible coverage without blocking use of cached laps.
+2. **RESOLVED — local and historical OpenF1 coverage.** During execution, audit every complete race in the existing local catalog (87 is the research-time expected count and must be verified) for locally cached weather, car-data, and location presence and row counts. Also make exactly one historical Bahrain 2023 OpenF1 coverage probe through the existing rate-limited HTTP cache, recording bounded query scope, per-endpoint row counts, timestamp validity/alignment quality, and an explicit unavailable status/reason if no rows are returned. Emit `.planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json`; do not bulk-download high-rate channels across the catalog. Keep cached laps as the fallback when optional-channel coverage is unavailable or fails quality checks. Planning-time local table audit found weather rows but no car-data or location tables; the actual service probe is an execution acceptance criterion, not a research-time claim. `[VERIFIED: local DuckDB read-only audit; src/f1si/data/sources/openf1.py:68, 283-308]`
 
-3. **When do numeric parameter sensitivity results become available?**
-   - What we know: PAR-01 asks for sensitivity results, while Phase 9 explicitly excludes the point-mass solver and Phase 10 owns it. `[VERIFIED: .planning/REQUIREMENTS.md:13-15; .planning/ROADMAP.md:34-47]`
-   - What's unclear: Whether Phase 9 should deliver only the versioned bounds/report contract or a limited screening sensitivity independent of the solver.
-   - Recommendation: Keep the Phase 9 scope to identifiability classification, evidence, bounds, and an executable sensitivity-report interface; compute predictive sensitivity with the Phase 10 model. If phase acceptance requires numeric sensitivity in Phase 9, make the smallest agreed screening calculation explicit and keep it separate from the solver.
+3. **RESOLVED — numeric sensitivity boundary.** Phase 9 produces a numeric evidence/identifiability sensitivity result from cutoff-safe 2023-2025 race-end snapshots using the existing linear pace fit, including leave-one-race-out coefficient stability. Predictive lap-time sensitivity is explicitly `not_estimable_pre_solver` and remains a Phase 10 task; this screening result never claims to identify hidden team parameters. Phase 9 does not implement the Phase 10 lap solver. `[VERIFIED: .planning/REQUIREMENTS.md:13-15; .planning/ROADMAP.md:34-47]`
 
 ## Environment Availability
 
@@ -281,7 +272,7 @@ This returns a `RaceSnapshot` with the cutoff and snapshot frames; time-indexed 
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| DAT-01 | Exact-cutoff inclusion, future-row exclusion, source UTC timestamp round-trip, per-race/channel coverage and cached-lap fallback | Unit + integration | `uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q` | No — add Wave 0/implementation tests |
+| DAT-01 | Exact-cutoff inclusion, future-row exclusion, source UTC timestamp round-trip, per-race/channel coverage and cached-lap fallback, all-catalog row totals, and one Bahrain 2023 probe | Unit + integration + report generation | `uv run pytest tests/data/test_physics_input.py tests/data/test_coverage_audit.py tests/data/test_asof.py -q` | No — add Wave 0/implementation tests |
 | GEO-01 | Digest mismatch, invalid/missing geometry fail-closed, units/frame/transform provenance, quality checks, license metadata | Unit + integration | `uv run pytest tests/geometry/test_profile.py -q` | No — add Wave 0/implementation tests |
 | PAR-01 | Register distinguishes fitted composites from assumptions and preserves evidence, era bounds, uncertainty, sensitivity status/results | Unit + report contract | `uv run pytest tests/parameters/test_register.py -q` | No — add Wave 0/implementation tests |
 
