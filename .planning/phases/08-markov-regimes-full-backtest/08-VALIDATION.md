@@ -44,7 +44,7 @@ created: "2026-11-16"
 | 08-05-01 | 05 | 5 | BKT-05 | T-08-07 | One holdout report matches its committed lock and verifies without rescoring | locked evaluation | `uv run f1si holdout --verify-existing --output reports/backtest/phase-08-holdout.json` | New command path | blocked: no report produced; score preflight failed |
 | 08-05-02 | 05 | 5 | BKT-03, BKT-05 | T-08-07 | Public metrics match separate reports and retain per-race/per-era denominators and limitations | docs/report | `uv run pytest tests/test_docs.py -q` | Existing + extended | partial: 27 docs tests pass; holdout metrics publication pending because report absent |
 | 08-06-01 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | DEC-121..126 and unresolved assumptions remain explicit and accurate | decision log | `uv run pytest tests/test_decisions_log.py -q` | Existing + extended | passed: 30 passed |
-| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Independent focused paths and checks recorded; report-dependent checks remain pending | partial validation | focused safe pytest set: 309 passed; post-fix focused tests: 64 passed; docs tests: 27 passed; full pytest: 1,227 passed; in-sample report verifier, Ruff lint/format, and mypy passed; holdout verifier unavailable; exact-head CI pending | Existing CI | partial; phase incomplete |
+| 08-06-02 | 06 | 6 | REG-02, REG-03, BKT-03, BKT-05 | T-08-05 | Independent focused paths and checks recorded; report-dependent checks remain pending | partial validation | focused safe pytest set: 309 passed; post-fix focused tests: 64 passed; docs tests: 27 passed; full pytest: 1,227 passed; in-sample report verifier, Ruff lint/format, and mypy passed; holdout verifier unavailable; exact-head CI recorded below | Existing CI | partial; phase incomplete |
 
 ## Wave 0 Requirements
 
@@ -80,9 +80,9 @@ The following 08-06 checks do not require the missing holdout report and were ru
 | `uv run ruff format --check .` | Passed: 191 files already formatted |
 | `uv run mypy` | Passed after minimal typing fixes: Success, no issues found in 178 source files |
 | `uv run pytest --cov=f1si --cov-report=term` | Passed: 1,227 passed, 33 deselected, 8 PyTensor warnings, 1,505.01s; total coverage 87% |
-| Exact-head GitHub check-runs query | On `32c13b79716963ee0b41f8d27b132147c2385d59`, Ubuntu and Windows checks were both `in_progress` at query time; they did not yet satisfy the required completed/success condition |
+| Exact-head GitHub Actions query | On `e8040382f4d4d6dc89eff93b4d6628c253ef7200`, `checks (ubuntu-latest)` and `checks (windows-latest)` both completed successfully |
 
-The documentation tests passed without introducing any fabricated holdout figures. The in-sample report verified; the holdout report verifier cannot run because no report exists. Exact-head hosted CI and final Nyquist sign-off remain pending. `nyquist_compliant: false` remains in force.
+The documentation tests passed without introducing any fabricated holdout figures. The in-sample report verified; the holdout report verifier cannot run because no report exists. The recorded CI result applies to exact pushed head `e8040382f4d4d6dc89eff93b4d6628c253ef7200`; this validation metadata update will trigger a new exact-head CI run. Final Nyquist sign-off remains pending because the holdout score/report is absent. `nyquist_compliant: false` remains in force.
 
 ## Holdout Blocker and Evaluation Limitation
 
