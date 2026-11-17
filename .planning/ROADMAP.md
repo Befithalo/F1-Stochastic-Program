@@ -45,9 +45,9 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
 Plans:
 **Wave 1**
 - [x] 09-01-PLAN.md — Create Wave 0 validation contracts for Phase 9.
-- [ ] 09-02-PLAN.md — Build cutoff-safe optional channels and the PhysicsInput envelope.
+- [x] 09-02-PLAN.md — Build cutoff-safe optional channels and the PhysicsInput envelope.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Wave 2**
 - [ ] 09-03-PLAN.md — Validate and pin the Bahrain 2023 geometry profile.
 
 **Wave 3** *(blocked on Wave 2 completion)*

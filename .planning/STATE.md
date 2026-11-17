@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v2.0
 current_phase: 09
 current_phase_name: Data and Geometry Readiness
-current_plan: 2
+current_plan: 3
 status: executing
-stopped_at: Phase 9 plan 09-01 complete
-last_updated: "2026-11-17T22:29:36.244Z"
+stopped_at: Phase 9 plan 09-02 complete
+last_updated: "2026-11-17T22:51:22.001Z"
 last_activity: 2026-11-17
-last_activity_desc: Phase 9 plan 09-01 acceptance contracts collected and committed.
-state_head: e67aed68512735c9250b4f3ad55590167e6d1d01
+last_activity_desc: Phase 9 plan 09-02 cutoff-safe data path and bounded coverage audit committed.
+state_head: 9fbf2f1a55a3b07d9a67f94585dcba4976382242
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
 milestone_name: M2 Physics
 ---
 
@@ -25,18 +25,18 @@ milestone_name: M2 Physics
 See: .planning/PROJECT.md (updated 2026-11-17)
 
 **Core value:** For any driver at any lap of a replayed race, give a pit-strategy recommendation whose uncertainty is honest, cutoff-safe, checked against synthetic ground truth, and evaluated against real race data with limitations disclosed.
-**Current focus:** M2 Physics — Phase 9: Data and Geometry Readiness
+**Current focus:** M2 Physics — Phase 9 plan 09-03: Bahrain geometry profile
 
 ## Current Position
 
 Phase: 09 (Data and Geometry Readiness) — IN PROGRESS
-Current Plan: 2
+Current Plan: 3
 Total Plans in Phase: 4
-Plan: 2 of 4
-Status: Executing
-Last activity: 2026-11-17 — Phase 9 plan 09-01 acceptance contracts collected and committed.
+Plan: 3 of 4
+Status: Ready to execute
+Last activity: 2026-11-17 — Phase 9 plan 09-02 data path and coverage report committed.
 
-Progress: [░░░░░░░░░░] 0% (0/4 phases; 1/4 M2 plans summarized)
+Progress: [░░░░░░░░░░] 0% (0/4 phases; 2/4 Phase 9 plans summarized)
 
 ## Performance Metrics
 
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0% (0/4 phases; 1/4 M2 plans summariz
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 09 P01 | 11min | 3 tasks | 4 files |
+| Phase 09 P02 | 22min | 3 tasks | 18 files |
 
 ## Accumulated Context
 
@@ -68,7 +69,7 @@ Progress: [░░░░░░░░░░] 0% (0/4 phases; 1/4 M2 plans summariz
 
 ### Blockers/Concerns
 
-- Phase 9 must report actual OpenF1 coverage and verify the chosen geometry asset's source and redistribution terms before downstream work relies on them.
+- Phase 9 has reported actual OpenF1 coverage. The geometry plan must verify the chosen asset's source and redistribution terms before downstream work relies on it.
 - The separate 2026 report is retrospectively unblinded and must stay outside the M1 baseline and M2 tuning.
 - M1 closeout retained human review and verification items; see the archived state and .planning/milestones/v1.0-MILESTONE-AUDIT.md.
 
