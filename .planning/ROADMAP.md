@@ -24,7 +24,7 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
 
 ## Phases
 
-- [ ] **Phase 9: Data and Geometry Readiness** - Establish cutoff-safe inputs, optional telemetry coverage, provenance-reviewed geometry, and effective-parameter records.
+- [ ] **Phase 9: Data and Geometry Readiness** - Establish cutoff-safe inputs, optional telemetry coverage, provenance-reviewed geometry, and effective-parameter records. *(in progress)*
 - [ ] **Phase 10: Point-Mass PaceModel** - Deliver a geometry-driven pace prediction through the existing PaceModel contract, with physical checks and synthetic recovery.
 - [ ] **Phase 11: Tire Thermal and Energy/Wear State** - Add compound-aware latent thermal/wear state, weather boundaries, resets, and uncertainty.
 - [ ] **Phase 12: Hybrid Pace and Locked Held-Out-Stint Gate** - Compose a Bayesian residual learner behind physics and score it once against the preregistered real-data holdout.
@@ -44,7 +44,7 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
 **Plans:** 4 plans
 Plans:
 **Wave 1**
-- [ ] 09-01-PLAN.md — Create Wave 0 validation contracts for Phase 9.
+- [x] 09-01-PLAN.md — Create Wave 0 validation contracts for Phase 9.
 - [ ] 09-02-PLAN.md — Build cutoff-safe optional channels and the PhysicsInput envelope.
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -99,7 +99,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 9. Data and Geometry Readiness | v2.0 | 0/TBD | Not started | - |
+| 9. Data and Geometry Readiness | v2.0 | 1/4 | In Progress | - |
 | 10. Point-Mass PaceModel | v2.0 | 0/TBD | Not started | - |
 | 11. Tire Thermal and Energy/Wear State | v2.0 | 0/TBD | Not started | - |
 | 12. Hybrid Pace and Locked Held-Out-Stint Gate | v2.0 | 0/TBD | Not started | - |
