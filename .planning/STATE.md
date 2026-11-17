@@ -1,21 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v1.0
-status: Awaiting next milestone
-stopped_at: M1 v1.0 closed; M2 Physics planning is next
-last_updated: "2026-11-17T20:33:16.275Z"
+milestone: v2.0
+milestone_name: M2 Physics
+status: planning
+last_updated: "2026-11-17T20:48:32.490Z"
 last_activity: 2026-11-17
-last_activity_desc: Milestone v1.0 completed and archived
-state_head: 9e2fd7575b29ceb1f1a2b6a8ce8aecd4f1fd919d
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 55
-  completed_plans: 55
-milestone_name: milestone
-closeout_type: override_closeout
-current_phase: 8
-current_phase_name: Markov Regimes & Full Backtest (M1 archived)
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -29,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-11-17)
 
 ## Current Position
 
-Phase: M1 v1.0 archived; preparing M2
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-11-17 — Milestone v1.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-11-17 — Milestone v2.0 started
 
 ## Performance Metrics
 

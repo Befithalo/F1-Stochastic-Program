@@ -29,6 +29,15 @@ M1 was architected so later milestones plug in without rewrites.
 - M5 Performance: JAX and Rust (PyO3) backends with parity tests vs NumPy
 - M6 Product: FastAPI + Next.js dashboard, OpenF1 live mode, Docker, public deploy
 
+## Current Milestone: v2.0 M2 Physics
+
+**Goal:** Add a physically grounded pace model and a Bayesian residual hybrid behind the existing `PaceModel` interface, with a pre-registered held-out-stint gate before M3.
+
+**Target features:**
+- Establish provenance-checked track geometry and cutoff-safe optional OpenF1 telemetry/weather inputs. Use cached data and historical OpenF1; do not require new FastF1 downloads or F1 TV Access.
+- Build a reduced-order point-mass lap model from geometry and effective power, drag, downforce, grip, and mass/fuel inputs; model hidden tire temperature and energy-driven wear with uncertainty.
+- Compose physics with the data-only Bayesian pace model, preserve all existing consumers, verify synthetic parameter recovery for every physics model, and require a locked real-data held-out-stint improvement before M3.
+
 ## Requirements
 
 ### Validated
@@ -115,4 +124,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-17 after v1.0 M1 closeout*
+*Last updated: 2026-11-17 after v2.0 M2 Physics planning started*
