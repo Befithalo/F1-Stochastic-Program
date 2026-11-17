@@ -1,9 +1,9 @@
 ---
 phase: "09"
 slug: "data-and-geometry-readiness"
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: active
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-17"
 ---
 
@@ -41,9 +41,9 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 09-01-T01 | 09-01-PLAN.md | 0 | DAT-01 | T-09-01 | Specify exact-cutoff inclusion, future-row exclusion, UTC provenance, fallback, holdout boundary, all-catalog counts, and one bounded probe | Contract collection | uv run pytest tests/data/test_physics_input.py tests/data/test_coverage_audit.py --collect-only -q | Wave 0 creates both modules | pending |
-| 09-01-T02 | 09-01-PLAN.md | 0 | GEO-01 | T-09-03 | Specify provenance, geometry quality, path confinement, missing-asset, and digest rejection | Contract collection | uv run pytest tests/geometry/test_profile.py --collect-only -q | Wave 0 creates it | pending |
-| 09-01-T03 | 09-01-PLAN.md | 0 | PAR-01 | T-09-04 | Specify effective-versus-assumed classification, evidence, bounds, numeric sensitivity, pre-solver status, and closeout coverage/baseline fields | Contract collection | uv run pytest tests/parameters/test_register.py --collect-only -q | Wave 0 creates it | pending |
+| 09-01-T01 | 09-01-PLAN.md | 0 | DAT-01 | T-09-01 | Specify exact-cutoff inclusion, future-row exclusion, UTC provenance, fallback, holdout boundary, all-catalog counts, and one bounded probe | Contract collection | uv run pytest tests/data/test_physics_input.py tests/data/test_coverage_audit.py --collect-only -q | Wave 0 creates both modules | green |
+| 09-01-T02 | 09-01-PLAN.md | 0 | GEO-01 | T-09-03 | Specify provenance, geometry quality, path confinement, missing-asset, and digest rejection | Contract collection | uv run pytest tests/geometry/test_profile.py --collect-only -q | Wave 0 creates it | green |
+| 09-01-T03 | 09-01-PLAN.md | 0 | PAR-01 | T-09-04 | Specify effective-versus-assumed classification, evidence, bounds, numeric sensitivity, pre-solver status, and closeout coverage/baseline fields | Contract collection | uv run pytest tests/parameters/test_register.py --collect-only -q | Wave 0 creates it | green |
 | 09-02-T01 | 09-02-PLAN.md | 1 | DAT-01 | T-09-05 | Preserve source time and exclude post-cutoff telemetry through the as-of door | Integration | uv run pytest tests/data/test_physics_input.py -k "car_data_cutoff or physics_input_is_immutable" -q | Created by 09-01-T01 | pending |
 | 09-02-T02 | 09-02-PLAN.md | 1 | DAT-01 | T-09-06 | Validate timestamped optional payloads and report sparse-channel fallback | Unit + integration | uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q | Created by 09-01-T01 | pending |
 | 09-02-T03 | 09-02-PLAN.md | 1 | DAT-01 | T-09-17 | Audit every complete local race and perform the single bounded Bahrain 2023 probe through the rate-limited cache | Integration + report generation | uv run python -m f1si.data.coverage_audit --database data/f1si.duckdb --http-cache-dir data/http-cache --output .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --probe-race 2023-01 | Created by 09-01-T01 | pending |
@@ -59,10 +59,10 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 
 ## Wave 0 Requirements
 
-- [ ] **09-01-T01 / Plan 09-01 / Wave 0:** tests/data/test_physics_input.py and tests/data/test_coverage_audit.py — cutoff filtering, source UTC/race-clock preservation, per-channel coverage/fallback, immutability, results/holdout boundary, all-catalog counts, and one bounded Bahrain probe with explicit-unavailable behavior.
-- [ ] **09-01-T02 / Plan 09-01 / Wave 0:** tests/geometry/test_profile.py — manifest and digest, units/transform, quality validation, path confinement, and fail-closed behavior.
-- [ ] **09-01-T03 / Plan 09-01 / Wave 0:** tests/parameters/test_register.py — fitted-effective versus hidden-assumption classification, evidence, era bounds, uncertainty, and sensitivity fields.
-- [ ] Wave 0 tasks collect all acceptance tests before production implementation; later plans turn each suite green.
+- [x] **09-01-T01 / Plan 09-01 / Wave 0:** tests/data/test_physics_input.py and tests/data/test_coverage_audit.py — cutoff filtering, source UTC/race-clock preservation, per-channel coverage/fallback, immutability, results/holdout boundary, all-catalog counts, and one bounded Bahrain probe with explicit-unavailable behavior.
+- [x] **09-01-T02 / Plan 09-01 / Wave 0:** tests/geometry/test_profile.py — manifest and digest, units/transform, quality validation, path confinement, and fail-closed behavior.
+- [x] **09-01-T03 / Plan 09-01 / Wave 0:** tests/parameters/test_register.py — fitted-effective versus hidden-assumption classification, evidence, era bounds, uncertainty, and sensitivity fields.
+- [x] Wave 0 tasks collect all acceptance tests before production implementation; later plans turn each suite green.
 
 ---
 
@@ -76,11 +76,11 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 
 ## Validation Sign-Off
 
-- [ ] All tasks have automated verification paired with observable failure conditions.
-- [ ] Sampling continuity has no three consecutive tasks without automated verification.
-- [ ] Wave 0 covers all three previously missing test suites.
-- [ ] No watch-mode flags.
+- [x] All tasks have automated verification paired with observable failure conditions.
+- [x] Sampling continuity has no three consecutive tasks without automated verification.
+- [x] Wave 0 covers all three previously missing test suites.
+- [x] No watch-mode flags.
 - [ ] Feedback latency is within the limits above.
-- [ ] Set nyquist_compliant: true only after Wave 0 tests and the phase test map are complete.
+- [x] Set nyquist_compliant: true only after Wave 0 tests and the phase test map are complete.
 
-**Approval:** pending
+**Approval:** autonomous execution authorized; Wave 0 collection complete.
