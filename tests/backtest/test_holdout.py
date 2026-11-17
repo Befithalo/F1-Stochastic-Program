@@ -168,7 +168,21 @@ def test_verify_existing_accepts_frozen_predictions_extension(
             }
             for race_id in HOLDOUT_RACE_IDS
         },
-        "predictions": [{"race_id": HOLDOUT_RACE_IDS[0], "available": False}],
+        "predictions": [
+            {
+                "race_id": HOLDOUT_RACE_IDS[0],
+                "driver": "VER",
+                "cutoff_lap": 0,
+                "available": True,
+                "unavailable_reason": None,
+                "top_action": "wait",
+                "planned_stop_lap": None,
+                "podium_probability": 0.25,
+                "top10_probability": 0.75,
+                "finish_p05": 1,
+                "finish_p95": 20,
+            }
+        ],
     }
     path = tmp_path / "holdout-with-predictions.json"
     path.write_text(json.dumps(report), encoding="utf-8")
@@ -176,6 +190,104 @@ def test_verify_existing_accepts_frozen_predictions_extension(
     monkeypatch.setattr(holdout, "OutOfSampleAccessor", lambda *_: pytest.fail("results access"))
 
     assert verify_holdout_report(path)["predictions"] == report["predictions"]
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        None,
+        {},
+        {
+            "race_id": "2026-08",
+            "driver": "VER",
+            "cutoff_lap": 0,
+            "available": False,
+            "unavailable_reason": "not available",
+            "top_action": None,
+            "planned_stop_lap": None,
+            "podium_probability": None,
+            "top10_probability": None,
+            "finish_p05": None,
+            "finish_p95": None,
+        },
+        {
+            "race_id": "2026-09",
+            "driver": "VER",
+            "cutoff_lap": True,
+            "available": False,
+            "unavailable_reason": "not available",
+            "top_action": None,
+            "planned_stop_lap": None,
+            "podium_probability": None,
+            "top10_probability": None,
+            "finish_p05": None,
+            "finish_p95": None,
+        },
+        {
+            "race_id": "2026-09",
+            "driver": "VER",
+            "cutoff_lap": 52,
+            "available": False,
+            "unavailable_reason": "not available",
+            "top_action": None,
+            "planned_stop_lap": None,
+            "podium_probability": None,
+            "top10_probability": None,
+            "finish_p05": None,
+            "finish_p95": None,
+        },
+        {
+            "race_id": "2026-09",
+            "driver": "VER",
+            "cutoff_lap": 0,
+            "available": False,
+            "unavailable_reason": "not available",
+            "top_action": None,
+            "planned_stop_lap": None,
+            "podium_probability": None,
+            "top10_probability": None,
+            "finish_p05": None,
+            "finish_p95": None,
+            "unexpected": "field",
+        },
+        {
+            "race_id": "2026-09",
+            "driver": "VER",
+            "cutoff_lap": 0,
+            "available": False,
+            "unavailable_reason": "not available",
+            "top_action": None,
+            "planned_stop_lap": None,
+            "podium_probability": float("nan"),
+            "top10_probability": None,
+            "finish_p05": None,
+            "finish_p95": None,
+        },
+    ],
+)
+def test_verify_existing_rejects_malformed_frozen_prediction_rows(
+    tmp_path: Path, row: object
+) -> None:
+    report = {
+        "schema_version": 1,
+        "race_ids": list(HOLDOUT_RACE_IDS),
+        "metadata": {"locked_contract_sha256": _load_holdout_lock()["lock_digest"]["sha256"]},
+        "metrics": {},
+        "per_race": {
+            race_id: {
+                "era": "reg_2026",
+                "prediction_count": 0,
+                "scored_driver_cutoffs": 0,
+            }
+            for race_id in HOLDOUT_RACE_IDS
+        },
+        "predictions": [row],
+    }
+    path = tmp_path / "holdout-with-malformed-prediction.json"
+    path.write_text(json.dumps(report), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"prediction|cutoff|availability|podium"):
+        verify_holdout_report(path)
 
 
 def test_verify_existing_rejects_unregistered_top_level_extension(tmp_path: Path) -> None:

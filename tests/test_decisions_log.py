@@ -237,3 +237,17 @@ def test_holdout_verifier_extension_decision_is_recorded() -> None:
         "Do not rescore the holdout",
     ):
         assert phrase.lower() in body.lower(), phrase
+
+
+def test_frozen_prediction_row_validation_decision_is_recorded() -> None:
+    entries = {entry_id: (title, body) for entry_id, title, body in _entries()}
+    title, body = entries["DEC-129"]
+    assert title == "Validate the frozen prediction rows in the holdout report"
+    for phrase in (
+        "exact keys emitted by `_frozen_predictions`",
+        "within that race's locked schedule",
+        "finite probabilities in [0, 1]",
+        "without recomputing predictions or accessing outcome sources",
+        "not opened or rescored",
+    ):
+        assert phrase.lower() in body.lower(), phrase

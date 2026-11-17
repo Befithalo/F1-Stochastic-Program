@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import math
 import os
 import tempfile
 import zlib
@@ -473,6 +474,104 @@ def score_holdout(
     return report
 
 
+_FROZEN_PREDICTION_FIELDS: Final = frozenset(
+    {
+        "race_id",
+        "driver",
+        "cutoff_lap",
+        "available",
+        "unavailable_reason",
+        "top_action",
+        "planned_stop_lap",
+        "podium_probability",
+        "top10_probability",
+        "finish_p05",
+        "finish_p95",
+    }
+)
+
+
+def _validate_frozen_predictions(predictions: list[Any], locked_schedule: dict[str, Any]) -> None:
+    """Validate the optional report trace against the rows emitted by the scorer."""
+    for index, row in enumerate(predictions):
+        if not isinstance(row, dict) or set(row) != _FROZEN_PREDICTION_FIELDS:
+            raise ValueError(f"The holdout report has an invalid prediction row at index {index}.")
+        race_id = row["race_id"]
+        if not isinstance(race_id, str) or race_id not in HOLDOUT_RACE_IDS:
+            raise ValueError(f"The holdout report has an invalid prediction race at index {index}.")
+        driver = row["driver"]
+        cutoff_lap = row["cutoff_lap"]
+        if not isinstance(driver, str) or not driver.strip() or type(cutoff_lap) is not int:
+            raise ValueError(
+                f"The holdout report has invalid prediction identity at index {index}."
+            )
+        scheduled_laps = locked_schedule[race_id]["scheduled_laps"]
+        if not 0 <= cutoff_lap < scheduled_laps:
+            raise ValueError(f"The holdout report has an invalid cutoff lap at index {index}.")
+
+        available = row["available"]
+        unavailable_reason = row["unavailable_reason"]
+        top_action = row["top_action"]
+        planned_stop_lap = row["planned_stop_lap"]
+        if type(available) is not bool:
+            raise ValueError(
+                f"The holdout report has an invalid availability flag at index {index}."
+            )
+        if available:
+            if (
+                unavailable_reason is not None
+                or not isinstance(top_action, str)
+                or not top_action.strip()
+            ):
+                raise ValueError(
+                    f"The holdout report has invalid available prediction details at index {index}."
+                )
+        elif not isinstance(unavailable_reason, str) or not unavailable_reason.strip():
+            raise ValueError(
+                f"The holdout report has an invalid unavailable reason at index {index}."
+            )
+        if planned_stop_lap is not None and (
+            type(planned_stop_lap) is not int or not 1 <= planned_stop_lap <= scheduled_laps
+        ):
+            raise ValueError(
+                f"The holdout report has an invalid planned stop lap at index {index}."
+            )
+
+        for field in ("podium_probability", "top10_probability"):
+            value = row[field]
+            if available:
+                if (
+                    isinstance(value, bool)
+                    or not isinstance(value, (int, float))
+                    or not math.isfinite(value)
+                    or not 0.0 <= value <= 1.0
+                ):
+                    raise ValueError(f"The holdout report has an invalid {field} at index {index}.")
+            elif value is not None:
+                raise ValueError(f"The holdout report has an invalid {field} at index {index}.")
+
+        finish_values = (row["finish_p05"], row["finish_p95"])
+        if available:
+            if (
+                any(
+                    type(value) is not int or not 1 <= value <= scheduled_laps
+                    for value in finish_values
+                )
+                or finish_values[0] > finish_values[1]
+            ):
+                raise ValueError(
+                    f"The holdout report has an invalid finish interval at index {index}."
+                )
+        elif (
+            any(value is not None for value in finish_values)
+            or top_action is not None
+            or planned_stop_lap is not None
+        ):
+            raise ValueError(
+                f"The holdout report has invalid unavailable prediction details at index {index}."
+            )
+
+
 def verify_holdout_report(
     report_path: Path = DEFAULT_REPORT,
     *,
@@ -496,8 +595,10 @@ def verify_holdout_report(
         or not set(report).issubset(allowed_fields)
     ):
         raise ValueError("The holdout report does not match the locked top-level schema.")
-    if "predictions" in report and not isinstance(report["predictions"], list):
-        raise ValueError("The holdout report predictions extension must be a list.")
+    if "predictions" in report:
+        if not isinstance(report["predictions"], list):
+            raise ValueError("The holdout report predictions extension must be a list.")
+        _validate_frozen_predictions(report["predictions"], lock["schedule"]["events"])
     if report.get("schema_version") != lock["report_schema"]["schema_version"]:
         raise ValueError("The holdout report schema version differs from the lock.")
     if report.get("race_ids") != list(HOLDOUT_RACE_IDS):

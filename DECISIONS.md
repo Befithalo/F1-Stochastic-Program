@@ -1410,3 +1410,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Do not rescore the holdout. Rewriting the committed lock or report after scoring, accepting arbitrary unknown fields, or removing the prediction array from the existing report would either break the one-score boundary or hide an unregistered report change.
 **Consequences:** The existing report verifies without data access or recomputation. Its outcome exposure remains a pre-registered retrospective evaluation, not a blind evaluation.
 **Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; `tests/backtest/test_holdout.py`; DEC-125, DEC-127
+
+## DEC-129 — Validate the frozen prediction rows in the holdout report
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The read-only holdout verifier accepts the scorer's optional `predictions` extension, but only checks that it is a list. Malformed rows could therefore pass as part of a valid report.
+**Decision:** Validate every prediction row against the exact keys emitted by `_frozen_predictions`. Require a locked race ID, non-empty driver, boolean availability, correctly typed nullable fields, and a cutoff lap within that race's locked schedule. Require finite probabilities in [0, 1], valid scheduled-lap stop and finish bounds, and an ordered finish interval when a prediction is available. Reject malformed or extra fields while continuing to allow reports without the optional extension.
+**Why:** The frozen trace should be trustworthy when present, and its validation can use only the committed lock and saved JSON without recomputing predictions or accessing outcome sources.
+**Alternatives rejected:** Accept arbitrary objects because the extension is optional; infer schema from report values; modify or rescore the committed holdout report.
+**Consequences:** Verification now rejects incomplete, mistyped, out-of-schedule, non-finite, or out-of-range prediction rows. The existing scored report remains read-only and is not opened or rescored as part of this change.
+**Refs:** `.planning/phases/08-markov-regimes-full-backtest/08-holdout-lock.json`; `src/f1si/evaluation/holdout.py`; `tests/backtest/test_holdout.py`; DEC-125, DEC-128
