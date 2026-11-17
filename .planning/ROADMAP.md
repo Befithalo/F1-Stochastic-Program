@@ -48,9 +48,9 @@ Plans:
 - [x] 09-02-PLAN.md — Build cutoff-safe optional channels and the PhysicsInput envelope.
 
 **Wave 2**
-- [ ] 09-03-PLAN.md — Validate and pin the Bahrain 2023 geometry profile.
+- [x] 09-03-PLAN.md — Validate and pin the Bahrain 2023 geometry profile.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Wave 3**
 - [ ] 09-04-PLAN.md — Publish the parameter register, numeric sensitivity result, and closeout report.
 
 **Required closeout for every phase**: Report the unchanged M1 baseline from .planning/M1-BASELINE.md: podium Brier 0.055456 (grid baseline 0.073693); top-10 Brier 0.144645 (grid baseline 0.169086); inclusive P05–P95 coverage 82.26% (16,508/20,001); signed planned-stop timing error +1.174 laps (695 matched stops); and top-action agreement with observed team calls 17.22% (695 matched stops). Preserve the original definitions and denominators; do not recompute this baseline or include the separate 2026 report. Require passing Ubuntu and Windows CI before phase close. Record method/source/evaluation decisions in DECISIONS.md and keep the 50,000-race runtime budget.
