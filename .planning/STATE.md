@@ -5,11 +5,11 @@ current_phase: 8
 current_phase_name: Markov Regimes & Full Backtest
 current_plan: 10
 status: executing
-stopped_at: Completed 08-04-PLAN.md
-last_updated: "2026-11-17T08:38:10.533Z"
+stopped_at: Recorded Phase 8 holdout schedule blocker; completed independent 08-06 checks only
+last_updated: "2026-11-17T08:58:40.604Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 8 planning complete
-state_head: 1ced95816f6635596231f553dfe9a9c2629b51b0
+state_head: 8763af4ae42ee1470fe0a91777e44d6f616108ce
 progress:
   total_phases: 8
   completed_phases: 5
@@ -170,6 +170,7 @@ Progress: [====------] 38%
 - Keep 2026 races out-of-sample because of the regulation break.
 - Fuel load and tire wear are hidden variables; state this in README.
 - The prior Windows Application Control OS error 4551 is resolved with verified PSF-signed CPython 3.12.10 at %LOCALAPPDATA%/Programs/Python/Python312/python.exe.
+- Phase 08 holdout score blocked: sole prescribed 08-05 invocation failed before outcome access because scheduled race distance is unavailable for 2026-09; no authoritative ex-ante horizon exists locally for locked 2026-16 Sepang. No score/report produced; no retry or 2026 outcome access. Phase 8 incomplete; see DEC-126 and 08-05-SUMMARY.md.
 
 ### Quick Tasks Completed
 
@@ -182,6 +183,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-17T08:38:09.820Z
-Stopped at: Completed 08-04-PLAN.md
-Resume file: None
+Last session: 2026-11-17T08:58:39.889Z
+Stopped at: Recorded Phase 8 holdout schedule blocker; completed independent 08-06 checks only
+Resume file: .planning/phases/08-markov-regimes-full-backtest/08-05-SUMMARY.md
