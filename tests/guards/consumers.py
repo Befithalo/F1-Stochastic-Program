@@ -15,6 +15,7 @@ import pytest
 from f1si.backtest.walk_forward import _race_laps_total, cutoff_consumer
 from f1si.cli import _replay_at_cutoff
 from f1si.data.asof import RACE_END, AsOf, AsOfAccessor
+from f1si.evaluation.holdout import build_in_sample_regime_sequences
 from f1si.pace.kalman import current_stint_snapshots, filter_stints, resolve_priors
 from f1si.pace.linear import fit_linear_pace, measure_pit_loss
 from f1si.pace.training import build_bayesian_training_panel
@@ -237,6 +238,13 @@ CONSUMERS: Final[dict[str, Consumer]] = {
     "strategy_replay": strategy_replay,
     "bayesian_strategy_replay": bayesian_strategy_replay,
     "walk_forward_cutoff": cutoff_consumer,
+}
+
+# The holdout feature-fit route receives its accessor capability directly. Keep it registered
+# separately from generic `(db_path, at)` consumers: its fixed 2023-2025 RACE_END reads are used
+# only for the later 2026 holdout and are not cutoff-local predictions for an in-sample anchor.
+HOLDOUT_ACCESSOR_CONSUMERS: Final = {
+    "in_sample_regime_sequences": build_in_sample_regime_sequences,
 }
 
 

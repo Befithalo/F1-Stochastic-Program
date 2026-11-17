@@ -80,6 +80,7 @@ def test_only_the_drivers_name_the_accessor_in_src() -> None:
         "f1si.cli",
         "f1si.data.asof",
         "f1si.data._snapshot",
+        "f1si.evaluation.holdout",
     }
     assert users <= allowed, sorted(users)
 

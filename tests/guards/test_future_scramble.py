@@ -5,6 +5,7 @@ scrambler itself (visible rows identical, every future row different, every tabl
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -15,9 +16,10 @@ from hypothesis import strategies as st
 from f1si.data import _db, schema
 from f1si.data.asof import RACE_END, AsOf, RaceEnd
 from f1si.data.errors import OutOfSampleLockedError
+from f1si.regime.markov import label_regime
 from f1si.synthetic import default_specs
 from tests.conftest import LONG_RACE_ID
-from tests.guards.consumers import CONSUMERS
+from tests.guards.consumers import CONSUMERS, HOLDOUT_ACCESSOR_CONSUMERS
 from tests.guards.scramble import (
     _PARTIAL_LAP_FACTS,
     JUNK_RACE_ID,
@@ -295,3 +297,48 @@ def test_locked_race_raises_identically(original_tables: dict[str, pd.DataFrame]
             rng=np.random.default_rng(7),
             expect_error=locked,
         )
+
+
+def test_holdout_fit_and_cutoff_state_ignore_unseen_future_feature_rows() -> None:
+    """The 2026 path trains only on fixed historical races and labels only cutoff-visible rows."""
+    assert tuple(HOLDOUT_ACCESSOR_CONSUMERS) == ("in_sample_regime_sequences",)
+    train_ids = (
+        *(f"2023-{round_number:02d}" for round_number in range(1, 8)),
+        *(f"2024-{round_number:02d}" for round_number in range(1, 8)),
+        *(f"2025-{round_number:02d}" for round_number in range(1, 7)),
+    )
+
+    class FeatureAccessor:
+        def __init__(self, changed_future: bool) -> None:
+            self.changed_future = changed_future
+            self.calls: list[AsOf] = []
+
+        def snapshot(self, at: AsOf) -> object:
+            self.calls.append(at)
+            assert at.race_id in train_ids
+            assert isinstance(at.lap, RaceEnd)
+            return SimpleNamespace(
+                race=SimpleNamespace(race_id=at.race_id, out_of_sample=False),
+                laps=pd.DataFrame({"lap_number": [1, 2], "lap_end_s": [60.0, 120.0]}),
+                track_status=pd.DataFrame(
+                    {"t_s": [20.0, 200.0], "status": ["4", "1" if self.changed_future else "5"]}
+                ),
+                weather=pd.DataFrame(columns=["t_s", "seq", "rainfall"]),
+            )
+
+    baseline = HOLDOUT_ACCESSOR_CONSUMERS["in_sample_regime_sequences"](
+        FeatureAccessor(False)  # type: ignore[arg-type]
+    )
+    changed = HOLDOUT_ACCESSOR_CONSUMERS["in_sample_regime_sequences"](
+        FeatureAccessor(True)  # type: ignore[arg-type]
+    )
+    assert baseline == changed
+
+    visible = pd.DataFrame({"t_s": [20.0, 200.0], "status": ["4", "1"]})
+    visible_scrambled = pd.DataFrame({"t_s": [20.0, 9999.0], "status": ["4", "5"]})
+    weather = pd.DataFrame({"t_s": [9999.0], "seq": [1], "rainfall": [True]})
+    assert (
+        label_regime(visible, weather, 50.0)
+        == label_regime(visible_scrambled, weather, 50.0)
+        == "sc"
+    )
