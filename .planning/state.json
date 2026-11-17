@@ -6,7 +6,7 @@
     {
       "number": "9",
       "name": "Data and Geometry Readiness",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "10",
@@ -29,5 +29,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 1 of 4 · executing"
   },
-  "updated_at": "2026-11-17T22:09:11.056Z"
+  "updated_at": "2026-11-17T22:51:22.107Z"
 }
