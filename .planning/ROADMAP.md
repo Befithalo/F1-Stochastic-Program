@@ -291,7 +291,7 @@ Plans:
 - [x] 08-01-PLAN.md — Trace visible regime through Bahrain replay and simulation
 - [x] 08-02-PLAN.md — Verify transition recovery, precedence, and pit-cost assumptions
 - [x] 08-03-PLAN.md — Lock and score the exact 20-race in-sample evaluation
-- [ ] 08-04-PLAN.md — Build and guard the isolated holdout evaluator and lock
+- [x] 08-04-PLAN.md — Build and guard the isolated holdout evaluator and lock
 - [ ] 08-05-PLAN.md — Score the holdout once and publish report-derived results
 - [ ] 08-06-PLAN.md — Complete decision, validation, and exact-head CI checks
 
@@ -337,4 +337,4 @@ Plans:
 | 5. Longstaff-Schwartz Strategy & Live Replay | 4/4 | In Progress | - |
 | 6. MVP Backtest, Streamlit View & README | 12/12 | Complete    | 2026-11-16 |
 | 7. Bayesian Pace Model | 5/5 | In Progress | - |
-| 8. Markov Regimes & Full Backtest | 3/6 | In Progress | - |
+| 8. Markov Regimes & Full Backtest | 4/6 | In Progress | - |
