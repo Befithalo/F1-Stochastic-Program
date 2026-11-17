@@ -5,16 +5,16 @@ current_phase: 8
 current_phase_name: Markov Regimes & Full Backtest
 current_plan: 10
 status: executing
-stopped_at: Completed 08-02-PLAN.md
-last_updated: "2026-11-16T20:44:38.654Z"
+stopped_at: Completed 08-03-PLAN.md
+last_updated: "2026-11-17T08:23:39.369Z"
 last_activity: 2026-11-16
 last_activity_desc: Phase 8 planning complete
-state_head: 89568280b2fc30ca499658c031009efbfed87126
+state_head: b7c8944da99249957178e41bc692d154dbd14353
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 55
-  completed_plans: 51
+  completed_plans: 52
 milestone_name: milestone
 ---
 
@@ -78,6 +78,7 @@ Progress: [====------] 38%
 | Phase 06 P08 | 42m | 3 tasks | 9 files |
 | Phase 08 P01 | 27min | 2 tasks | 8 files |
 | Phase 08 P02 | 49m | 2 tasks | 6 files |
+| Phase 08 P03 | 4h42m | 3 tasks | 21 files |
 
 ## Accumulated Context
 
@@ -151,6 +152,9 @@ Progress: [====------] 38%
 - [Phase 08]: DEC-121: cutoff-visible regimes use explicit control and rainfall precedence
 - [Phase 08]: DEC-122: race-local one-lap transitions use Dirichlet(1) smoothing
 - [Phase 08]: DEC-123: green pit loss is measured; SC and VSC discounts are assumptions
+- [Phase 08]: DEC-124/D-04: Freeze the ordered 20-race 2023–2025 sample and locked linear-pace scoring settings before prediction.
+- [Phase 08]: Continuation regression uses two-fold cross-fitting; each scoring fold is excluded from the paths used to fit its regression.
+- [Phase 08]: D-05 holdout stays separate; no 2026 outcomes were accessed in Plan 08-03.
 
 ### Pending Todos
 
@@ -174,6 +178,6 @@ Progress: [====------] 38%
 
 ## Session Continuity
 
-Last session: 2026-11-16T20:44:37.325Z
-Stopped at: Completed 08-02-PLAN.md
+Last session: 2026-11-17T08:23:38.666Z
+Stopped at: Completed 08-03-PLAN.md
 Resume file: None
