@@ -11,10 +11,9 @@ import pytest
 def test_register_classifies_effective_terms_and_hidden_assumptions(
     long_synthetic_db: Path,
 ) -> None:
-    from f1si.parameters.register import build_register
-
     from f1si.data.asof import AsOf, AsOfAccessor
     from f1si.pace.linear import fit_linear_pace
+    from f1si.parameters.register import build_register
 
     fit = fit_linear_pace(AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 40)))
     register = build_register(fits=[fit], season="2023")
@@ -46,10 +45,9 @@ def test_register_classifies_effective_terms_and_hidden_assumptions(
 
 
 def test_register_does_not_label_unidentified_terms_as_recovered(long_synthetic_db: Path) -> None:
-    from f1si.parameters.register import build_register
-
     from f1si.data.asof import AsOf, AsOfAccessor
     from f1si.pace.linear import fit_linear_pace
+    from f1si.parameters.register import build_register
 
     fit = fit_linear_pace(AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10)))
     register = build_register(fits=[fit], season="2023")
@@ -117,6 +115,9 @@ def test_closeout_contract_carries_coverage_and_exact_m1_baseline(tmp_path: Path
     assert "17.22%" in rendered
     assert "PAC-06 remains unmet" in rendered
     assert "not_estimable_pre_solver" in rendered
+    assert "complete catalog audit covers 1 races" in rendered
+    assert "20 rows" in rendered
+    assert "Probe status: unavailable; service returned no rows." in rendered
 
 
 @pytest.mark.parametrize(
