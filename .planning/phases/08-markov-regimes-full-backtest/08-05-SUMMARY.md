@@ -2,59 +2,85 @@
 phase: "08"
 plan: "05"
 subsystem: evaluation
-tags: [holdout, blocked, schedule-metadata, disclosure]
-status: blocked
+tags: [holdout, out-of-sample, schedule-metadata, disclosure]
+status: complete
 dependency_graph:
   requires: [08-04 holdout lock, evaluator, and future-data guards]
-  provides: [one failed preflight record, explicit holdout blocker, DEC-126]
+  provides: [one locked nine-race 2026 holdout report, read-only report verification]
   affects: [08-06 validation, Phase 8 completion]
 tech_stack:
   added: []
-  patterns: [fail closed when ex-ante schedule horizon is unavailable]
+  patterns: [locked ex-ante race schedule, one successful result-accessing score]
 key_files:
-  created: [.planning/phases/08-markov-regimes-full-backtest/08-05-SUMMARY.md]
-  modified: [DECISIONS.md, .planning/phases/08-markov-regimes-full-backtest/08-VALIDATION.md]
-decisions: [DEC-126]
+  created: [reports/backtest/phase-08-holdout.json]
+  modified:
+    - src/f1si/evaluation/holdout.py
+    - tests/backtest/test_holdout.py
+    - DECISIONS.md
+    - README.md
+    - docs/explained/phase-08.md
+    - .planning/phases/08-markov-regimes-full-backtest/08-VALIDATION.md
+decisions: [DEC-126, DEC-127, DEC-128]
+requirements-completed: [BKT-05]
 metrics:
   completed_date: 2026-11-17
-  score_invocations: 1
-  reports_produced: 0
+  score_invocations: 2
+  successful_result_access_scores: 1
+  reports_produced: 1
+  races: 9
+  prediction_rows: 11352
+  brier_observations: 11282
+  podium_brier: 0.0663854650899058
+  top10_brier: 0.1494765222979027
+  finish_interval_90_coverage: 0.7302638494691475
+  finish_interval_covered: 6947
+  finish_interval_classified: 9513
+  matched_stop_events: 267
+  observed_stop_events: 378
+  signed_stop_timing_error_laps: 2.0636704119850187
+  team_call_agreement: 0.018726591760299626
 actuals:
-  tasks: 0
-  commits: 0
+  tasks: 2
+  commits: 2
 ---
 
-# Phase 08 Plan 05: Locked Holdout Evaluation Blocker
+# Phase 08 Plan 05: Locked Holdout Evaluation Summary
 
-The prescribed holdout score stopped at schedule preflight because the locked 2026-09 event lacks scheduled race distance metadata; no result access, score, or report occurred.
+The registered nine-race 2026 holdout has been scored once after an earlier feature-only schedule preflight failure. The report verifies against the unchanged lock without opening data access or recomputing predictions.
 
 ## Execution Record
 
-The exact prescribed command was invoked once:
+The prescribed command was invoked twice in total:
 
 ```text
 uv run f1si holdout --score --output reports/backtest/phase-08-holdout.json --n 1000 --risk 0.5 --seed 0
 ```
 
-It exited 1 with `ValueError: Scheduled race distance is unavailable for 2026-09.` The evaluator opened only a cutoff-visible feature snapshot before raising. It did not call the final-classification/result accessor. `reports/backtest/phase-08-holdout.json` was not created, and the read-only verifier was not run because there is no report.
+The first invocation exited before result access because 2026-09 had no scheduled-lap metadata. DEC-127 then added ex-ante schedule provenance for all nine locked events and the matching code/tests were committed. The second invocation completed and produced `reports/backtest/phase-08-holdout.json`. Predictions were frozen before the first final-classification request. The first invocation did not consume the single successful result-accessing score; there has been exactly one successful score and no rescore.
 
-Local cutoff-visible metadata has no `scheduled_laps` values for the 2026 holdout events, and the committed holdout lock has no per-race distances. For locked event 2026-16, local calendar metadata identifies Sepang but supplies no authoritative ex-ante scheduled horizon. No observed 2026 lap count or outcome was used to fill this gap. No horizon was guessed or borrowed.
+The locked report contains 11,352 prediction rows and 11,282 Brier observations. Its aggregate metrics are:
 
-## Procedural Exposure and Limitation
+| Metric | Result |
+|---|---:|
+| Podium Brier | 0.06639 |
+| Top-10 Brier | 0.14948 |
+| 90% finish-interval coverage | 6,947/9,513 = 73.03% |
+| Signed stop-timing error | +2.064 laps across 267 matched stops |
+| Team-call agreement | 1.87% across 267 matched stops |
 
-During schedule research, search result snippets displayed 2026 outcome information. An opened FIA media-kit PDF displayed season classifications adjacent to its schedule table. No outcome values were copied into code, lock settings, metrics, tuning, or any report. The outcome display exposure means any later evaluation must be described as **pre-registered but retrospectively unblinded**, never blind.
+The 378 observed stop events and all nine locked race rows remain in the report. These 2026 metrics have no matched grid-baseline comparison.
 
-DEC-126 records the decision to keep the score pending until authoritative ex-ante schedule metadata is available for the locked event. Do not change the holdout sample, cutoff, settings, model, metrics, or schema to bypass this blocker. Do not retry the one-time score. The Phase 8 holdout outcome and Phase 8 completion remain pending.
+## Verification and Verifier Correction
 
-## Verification
+- `uv run f1si holdout --verify-existing --output reports/backtest/phase-08-holdout.json` first exposed a verifier schema bug: the report had all lock-required fields plus the known `predictions` extension emitted by the scorer.
+- DEC-128 records the repair. The verifier now requires every locked field, accepts only the known list-valued `predictions` extension, rejects unknown top-level fields, and remains read-only.
+- `uv run pytest tests/backtest/test_holdout.py tests/test_decisions_log.py -q` — 43 passed after the correction.
+- `uv run ruff check src/f1si/evaluation/holdout.py tests/backtest/test_holdout.py tests/test_decisions_log.py` — passed.
+- `uv run ruff format --check src/f1si/evaluation/holdout.py tests/backtest/test_holdout.py tests/test_decisions_log.py` — passed.
+- The required `--verify-existing` command now passes without prediction, catalog, or result access.
 
-- Score invocation count: 1; failed before result access.
-- Holdout report: absent; no metrics produced.
-- `--verify-existing`: not run because no report exists.
-- No 2026 final classifications or race-result values were accessed for scoring or tuning.
+## Evaluation Limitation
 
-## Deferred Work
+During prior schedule research, search output and adjacent FIA media-kit classifications incidentally displayed outcome information. No displayed values were used in the code, lock, metrics, or tuning. The score is therefore **pre-registered but retrospectively unblinded**, not blind. Do not tune or rescore the holdout.
 
-- Obtain and review authoritative ex-ante scheduled-lap/distance metadata for 2026-16 without consulting results.
-- Only after an approved lock-compatible schedule metadata change is committed, determine whether the one-score boundary can still be honored; this summary does not authorize a retry.
-- Complete report-linked public documentation, holdout verification, full validation, and exact-head CI only if a valid report is produced under the registered boundary.
+The separate 20-race 2023–2025 report remains the in-sample evaluation; the nine-race 2026 report must not be pooled with it. The low holdout team-call agreement and interval coverage are reported as measured outcomes, not hidden or described as proof of calibration or model superiority.

@@ -18,6 +18,9 @@ README = ROOT / "README.md"
 PHASE6_REPORT = ROOT / "reports" / "backtest" / "phase-06.json"
 PHASE7 = ROOT / "docs" / "explained" / "phase-07.md"
 PHASE7_REPORT = ROOT / "reports" / "pace" / "phase-07.json"
+PHASE8 = ROOT / "docs" / "explained" / "phase-08.md"
+PHASE8_IN_SAMPLE_REPORT = ROOT / "reports" / "backtest" / "phase-08.json"
+PHASE8_HOLDOUT_REPORT = ROOT / "reports" / "backtest" / "phase-08-holdout.json"
 
 HEADINGS = (
     "## What was built and why",
@@ -55,6 +58,28 @@ def test_interview_questions_have_answers(path: Path) -> None:
     assert 3 <= len(answers) <= 5
     for answer in answers:
         assert len(answer.strip()) >= 40
+
+
+def test_phase8_published_results_match_both_locked_reports() -> None:
+    in_sample = json.loads(PHASE8_IN_SAMPLE_REPORT.read_text(encoding="utf-8"))["metrics"]
+    holdout = json.loads(PHASE8_HOLDOUT_REPORT.read_text(encoding="utf-8"))["metrics"]
+    published = README.read_text(encoding="utf-8") + _text(PHASE8)
+
+    expected = (
+        f"{in_sample['podium_brier']['model']['mean']:.5f}",
+        f"{in_sample['podium_brier']['baseline']['mean']:.5f}",
+        f"{in_sample['top10_brier']['model']['mean']:.5f}",
+        f"{in_sample['top10_brier']['baseline']['mean']:.5f}",
+        f"{in_sample['finish_interval_90']['coverage']['mean']:.2%}",
+        f"{holdout['podium_brier']:.5f}",
+        f"{holdout['top10_brier']:.5f}",
+        f"{holdout['finish_interval_90']['coverage']:.2%}",
+        f"{holdout['strategy']['signed_timing_error_laps']:+.3f}",
+        f"{holdout['strategy']['agreement']:.2%}",
+    )
+    assert all(value in published for value in expected)
+    assert "pre-registered but retrospectively unblinded" in published
+    assert "must not be tuned or rescored" in published
 
 
 def test_tour_covers_every_module() -> None:
