@@ -1454,3 +1454,47 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Use only the 10-race MVP checkpoint; pool the 2026 holdout with 2023-2025; or recompute historical metrics during M2.
 **Consequences:** M2 summaries have a fixed, traceable comparison baseline while the underlying report remains unchanged. The failed PAC-06 pace result remains a separate historical gate, not a strategy metric.
 **Refs:** `.planning/M1-BASELINE.md`; `reports/backtest/phase-08.json`; `reports/backtest/phase-08-holdout.json`; DEC-124, DEC-125, DEC-130
+
+## DEC-133 — Use cached data and historical OpenF1 for M2 physics inputs
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** M2 needs track geometry, vehicle-motion evidence, weather, and cutoff-safe stint targets. The local cache has race timing, stints, pit stops, and weather, but not high-rate car telemetry or geometry. Fresh FastF1 timing archive access now requires an active F1 TV account for most data.
+**Decision:** Reuse the local cache and add historical OpenF1 car-data and location endpoints only through the existing rate-limited cache and as-of data boundary. Keep those endpoints optional when race/session coverage or coordinate matching is poor. Do not make new FastF1 downloads an M2 dependency. Preserve source, timestamp, license, attribution, and raw-data retention constraints.
+**Why:** OpenF1 documents historical car data and approximate location from 2023, while fresh FastF1 access has an account requirement. The project remains usable without new credentials and can disclose missing telemetry rather than silently inventing it.
+**Alternatives rejected:** Require F1 TV access; treat cached laps as high-rate telemetry; assume OpenF1 location is survey-grade track geometry; or redistribute raw dumps.
+**Consequences:** Phase 9 must audit actual endpoint coverage and map quality before relying on telemetry. Weather track temperature is an environmental input, not a tire-temperature measurement.
+**Refs:** [OpenF1 API documentation](https://openf1.org/docs/); [FastF1 account authentication](https://docs.fastf1.dev/api_reference/accounts_auth.html); `.planning/research/SUMMARY.md`; DEC-107, DEC-109
+
+## DEC-134 — Fit observable composites and label unobserved vehicle and tire values as assumptions
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** Public speed, controls, approximate location, weather, and lap times cannot uniquely identify all F1 vehicle, fuel, and tire parameters. Several products are confounded, and tire temperature/force is not in the documented public data fields.
+**Decision:** Fit only low-dimensional effective/composite parameters when an identifiability check supports them, such as effective acceleration or power-to-mass, drag-to-mass, and combined cornering response. Treat absolute mass, power, drag area, downforce coefficient, friction curves, starting fuel, fuel burn, and tire thermal constants as hidden assumptions unless independent evidence identifies them. Use season-specific FIA regulation bounds only as constraints, not as fitted values; publish sources, prior ranges, uncertainty, and sensitivity.
+**Why:** A fit can match lap times while assigning different values to correlated hidden quantities. Reporting effective composites and explicit assumptions prevents those fits from being mistaken for recovered team-specific engineering data.
+**Alternatives rejected:** Report unique car/team values from lap time alone; equate track or ambient temperature with tire temperature; or treat regulatory minima as observed values.
+**Consequences:** Each physical model needs a synthetic known-parameter recovery test, and its real-data report must distinguish fitted composites from assumed values and latent states.
+**Refs:** `.planning/research/SUMMARY.md`; [FIA Formula One Technical Regulations](https://www.fia.com/regulation/fia-formula-1-world-championship-technical-regulations); [TUMFTM track and simulation references](https://github.com/TUMFTM/laptime-simulation)
+
+## DEC-135 — Keep physics and residual learning behind the existing PaceModel seam
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** M2 adds geometry, a point-mass solver, latent thermal wear, and Bayesian residual learning to a simulator and strategy stack whose current consumers already accept the `PaceModel` protocol.
+**Decision:** Construct an immutable race-scoped pace model with versioned geometry, cutoff-safe weather, and declared effective vehicle/fuel context. Compute a deterministic physics baseline, then compose thermal/wear state and a Bayesian model trained on observed-minus-physics residuals. Preserve the current `PaceModel.predict` signature and do not change simulator, strategy, or backtest consumers to support physics.
+**Why:** The protocol was selected as the milestone seam, and residual learning should correct remaining physics error without relearning absolute pace or double-counting uncertainty.
+**Alternatives rejected:** Expose geometry or data accessors to simulator consumers; fit a separate hybrid path in strategy/backtest code; train the residual on total observed pace; or sample randomness inside `predict`.
+**Consequences:** Physics inputs must be prebuilt and cached outside the per-simulation hot path. Phase 12 must test protocol conformance and preserve the 50,000-race runtime budget.
+**Refs:** `src/f1si/interfaces.py`; `src/f1si/pace/bayesian.py`; `.planning/research/SUMMARY.md`; DEC-061, DEC-062, DEC-130
+
+## DEC-136 — Gate M3 on a preregistered hybrid held-out-stint improvement
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** M1 PAC-06 failed on its locked data-only Bayesian comparison, and the user requires the M2 hybrid to beat that baseline on held-out stints before M3.
+**Decision:** Freeze a new, real-data target set and scoring contract before fitting M2's final hybrid. Compare the hybrid and data-only Bayesian control on identical next-lap targets from complete held-out stints, using only earlier training history at each cutoff. Require at least 500 paired targets from at least 10 races, a hybrid MAE point estimate at least 15% lower, a race/stint-clustered 95% interval whose lower bound shows positive improvement, and 90% predictive-interval coverage within 5 percentage points of the Bayesian control. Report the gate failure without retuning or rescoring if any condition fails. Do not use the M1 PAC-06 or separate 2026 holdout lock.
+**Why:** Paired targets isolate the model difference; whole-stint and race grouping reduces leakage and overconfident uncertainty. The target-count, improvement, and coverage checks require a practical gain rather than an unstable positive point estimate.
+**Alternatives rejected:** Tune on the M1 holdout; randomly split adjacent laps; declare success from synthetic recovery; or call any positive point estimate a pass.
+**Consequences:** Phase 12 owns the one-time lock and evaluation. M3 remains gated until this full contract passes; publish all target denominators, clustered intervals, and coverage.
+**Refs:** `.planning/REQUIREMENTS.md`; `.planning/research/SUMMARY.md`; `.planning/M1-BASELINE.md`; DEC-130, DEC-132
