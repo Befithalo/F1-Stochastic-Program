@@ -64,7 +64,11 @@ Plans:
   1. A user can request lap-time mean and uncertainty from track distance and curvature, effective drive power, drag, downforce, grip, and declared mass/fuel inputs through the current PaceModel contract.
   2. Synthetic known-parameter trajectories recover the model's identifiable parameters within declared tolerances, while physical invariants and independent parameter/track sensitivity checks behave as documented.
 
-**Plans**: TBD
+**Plans:** 3 plans
+Plans:
+- [ ] 10-01-PLAN.md — Build and verify the deterministic cyclic point-mass PaceModel.
+- [ ] 10-02-PLAN.md — Fit the identifiable effective term and validate deterministic uncertainty.
+- [ ] 10-03-PLAN.md — Prove independent synthetic recovery and publish the Phase 10 report.
 **Required closeout for every phase**: Report the unchanged M1 baseline from .planning/M1-BASELINE.md: podium Brier 0.055456 (grid baseline 0.073693); top-10 Brier 0.144645 (grid baseline 0.169086); inclusive P05–P95 coverage 82.26% (16,508/20,001); signed planned-stop timing error +1.174 laps (695 matched stops); and top-action agreement with observed team calls 17.22% (695 matched stops). Preserve the original definitions and denominators; do not recompute this baseline or include the separate 2026 report. Require passing Ubuntu and Windows CI before phase close. Record method/source/evaluation decisions in DECISIONS.md and keep the 50,000-race runtime budget.
 
 ### Phase 11: Tire Thermal and Energy/Wear State
