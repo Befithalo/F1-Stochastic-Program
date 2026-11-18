@@ -1586,3 +1586,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Making weather a race-completeness requirement; counting timestamps outside the probe window; dropping earlier probe evidence after a later endpoint failure; or allowing a digest-valid geometry asset to bypass rights and quality review.
 **Consequences:** Channel-specific failures remain visible in `PhysicsInput` and phase reports; the probe’s endpoint statuses may differ from its overall request status; geometry manifests must carry explicit source, rights, and validation fields.
 **Refs:** `src/f1si/data/sources/openf1.py`; `src/f1si/data/physics_input.py`; `src/f1si/data/coverage_audit.py`; `src/f1si/parameters/report.py`; `src/f1si/geometry/profile.py`; Phase 9 review findings CR-01, WR-01–WR-08; DEC-137, DEC-138; [OpenF1 time-based filtering documentation](https://openf1.org/docs/#time-based-filtering)
+
+## DEC-145 — Bind point-mass scenarios and compound grip before prediction
+
+**Date:** 2026-11-18
+**Status:** Accepted
+**Context:** The Phase 10 solver needs concrete inputs at the unchanged PaceModel seam while public data does not disclose absolute car, fuel, or tire-force values.
+**Decision:** Construct the point-mass model from an immutable, digest-matched GeometryProfile, cutoff-scoped PhysicsInput, versioned parameter reference, explicit per-driver SI scenarios, and explicit SOFT/MEDIUM/HARD grip multipliers. Bound scenario mass, fuel, burn, power, drag area, downforce area, grip, and declared lap-time uncertainty before prediction. Convert the register's downforce force at 200 km/h to an equivalent area used by the speed-dependent force equation. Use per-lap fuel mass balance; do not infer tire wear from tire age before the tire-state phase supplies an identified coefficient. Prediction performs no I/O and reports the scenario uncertainty without sampling.
+**Why:** This keeps all hidden physical quantities explicit, tied to the existing register, and ready before the hot path. It preserves the consumer protocol and avoids implying that missing public measurements are fitted data.
+**Alternatives rejected:** Resolve a driver's vehicle values from cache during predict; treat public tire-age as a measured wear coefficient; fit absolute aero/engine values from lap times alone.
+**Consequences:** Scenarios are immutable and bounded, compound selects a declared grip multiplier, and the model's deterministic uncertainty is scenario-declared until the Phase 10 fit/uncertainty plan establishes supported estimates.
+**Refs:** `.planning/phases/10-point-mass-pacemodel/10-01-PLAN.md`; `.planning/phases/10-point-mass-pacemodel/10-CONTEXT.md`; `.planning/phases/10-point-mass-pacemodel/10-RESEARCH.md`; DEC-134, DEC-135, DEC-140, DEC-141
