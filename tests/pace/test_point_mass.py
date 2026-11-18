@@ -280,6 +280,44 @@ def test_point_mass_references_must_match(tmp_path: Path, long_synthetic_db: Pat
         )
 
 
+def test_model_rejects_vehicle_scenario_from_another_season(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _model(tmp_path, long_synthetic_db)
+    mismatched_scenario = replace(model.parameters.scenarios[0], season="2024")
+    parameters = replace(model.parameters, scenarios=(mismatched_scenario,))
+
+    with pytest.raises(ValueError, match=r"scenario season.*2023"):
+        PointMassPaceModel(model.geometry, model.physics_input, parameters, model.compound_grip)
+
+
+def test_compound_grip_numeric_values_are_stored_as_floats(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _model(tmp_path, long_synthetic_db)
+    normalized = PointMassPaceModel(
+        model.geometry,
+        model.physics_input,
+        model.parameters,
+        cast(dict[str, float], {"SOFT": "1.1", "MEDIUM": "1.0", "HARD": "0.9"}),
+    )
+
+    assert normalized.compound_grip == {"SOFT": 1.1, "MEDIUM": 1.0, "HARD": 0.9}
+    assert all(type(value) is float for value in normalized.compound_grip.values())
+    drivers = np.array([1], dtype=np.int64)
+    mean, _ = normalized.predict(
+        driver=drivers,
+        compound=np.array(["SOFT"]),
+        tire_age=drivers,
+        lap=drivers,
+    )
+    assert np.isfinite(mean).all()
+
+
 def test_future_physics_input_rows_do_not_change_prepared_model(
     tmp_path: Path, long_synthetic_db: Path
 ) -> None:

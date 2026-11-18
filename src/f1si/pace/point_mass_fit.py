@@ -185,6 +185,7 @@ def _eligible_rows(
         return [], f"race {race.race_id} is missing lap evidence: {', '.join(sorted(missing))}"
 
     rows: list[_FitRow] = []
+    mismatched_scenario_season = False
     for record in laps.to_dict(orient="records"):
         visible_at = _finite_float(record.get(visibility_column))
         if visible_at is None:
@@ -218,8 +219,11 @@ def _eligible_rows(
             continue
         driver, lap_no = int(driver_value), int(lap_value)
         try:
-            model.parameters.for_driver(driver)
+            scenario = model.parameters.for_driver(driver)
         except ValueError:
+            continue
+        if scenario.season != str(race.season):
+            mismatched_scenario_season = True
             continue
         rows.append(
             _FitRow(
@@ -236,6 +240,8 @@ def _eligible_rows(
             )
         )
     rows.sort(key=lambda row: (row.race_id, row.lap, row.driver))
+    if not rows and mismatched_scenario_season:
+        return [], f"driver vehicle scenario season does not match race season {race.season}"
     return rows, None
 
 

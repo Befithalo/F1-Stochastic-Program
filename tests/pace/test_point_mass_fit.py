@@ -217,6 +217,22 @@ def test_fit_uses_lap_end_time_when_prepared_input_has_no_visible_at_column(
     assert actual.to_dict() == expected.to_dict()
 
 
+def test_fit_rejects_driver_scenario_from_another_race_season(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    model = _model(profile, season=2025, scale=1.08)
+    mismatched_scenario = replace(model.parameters.scenarios[0], season="2023")
+    mismatched_parameters = replace(model.parameters, scenarios=(mismatched_scenario,))
+    # Exercise the fitter's defensive check against a corrupted/legacy prepared model.
+    object.__setattr__(model, "parameters", mismatched_parameters)
+
+    report = fit_effective_power_mass_scale((model,))
+
+    assert report.status == "unidentifiable"
+    assert report.candidate_scale is None
+    assert report.unidentifiable_reason is not None
+    assert "scenario season" in report.unidentifiable_reason
+
+
 def test_fit_recovers_effective_scale_from_cutoff_scoped_training_panel(
     tmp_path: Path,
 ) -> None:
@@ -318,7 +334,24 @@ def test_rank_deficient_panel_is_unidentifiable_and_keeps_assumption(
 @pytest.mark.parametrize("season", [2022, 2026])
 def test_fit_rejects_races_outside_the_training_seasons(tmp_path: Path, season: int) -> None:
     profile = _profile(tmp_path)
-    model = _model(profile, season=season, scale=1.0)
+    model = _model(profile, season=2023, scale=1.0)
+    unsupported_id = f"{season}-01"
+    unsupported_race = replace(model.physics_input.race, race_id=unsupported_id, season=season)
+    unsupported_snapshot = replace(
+        model.physics_input.snapshot,
+        race=unsupported_race,
+        at=replace(model.physics_input.snapshot.at, race_id=unsupported_id),
+    )
+    object.__setattr__(
+        model,
+        "physics_input",
+        PhysicsInput(
+            unsupported_snapshot,
+            model.geometry.reference,
+            model.parameters.parameter_ref,
+            model.physics_input.coverage,
+        ),
+    )
 
     report = fit_effective_power_mass_scale((model,))
 

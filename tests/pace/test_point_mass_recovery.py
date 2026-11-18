@@ -74,10 +74,10 @@ def _rewrite_profile(
     return load_profile(manifest_path, asset_root=root)
 
 
-def _scenario() -> PointMassVehicleScenario:
+def _scenario(season: int = 2023) -> PointMassVehicleScenario:
     return PointMassVehicleScenario(
         driver=1,
-        season="2023",
+        season=str(season),
         mass_kg=850.0,
         fuel_kg=50.0,
         fuel_burn_kg_per_lap=1.7,
@@ -121,7 +121,7 @@ def _empty_model(profile: GeometryProfile, season: int = 2023) -> PointMassPaceM
         cars=empty,
     )
     parameter_ref = VersionedArtifactRef("synthetic-physics", "1", "c" * 64)
-    parameters = PointMassParameters(parameter_ref, (_scenario(),))
+    parameters = PointMassParameters(parameter_ref, (_scenario(season),))
     physics = PhysicsInput(snapshot, profile.reference, parameter_ref, {})
     return PointMassPaceModel(
         profile,

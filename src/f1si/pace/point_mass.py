@@ -381,17 +381,33 @@ class PointMassPaceModel:
             raise ValueError("parameter reference does not match PhysicsInput parameter reference")
         if physics_input.race.out_of_sample:
             raise ValueError("out-of-sample PhysicsInput cannot construct a point-mass model")
+        race_season = str(physics_input.race.season)
+        mismatched_seasons = sorted(
+            {scenario.season for scenario in parameters.scenarios if scenario.season != race_season}
+        )
+        if mismatched_seasons:
+            raise ValueError(
+                f"scenario season {mismatched_seasons[0]} does not match race season {race_season}"
+            )
         if set(compound_grip) != {"SOFT", "MEDIUM", "HARD"}:
             raise ValueError("compound grip must explicitly declare SOFT, MEDIUM, and HARD")
         grips = dict(compound_grip)
+        normalized_grips: dict[str, float] = {}
         for compound, value in grips.items():
-            if not math.isfinite(float(value)) or not 0 < float(value) <= 2:
+            try:
+                multiplier = float(value)
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise ValueError(
+                    f"{compound} compound grip multiplier must be finite in (0, 2]"
+                ) from exc
+            if not math.isfinite(multiplier) or not 0 < multiplier <= 2:
                 raise ValueError(f"{compound} compound grip multiplier must be finite in (0, 2]")
+            normalized_grips[compound] = multiplier
         ds, curvature = _geometry_grid(geometry)
         object.__setattr__(self, "geometry", geometry)
         object.__setattr__(self, "physics_input", physics_input)
         object.__setattr__(self, "parameters", parameters)
-        object.__setattr__(self, "compound_grip", MappingProxyType(grips))
+        object.__setattr__(self, "compound_grip", MappingProxyType(normalized_grips))
         ds = np.frombuffer(ds.tobytes(), dtype="<f8")
         curvature = np.frombuffer(curvature.tobytes(), dtype="<f8")
         object.__setattr__(self, "_ds", ds)
