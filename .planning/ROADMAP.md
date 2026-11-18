@@ -25,7 +25,7 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
 ## Phases
 
 - [x] **Phase 9: Data and Geometry Readiness** - Establish cutoff-safe inputs, optional telemetry coverage, provenance-reviewed geometry, and effective-parameter records. *(completed 2026-11-18)*
-- [ ] **Phase 10: Point-Mass PaceModel** - Deliver a geometry-driven pace prediction through the existing PaceModel contract, with physical checks and synthetic recovery.
+- [x] **Phase 10: Point-Mass PaceModel** - Deliver a geometry-driven pace prediction through the existing PaceModel contract, with physical checks and synthetic recovery. (completed 2026-11-18)
 - [ ] **Phase 11: Tire Thermal and Energy/Wear State** - Add compound-aware latent thermal/wear state, weather boundaries, resets, and uncertainty.
 - [ ] **Phase 12: Hybrid Pace and Locked Held-Out-Stint Gate** - Compose a Bayesian residual learner behind physics and score it once against the preregistered real-data holdout.
 
@@ -64,11 +64,11 @@ Plans:
   1. A user can request lap-time mean and uncertainty from track distance and curvature, effective drive power, drag, downforce, grip, and declared mass/fuel inputs through the current PaceModel contract.
   2. Synthetic known-parameter trajectories recover the model's identifiable parameters within declared tolerances, while physical invariants and independent parameter/track sensitivity checks behave as documented.
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 Plans:
 - [x] 10-01-PLAN.md — Build and verify the deterministic cyclic point-mass PaceModel.
 - [x] 10-02-PLAN.md — Fit the identifiable effective term and validate deterministic uncertainty.
-- [ ] 10-03-PLAN.md — Prove independent synthetic recovery and publish the Phase 10 report.
+- [x] 10-03-PLAN.md — Prove independent synthetic recovery and publish the Phase 10 report.
 
 **Required closeout for every phase**: Report the unchanged M1 baseline from .planning/M1-BASELINE.md: podium Brier 0.055456 (grid baseline 0.073693); top-10 Brier 0.144645 (grid baseline 0.169086); inclusive P05–P95 coverage 82.26% (16,508/20,001); signed planned-stop timing error +1.174 laps (695 matched stops); and top-action agreement with observed team calls 17.22% (695 matched stops). Preserve the original definitions and denominators; do not recompute this baseline or include the separate 2026 report. Require passing Ubuntu and Windows CI before phase close. Record method/source/evaluation decisions in DECISIONS.md and keep the 50,000-race runtime budget.
 
@@ -105,6 +105,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 9. Data and Geometry Readiness | v2.0 | 4/4 | Complete    | 2026-11-18 |
-| 10. Point-Mass PaceModel | v2.0 | 2/3 | In Progress | - |
+| 10. Point-Mass PaceModel | v2.0 | 3/3 | Complete    | 2026-11-18 |
 | 11. Tire Thermal and Energy/Wear State | v2.0 | 0/TBD | Not started | - |
 | 12. Hybrid Pace and Locked Held-Out-Stint Gate | v2.0 | 0/TBD | Not started | - |

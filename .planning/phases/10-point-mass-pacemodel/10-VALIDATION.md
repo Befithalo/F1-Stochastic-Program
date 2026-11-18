@@ -76,9 +76,9 @@ None. Ubuntu and Windows CI status is machine-reported by the repository workflo
 - [x] No watch-mode flags.
 - [x] Focused feedback latency target is under 60 seconds.
 - [x] `nyquist_compliant: true` is set after the final task/test map was validated.
-- [x] Ubuntu and Windows CI are green for the final implementation commit.
+- [x] Ubuntu and Windows CI are green for final implementation commit `f53183e` (run #44275275671).
 
-**Approval:** validation complete; all task checks pass and both CI platforms are green.
+**Approval:** validation complete; all task checks pass and both CI platforms are green on `f53183e`.
 
 ## Validation Audit 2026-11-18
 

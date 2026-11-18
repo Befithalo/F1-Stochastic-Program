@@ -11,7 +11,7 @@
     {
       "number": "10",
       "name": "Point-Mass PaceModel",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "11",
@@ -26,8 +26,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 2 of 4 · executing"
+    "label": "Advance to the next step (plan phase 11)",
+    "reason": "Phase 3 of 4 — needs a plan"
   },
-  "updated_at": "2026-11-18T06:49:16.719Z"
+  "updated_at": "2026-11-18T10:03:10.063Z"
 }

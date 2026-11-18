@@ -53,10 +53,13 @@ M1 was architected so later milestones plug in without rewrites.
 - [x] Bayesian pace implementation and synthetic recovery — Delivered in Phase 7. Its locked real-data gate PAC-06 was not met (Bayesian MAE 0.538745 s versus linear 0.364033 s, -47.99% improvement) and remains active for M2 under DEC-130.
 - [x] Markov race-regime model and full in-sample backtest — Delivered in Phase 8 with a separate 2026 report; three judgment-tier review flags remain acknowledged, and the 2026 result is pre-registered but retrospectively unblinded.
 
+### Validated (M2)
+
+- [x] Geometry-driven point-mass PaceModel with deterministic uncertainty and independently tested effective-scale recovery - Validated in Phase 10; absolute vehicle terms remain assumptions and the real-data fit is boundary-limited.
+
 ### Active (M2)
 
 - [ ] PAC-06: on a separately locked held-out-stint comparison, improve next-lap error over the data-only Bayesian pace model; do not retune or rescore the M1 lock
-- [ ] Point-mass lap simulator using track geometry and effective car power, drag, downforce and grip
 - [ ] Tire thermal and wear model driven by temperature and energy, with hidden state disclosed where direct measurements are unavailable
 - [ ] Hybrid PaceModel with physics as base and the M1 Bayesian model learning the residual, preserving the existing interface
 
@@ -105,6 +108,7 @@ Lean MVP first (weeks 1-6): data + lap-time plot, linear tire wear + free-track 
 | Replay of past races, not live | Live OpenF1 is paid | Accepted; M2 uses historical OpenF1 data |
 | PyMC vs NumPyro | Open question in BUILD_PLAN; PyMC is the stated stack | PyMC accepted and implemented; real-data PAC-06 remains unmet |
 | Carry PAC-06 into M2 and compare hybrid vs data-only Bayesian on a new held-out-stint lock | Preserve the M1 measurement and prevent retuning its lock | Accepted under DEC-130/132 |
+| Build a deterministic cyclic point-mass PaceModel and fit only the identifiable effective power-to-mass scale | Keep physics behind the existing consumer seam and avoid claiming hidden vehicle values from sparse observations | Accepted in Phase 10 under DEC-140/141; synthetic recovery passed and the real-data fit remained boundary-limited |
 
 ## Evolution
 
@@ -124,4 +128,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-17 after v2.0 M2 Physics planning started*
+*Last updated: 2026-11-18 after Phase 10*
