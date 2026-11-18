@@ -24,7 +24,7 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
 
 ## Phases
 
-- [ ] **Phase 9: Data and Geometry Readiness** - Establish cutoff-safe inputs, optional telemetry coverage, provenance-reviewed geometry, and effective-parameter records. *(in progress)*
+- [x] **Phase 9: Data and Geometry Readiness** - Establish cutoff-safe inputs, optional telemetry coverage, provenance-reviewed geometry, and effective-parameter records. *(completed 2026-11-18)*
 - [ ] **Phase 10: Point-Mass PaceModel** - Deliver a geometry-driven pace prediction through the existing PaceModel contract, with physical checks and synthetic recovery.
 - [ ] **Phase 11: Tire Thermal and Energy/Wear State** - Add compound-aware latent thermal/wear state, weather boundaries, resets, and uncertainty.
 - [ ] **Phase 12: Hybrid Pace and Locked Held-Out-Stint Gate** - Compose a Bayesian residual learner behind physics and score it once against the preregistered real-data holdout.
@@ -41,7 +41,7 @@ M1 delivered the data foundation, typed model protocols, linear tire wear and fr
   2. A user can select a versioned, unit-checked Bahrain 2023 track profile whose source, coordinate transform, quality checks, attribution, and redistribution terms are recorded; if rights are unclear, the profile remains external/local and is referenced by digest and provenance.
   3. A user can inspect which vehicle, fuel, and tire quantities are effective fitted composites versus hidden assumptions, including supporting evidence, era-specific bounds, uncertainty, and sensitivity results.
 
-**Plans:** 4 plans
+**Plans:** 4/4 plans complete
 Plans:
 **Wave 1**
 - [x] 09-01-PLAN.md — Create Wave 0 validation contracts for Phase 9.
@@ -51,7 +51,7 @@ Plans:
 - [x] 09-03-PLAN.md — Validate and pin the Bahrain 2023 geometry profile.
 
 **Wave 3**
-- [ ] 09-04-PLAN.md — Publish the parameter register, numeric sensitivity result, and closeout report.
+- [x] 09-04-PLAN.md — Publish the parameter register, numeric sensitivity result, and closeout report.
 
 **Required closeout for every phase**: Report the unchanged M1 baseline from .planning/M1-BASELINE.md: podium Brier 0.055456 (grid baseline 0.073693); top-10 Brier 0.144645 (grid baseline 0.169086); inclusive P05–P95 coverage 82.26% (16,508/20,001); signed planned-stop timing error +1.174 laps (695 matched stops); and top-action agreement with observed team calls 17.22% (695 matched stops). Preserve the original definitions and denominators; do not recompute this baseline or include the separate 2026 report. Require passing Ubuntu and Windows CI before phase close. Record method/source/evaluation decisions in DECISIONS.md and keep the 50,000-race runtime budget.
 
@@ -69,6 +69,7 @@ Plans:
 - [ ] 10-01-PLAN.md — Build and verify the deterministic cyclic point-mass PaceModel.
 - [ ] 10-02-PLAN.md — Fit the identifiable effective term and validate deterministic uncertainty.
 - [ ] 10-03-PLAN.md — Prove independent synthetic recovery and publish the Phase 10 report.
+
 **Required closeout for every phase**: Report the unchanged M1 baseline from .planning/M1-BASELINE.md: podium Brier 0.055456 (grid baseline 0.073693); top-10 Brier 0.144645 (grid baseline 0.169086); inclusive P05–P95 coverage 82.26% (16,508/20,001); signed planned-stop timing error +1.174 laps (695 matched stops); and top-action agreement with observed team calls 17.22% (695 matched stops). Preserve the original definitions and denominators; do not recompute this baseline or include the separate 2026 report. Require passing Ubuntu and Windows CI before phase close. Record method/source/evaluation decisions in DECISIONS.md and keep the 50,000-race runtime budget.
 
 ### Phase 11: Tire Thermal and Energy/Wear State
@@ -103,7 +104,7 @@ Plans:
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 9. Data and Geometry Readiness | v2.0 | 1/4 | In Progress | - |
+| 9. Data and Geometry Readiness | v2.0 | 4/4 | Complete    | 2026-11-18 |
 | 10. Point-Mass PaceModel | v2.0 | 0/TBD | Not started | - |
 | 11. Tire Thermal and Energy/Wear State | v2.0 | 0/TBD | Not started | - |
 | 12. Hybrid Pace and Locked Held-Out-Stint Gate | v2.0 | 0/TBD | Not started | - |

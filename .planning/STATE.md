@@ -1,20 +1,21 @@
 ---
 gsd_state_version: "1.0"
 milestone: v2.0
-current_phase: 09
-current_phase_name: Data and Geometry Readiness
-current_plan: 4
+current_phase: 10
+current_phase_name: Point-Mass PaceModel
+current_plan: Not started
 status: executing
-stopped_at: Phase 10 context captured; Phase 9 Ubuntu/Windows full suites pending
-last_updated: "2026-11-17T23:33:30.828Z"
-last_activity: 2026-11-17
-last_activity_desc: Phase 9 plan 09-03 pinned and validated the local Sakhir geometry profile.
-state_head: 162bddf4a869d882ff36210216be705fa11e2055
+stopped_at: Phase 09 complete, ready to execute Phase 10
+last_updated: "2026-11-18T06:38:09.157Z"
+last_activity: 2026-11-18
+last_activity_desc: Phase 09 complete, transitioned to Phase 10
+state_head: 920150678f96b2d8ecb69904ab5e233800cca423
 progress:
   total_phases: 4
-  completed_phases: 0
-  total_plans: 4
+  completed_phases: 1
+  total_plans: 7
   completed_plans: 4
+  percent: 25
 milestone_name: M2 Physics
 ---
 
@@ -25,23 +26,23 @@ milestone_name: M2 Physics
 See: .planning/PROJECT.md (updated 2026-11-17)
 
 **Core value:** For any driver at any lap of a replayed race, give a pit-strategy recommendation whose uncertainty is honest, cutoff-safe, checked against synthetic ground truth, and evaluated against real race data with limitations disclosed.
-**Current focus:** M2 Physics — Phase 9 plan 09-04: parameter register and sensitivity
+**Current focus:** M2 Physics - Phase 10: Point-Mass PaceModel
 
 ## Current Position
 
-Phase: 09 (Data and Geometry Readiness) — IN PROGRESS
-Current Plan: 4
-Total Plans in Phase: 4
-Plan: 4 of 4
+Phase: 10 — Point-Mass PaceModel
+Current Plan: Not started
+Total Plans in Phase: 3
+Plan: 0 of 3
 Status: Ready to execute
-Last activity: 2026-11-17 — Phase 9 plan 09-03 geometry loader, pinned manifest, and rights decision committed.
+Last activity: 2026-11-18 — Phase 09 complete, transitioned to Phase 10
 
-Progress: [░░░░░░░░░░] 0% (0/4 phases; 3/4 Phase 9 plans summarized)
+Progress: [███░░░░░░░] 25% (1/4 phases; 0/3 Phase 10 plans complete)
 
 ## Performance Metrics
 
 - M1 archived: 55 plans complete across eight phases.
-- M2: 0/4 phases complete; plan totals will be set during planning.
+- M2: 1/4 phases complete; Phase 10 has 3 planned plans, and Phases 11-12 will be planned after their predecessor phases.
 - M2 velocity: not established.
 
 **Per-Plan Metrics:**
@@ -51,6 +52,7 @@ Progress: [░░░░░░░░░░] 0% (0/4 phases; 3/4 Phase 9 plans sum
 | Phase 09 P01 | 11min | 3 tasks | 4 files |
 | Phase 09 P02 | 22min | 3 tasks | 18 files |
 | Phase 09 P03 | 12min | 2 tasks | 8 files |
+| Phase 09 P04 | 17min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -68,11 +70,11 @@ Progress: [░░░░░░░░░░] 0% (0/4 phases; 3/4 Phase 9 plans sum
 
 ### Pending Todos
 
-- The archived M1 state recorded release merge and final Ubuntu/Windows CI as pending; check whether that follow-up is still outstanding before M2 execution.
+- M1 was archived under the user-authorized override; exact-head Ubuntu/Windows CI passed in run 44163005087. PAC-06 and human-needed Phase 1/5/8 review items remain disclosed in the M1 audit and are not M2 blockers.
 
 ### Blockers/Concerns
 
-- Phase 9 has reported actual OpenF1 coverage. The geometry plan must verify the chosen asset's source and redistribution terms before downstream work relies on it.
+- Phase 9 is complete. Its bounded OpenF1 probe and local catalog counts are recorded; the Sakhir raw asset remains local until file-level and underlying-source redistribution terms are clear.
 - The separate 2026 report is retrospectively unblinded and must stay outside the M1 baseline and M2 tuning.
 - M1 closeout retained human review and verification items; see the archived state and .planning/milestones/v1.0-MILESTONE-AUDIT.md.
 
@@ -91,5 +93,5 @@ Progress: [░░░░░░░░░░] 0% (0/4 phases; 3/4 Phase 9 plans sum
 ## Session Continuity
 
 Last session: 2026-11-17T23:33:30.754Z
-Stopped at: Phase 10 context captured; Phase 9 Ubuntu/Windows full suites pending
+Stopped at: Phase 09 complete, ready to execute Phase 10
 Resume file: .planning/phases/10-point-mass-pacemodel/10-CONTEXT.md

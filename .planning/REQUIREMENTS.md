@@ -10,9 +10,9 @@ Requirements committed for M2. Every physics model must include a synthetic know
 
 ### Data and Geometry
 
-- [ ] **DAT-01**: A user can build a provenance-checked, cutoff-safe physics input from the existing cached race data and optional historical OpenF1 car telemetry, location, and weather, with unavailable coverage reported explicitly.
-- [ ] **GEO-01**: A user can run the pace model on a versioned, unit-checked track profile with source, coordinate transform, quality checks, and redistribution terms recorded; Bahrain 2023 is the reference track.
-- [ ] **PAR-01**: A user can inspect which vehicle, fuel, and tire quantities are fitted effective parameters versus assumed hidden values, including evidence, era-specific bounds, uncertainty, and sensitivity results.
+- [x] **DAT-01**: A user can build a provenance-checked, cutoff-safe physics input from the existing cached race data and optional historical OpenF1 car telemetry, location, and weather, with unavailable coverage reported explicitly.
+- [x] **GEO-01**: A user can run the pace model on a versioned, unit-checked track profile with source, coordinate transform, quality checks, and redistribution terms recorded; Bahrain 2023 is the reference track.
+- [x] **PAR-01**: A user can inspect which vehicle, fuel, and tire quantities are fitted effective parameters versus assumed hidden values, including evidence, era-specific bounds, uncertainty, and sensitivity results.
 
 ### Point-Mass Pace
 
@@ -70,9 +70,9 @@ The proposed M2 gate is intentionally stricter than a positive point estimate: r
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DAT-01 | Phase 9 | Pending |
-| GEO-01 | Phase 9 | Pending |
-| PAR-01 | Phase 9 | Pending |
+| DAT-01 | Phase 9 | Complete |
+| GEO-01 | Phase 9 | Complete |
+| PAR-01 | Phase 9 | Complete |
 | PHY-01 | Phase 10 | Pending |
 | PHY-02 | Phase 10 | Pending |
 | TIR-01 | Phase 11 | Pending |

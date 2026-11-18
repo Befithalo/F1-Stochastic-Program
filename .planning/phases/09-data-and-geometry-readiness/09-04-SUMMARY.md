@@ -88,7 +88,7 @@ actuals:
   implementation_commits: 3
   duration: 17 min
   commits: [1d5d4cf, 6584b60, ec7d5a5]
-  phase_level_full_suite_and_ci_matrix: local_full_suite_passed_ci_pending
+  phase_level_full_suite_and_ci_matrix: passed
 completed: 2026-11-17
 ---
 
@@ -132,7 +132,8 @@ PAC-06 remains unmet (Bayesian MAE 0.538745 s versus linear pace 0.364033 s); it
 - Full suite — `uv run pytest --cov=f1si --cov-report=term` — **1,315 passed, 33 deselected** in 33m31s on Windows / Python 3.12. The final probe-bound refinement was separately covered by the 10-test coverage audit run.
 - Final code review — **clean**, with all nine earlier findings resolved.
 - Security audit — **17 high-severity threat instances mitigated**; the planned low-severity package-installation risk remains accepted.
-- Ubuntu/Windows CI and goal-backward phase verification remain pending and must pass before routing Phase 10.
+- Ubuntu and Windows CI — run [44247505951](https://github.com/Befithalo/F1-Stochastic-Program/actions/runs/44247505951), commit `920150678f96b2d8ecb69904ab5e233800cca423` — **passed** both full suites, canary, lint, formatting, and mypy.
+- Goal-backward verification — **passed**, 3/3 roadmap truths verified; DAT-01, GEO-01, and PAR-01 satisfied with no human checks.
 
 ## Task Commits
 
