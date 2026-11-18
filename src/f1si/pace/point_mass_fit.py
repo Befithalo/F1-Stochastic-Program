@@ -93,6 +93,12 @@ class PointMassFitReport:
             residual_variance_s2=(
                 self.residual_variance_s2 if self.residual_support_available else None
             ),
+            residual_support_laps=(
+                self.residual_support_laps if self.residual_support_available else 0
+            ),
+            residual_support_races=(
+                self.residual_support_races if self.residual_support_available else 0
+            ),
         )
 
 

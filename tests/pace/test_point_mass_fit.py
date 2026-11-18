@@ -202,6 +202,8 @@ def test_fit_recovers_effective_scale_from_cutoff_scoped_training_panel(
     assert report.n_races == 3
     assert report.n_laps >= 30
     assert report.residual_variance_s2 is not None
+    assert report.residual_support_laps == report.n_laps
+    assert report.residual_support_races == 3
     assert report.covariance is not None
     assert report.covariance >= 0.0
     assert report.absolute_assumptions == (
@@ -309,3 +311,37 @@ def test_fit_report_keeps_absolute_vehicle_terms_as_assumptions(
     assert "results" not in str(serialized).lower()
     assert "classification" not in str(serialized).lower()
     assert "team" not in str(serialized).lower()
+
+
+def test_residual_support_is_unavailable_without_three_supported_races(
+    tmp_path: Path,
+) -> None:
+    profile = _profile(tmp_path)
+    model = _model(profile, season=2023, scale=1.08)
+
+    report = fit_effective_power_mass_scale((model,))
+    bound = report.bind(model.parameters)
+
+    assert report.status == "identified"
+    assert report.residual_support_available is False
+    assert report.residual_variance_s2 is None
+    assert report.covariance is None
+    assert bound.residual_variance_s2 is None
+    assert bound.power_mass_scale_variance is None
+
+
+def test_residual_support_opens_at_30_laps_across_three_races(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    models = tuple(
+        _model(profile, season=year, scale=1.08, lap_numbers=range(2, 12))
+        for year in (2023, 2024, 2025)
+    )
+
+    report = fit_effective_power_mass_scale(models)
+
+    assert report.status == "identified"
+    assert report.n_laps == 30
+    assert report.residual_support_available is True
+    assert report.residual_support_laps == 30
+    assert report.residual_support_races == 3
+    assert report.residual_variance_s2 is not None

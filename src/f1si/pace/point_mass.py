@@ -78,6 +78,8 @@ class PointMassParameters:
     effective_power_mass_scale: float = 1.0
     power_mass_scale_variance: float | None = None
     residual_variance_s2: float | None = None
+    residual_support_laps: int = 0
+    residual_support_races: int = 0
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "scenarios", tuple(self.scenarios))
@@ -100,6 +102,21 @@ class PointMassParameters:
         ):
             if value is not None and (not math.isfinite(float(value)) or value < 0):
                 raise ValueError(f"{name} must be finite and nonnegative when present")
+        if (
+            isinstance(self.residual_support_laps, bool)
+            or not isinstance(self.residual_support_laps, int)
+            or self.residual_support_laps < 0
+            or isinstance(self.residual_support_races, bool)
+            or not isinstance(self.residual_support_races, int)
+            or self.residual_support_races < 0
+        ):
+            raise ValueError("residual support counts must be nonnegative integers")
+        if self.residual_variance_s2 is not None and (
+            self.residual_support_laps < 30 or self.residual_support_races < 3
+        ):
+            raise ValueError(
+                "residual variance requires at least 30 laps from three training races"
+            )
         object.__setattr__(self, "effective_power_mass_scale", scale)
         if self.power_mass_scale_variance is not None:
             object.__setattr__(
@@ -113,6 +130,22 @@ class PointMassParameters:
             if scenario.driver == driver:
                 return scenario
         raise ValueError(f"unknown driver {driver}")
+
+
+@dataclass(frozen=True)
+class PointMassUncertaintyDiagnostics:
+    """Inspectable deterministic uncertainty components for one lap prediction."""
+
+    method: str
+    scenario_variance_s2: float
+    parameter_variance_s2: float | None
+    residual_variance_s2: float | None
+    sigma_point_variance_s2: float | None
+    first_order_variance_s2: float | None
+    total_variance_s2: float
+    active_set_stable: bool | None
+    relative_variance_error: float | None
+    feasible_radius_scale: float | None
 
 
 def _geometry_grid(geometry: GeometryProfile) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -278,6 +311,48 @@ def _refined_lap_time_s(
     return _lap_time_s(ds, base_speed), _lap_time_s(refined_ds, fine_speed)
 
 
+def _active_set_signature(
+    *,
+    model: PointMassPaceModel,
+    scenario: PointMassVehicleScenario,
+    mass_kg: float,
+    grip_mu: float,
+    power_mass_scale: float,
+) -> tuple[int, ...]:
+    """Identify active corner and longitudinal force branches for one lap."""
+    power = scenario.power_w * power_mass_scale
+    speed, _ = _solve_speed_envelope(
+        ds=model._ds,
+        curvature=model._curvature,
+        mass_kg=mass_kg,
+        power_w=power,
+        drag_area_m2=scenario.drag_area_m2,
+        downforce_area_m2=scenario.downforce_area_m2,
+        grip_mu=grip_mu,
+    )
+    terminal = _terminal_speed(power, scenario.drag_area_m2)
+    corner_caps = np.minimum(
+        _corner_caps(model._curvature, mass_kg, scenario.downforce_area_m2, grip_mu), terminal
+    )
+    signature: list[int] = []
+    for index, velocity in enumerate(speed):
+        corner_active = abs(float(velocity - corner_caps[index])) <= 1e-4
+        terminal_active = abs(float(velocity - terminal)) <= 1e-4
+        lateral = mass_kg * float(velocity) ** 2 * float(model._curvature[index])
+        normal = mass_kg * _G + 0.5 * _RHO * scenario.downforce_area_m2 * float(velocity) ** 2
+        remaining = math.sqrt(max(0.0, (grip_mu * normal) ** 2 - lateral**2))
+        drag = 0.5 * _RHO * scenario.drag_area_m2 * float(velocity) ** 2
+        available_power_force = power / max(float(velocity), 1.0) - drag
+        if available_power_force <= 0:
+            drive_branch = 0  # drag-only / no positive tractive force
+        elif available_power_force < remaining:
+            drive_branch = 1  # power-limited
+        else:
+            drive_branch = 2  # grip-limited
+        signature.extend((int(corner_active), int(terminal_active), drive_branch))
+    return tuple(signature)
+
+
 @dataclass(frozen=True, init=False)
 class PointMassPaceModel:
     """Prepared immutable geometry, cutoff input, scenarios, and compound grip mapping."""
@@ -366,7 +441,10 @@ class PointMassPaceModel:
             )
             # Tire age has no fitted wear coefficient until the tire-state phase.
             mean[index] += 0.0 * float(age)
-            sd[index] = scenario.time_sd_s
+            diagnostic = self.uncertainty_for(
+                driver=int(driver_id), compound=str(compound_name), lap=int(lap_number)
+            )
+            sd[index] = math.sqrt(diagnostic.total_variance_s2)
         return mean, sd
 
     def _lap_mean(
@@ -388,6 +466,132 @@ class PointMassPaceModel:
             grip_mu=grip_mu,
         )
         return _lap_time_s(self._ds, speed)
+
+    def uncertainty_for(
+        self, *, driver: int, compound: str, lap: int
+    ) -> PointMassUncertaintyDiagnostics:
+        """Return the deterministic uncertainty breakdown for one prepared lap."""
+        if isinstance(lap, bool) or not isinstance(lap, int) or lap < 1:
+            raise ValueError("lap must be a positive integer")
+        scenario = self.parameters.for_driver(driver)
+        if compound not in self.compound_grip:
+            raise ValueError(f"unknown compound {compound!r}")
+        fuel = max(0.0, scenario.fuel_kg - scenario.fuel_burn_kg_per_lap * (lap - 1))
+        mass = scenario.mass_kg + fuel
+        grip = min(3.0, scenario.grip_mu * self.compound_grip[compound])
+        scenario_variance = scenario.time_sd_s**2
+        residual_variance = self.parameters.residual_variance_s2
+        covariance = self.parameters.power_mass_scale_variance
+        scale = self.parameters.effective_power_mass_scale
+        if covariance is None or covariance == 0.0:
+            parameter_variance = 0.0 if covariance == 0.0 else None
+            total = scenario_variance + (parameter_variance or 0.0) + (residual_variance or 0.0)
+            return PointMassUncertaintyDiagnostics(
+                method="scenario_only",
+                scenario_variance_s2=scenario_variance,
+                parameter_variance_s2=parameter_variance,
+                residual_variance_s2=residual_variance,
+                sigma_point_variance_s2=None,
+                first_order_variance_s2=parameter_variance,
+                total_variance_s2=total,
+                active_set_stable=None,
+                relative_variance_error=None,
+                feasible_radius_scale=None,
+            )
+
+        scale_low = max(_BOUNDS["power_w"][0] / item.power_w for item in self.parameters.scenarios)
+        scale_high = min(_BOUNDS["power_w"][1] / item.power_w for item in self.parameters.scenarios)
+        available_radius = min(scale - scale_low, scale_high - scale)
+        if available_radius <= 0:
+            raise ValueError(
+                "nonzero scale covariance has no feasible symmetric sigma-point radius"
+            )
+        sigma = math.sqrt(covariance)
+        radius = min(sigma, available_radius)
+        radius_scale = radius / sigma
+        lower_mean = self._lap_mean(
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=scale - radius,
+        )
+        upper_mean = self._lap_mean(
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=scale + radius,
+        )
+        sigma_mean = 0.5 * (lower_mean + upper_mean)
+        sigma_variance = 0.5 * ((lower_mean - sigma_mean) ** 2 + (upper_mean - sigma_mean) ** 2)
+        if not math.isfinite(sigma_variance) or sigma_variance < 0:
+            raise ValueError("bounded sigma-point propagation produced invalid variance")
+
+        local_radius = min(1e-4 * max(1.0, abs(scale)), available_radius)
+        lower_local_scale, upper_local_scale = scale - local_radius, scale + local_radius
+        lower_local = self._lap_mean(
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=lower_local_scale,
+        )
+        upper_local = self._lap_mean(
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=upper_local_scale,
+        )
+        base_active_set = _active_set_signature(
+            model=self,
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=scale,
+        )
+        lower_active_set = _active_set_signature(
+            model=self,
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=lower_local_scale,
+        )
+        upper_active_set = _active_set_signature(
+            model=self,
+            scenario=scenario,
+            mass_kg=mass,
+            grip_mu=grip,
+            power_mass_scale=upper_local_scale,
+        )
+        active_stable = base_active_set == lower_active_set == upper_active_set
+        derivative = (upper_local - lower_local) / (2.0 * local_radius)
+        first_order = derivative**2 * covariance if math.isfinite(derivative) else None
+        denominator = max(
+            abs(sigma_variance),
+            abs(first_order) if first_order is not None else 0.0,
+            np.finfo(np.float64).tiny,
+        )
+        relative_error = (
+            abs(first_order - sigma_variance) / denominator if first_order is not None else None
+        )
+        use_first_order = active_stable and relative_error is not None and relative_error <= 0.10
+        if use_first_order and first_order is not None:
+            parameter_variance = first_order
+        else:
+            parameter_variance = sigma_variance
+        total = scenario_variance + parameter_variance + (residual_variance or 0.0)
+        if not math.isfinite(total) or total <= 0:
+            raise ValueError("combined point-mass prediction variance must be finite and positive")
+        return PointMassUncertaintyDiagnostics(
+            method="first_order" if use_first_order else "sigma_points",
+            scenario_variance_s2=scenario_variance,
+            parameter_variance_s2=parameter_variance,
+            residual_variance_s2=residual_variance,
+            sigma_point_variance_s2=sigma_variance,
+            first_order_variance_s2=first_order,
+            total_variance_s2=total,
+            active_set_stable=active_stable,
+            relative_variance_error=relative_error,
+            feasible_radius_scale=radius_scale,
+        )
 
     def validate_grid_refinement(self, scenario: PointMassVehicleScenario) -> float:
         """Return relative one-bisection lap-time change, enforcing DEC-141's 0.1% limit."""

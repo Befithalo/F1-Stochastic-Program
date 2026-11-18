@@ -73,6 +73,8 @@ def _uncertain_model(
         effective_power_mass_scale=scale,
         power_mass_scale_variance=covariance,
         residual_variance_s2=residual_variance_s2,
+        residual_support_laps=30 if residual_variance_s2 is not None else 0,
+        residual_support_races=3 if residual_variance_s2 is not None else 0,
     )
     return PointMassPaceModel(
         model.geometry,
@@ -326,7 +328,7 @@ def test_active_set_change_selects_bounded_sigma_points(
     assert diagnostic.parameter_variance_s2 == diagnostic.sigma_point_variance_s2
 
 
-def test_nonlinear_first_order_disagreement_selects_sigma_points(
+def test_uncertainty_variance_disagreement_selects_sigma_points(
     tmp_path: Path,
     long_synthetic_db: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -356,7 +358,7 @@ def test_nonlinear_first_order_disagreement_selects_sigma_points(
     assert diagnostic.relative_variance_error > 0.1
 
 
-def test_bound_shrink_preserves_sigma_point_symmetry_and_fails_at_zero_radius(
+def test_uncertainty_bound_shrink_preserves_symmetry_and_fails_at_zero_radius(
     tmp_path: Path, long_synthetic_db: Path
 ) -> None:
     upper = 1_000_000.0 / 650_000.0
@@ -381,6 +383,47 @@ def test_bound_shrink_preserves_sigma_point_symmetry_and_fails_at_zero_radius(
     )
     with pytest.raises(ValueError, match="no feasible symmetric"):
         zero_radius.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+
+
+def test_uncertainty_nonfinite_finite_difference_uses_finite_sigma_points(
+    tmp_path: Path,
+    long_synthetic_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _uncertain_model(tmp_path, long_synthetic_db)
+
+    def partially_nonfinite_mean(
+        self: Any,
+        *,
+        scenario: Any,
+        mass_kg: float,
+        grip_mu: float,
+        power_mass_scale: float,
+    ) -> float:
+        del self, scenario, mass_kg, grip_mu
+        delta = power_mass_scale - 1.0
+        if 0.0 < abs(delta) < 0.001:
+            return math.nan
+        return 100.0 + 2.0 * delta
+
+    monkeypatch.setattr(PointMassPaceModel, "_lap_mean", partially_nonfinite_mean)
+    diagnostic = model.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+
+    assert diagnostic.method == "sigma_points"
+    assert diagnostic.first_order_variance_s2 is None
+    assert diagnostic.sigma_point_variance_s2 is not None
+    assert diagnostic.parameter_variance_s2 == diagnostic.sigma_point_variance_s2
+
+
+def test_parameters_reject_residual_variance_without_supported_rows(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    model = _model(tmp_path, long_synthetic_db)
+
+    with pytest.raises(ValueError, match="30 laps from three training races"):
+        replace(model.parameters, residual_variance_s2=0.02)
 
 
 def test_out_of_sample_physics_input_is_rejected(tmp_path: Path, long_synthetic_db: Path) -> None:
