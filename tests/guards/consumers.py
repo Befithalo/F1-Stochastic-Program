@@ -289,6 +289,9 @@ CONSUMED: Final[dict[str, str]] = {
 _PURE_MATHS: Final = "pure array maths; takes numbers, never a snapshot or accessor (D-09)"
 EXEMPT: Final[dict[str, str]] = {
     "f1si.data.asof.catalog": "calendar facts (names, dates, eras) of every race are public",
+    "f1si.data.asof.optional_channel_row_counts": (
+        "aggregate counts only; exposes no time-series rows or result fields"
+    ),
     "f1si.data.asof.resolve_slug": "maps a name to a race id using the calendar only",
     "f1si.plots.stints.build_figure": "pure drawing of already-prepared StintPlotData",
     "f1si.plots.stints.render_stint_plot": "writes a figure of prepared StintPlotData to disk",
