@@ -217,6 +217,45 @@ def test_solver_force_envelope_and_segment_integration() -> None:
         )
 
 
+def test_one_at_a_time_physical_sensitivities_preserve_expected_direction() -> None:
+    from f1si.pace.point_mass import (
+        _corner_caps,
+        _lap_time_s,
+        _solve_speed_envelope,
+    )
+
+    radius_m = 120.0
+    segment_count = 64
+    ds = np.full(segment_count, 2.0 * math.pi * radius_m / segment_count, dtype=np.float64)
+    curvature = np.full(segment_count, 1.0 / radius_m, dtype=np.float64)
+
+    def lap_time(
+        *, mass_kg: float = 850.0, power_w: float = 650_000.0, drag_area_m2: float = 1.4
+    ) -> float:
+        speed, _ = _solve_speed_envelope(
+            ds=ds,
+            curvature=curvature,
+            mass_kg=mass_kg,
+            power_w=power_w,
+            drag_area_m2=drag_area_m2,
+            downforce_area_m2=5.3,
+            grip_mu=1.7,
+        )
+        return _lap_time_s(ds, speed)
+
+    drive_limited = lap_time()
+    assert lap_time(power_w=700_000.0) < drive_limited
+    assert lap_time(drag_area_m2=1.8) > drive_limited
+    assert lap_time(mass_kg=900.0) > drive_limited
+
+    curvature_sample = np.asarray([1.0 / radius_m], dtype=np.float64)
+    corner_cap = _corner_caps(curvature_sample, 850.0, 5.3, 1.7)
+    more_grip_cap = _corner_caps(curvature_sample, 850.0, 5.3, 1.8)
+    more_downforce_cap = _corner_caps(curvature_sample, 850.0, 5.8, 1.7)
+    assert more_grip_cap[0] > corner_cap[0]
+    assert more_downforce_cap[0] > corner_cap[0]
+
+
 def test_point_mass_references_must_match(tmp_path: Path, long_synthetic_db: Path) -> None:
     from f1si.data.asof import AsOf, AsOfAccessor
     from f1si.data.physics_input import VersionedArtifactRef, build_physics_input
