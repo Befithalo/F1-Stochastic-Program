@@ -162,7 +162,6 @@ def _eligible_rows(
 
     laps = physics.laps
     required = {
-        "visible_at_s",
         "driver_number",
         "lap_number",
         "lap_time_s",
@@ -174,12 +173,21 @@ def _eligible_rows(
         "track_status",
     }
     missing = required.difference(laps.columns)
+    visibility_column = (
+        "visible_at_s"
+        if "visible_at_s" in laps.columns
+        else "lap_end_s"
+        if "lap_end_s" in laps.columns
+        else None
+    )
+    if visibility_column is None:
+        missing.add("visible_at_s or lap_end_s")
     if missing:
         return [], f"race {race.race_id} is missing lap evidence: {', '.join(sorted(missing))}"
 
     rows: list[_FitRow] = []
     for record in laps.to_dict(orient="records"):
-        visible_at = _finite_float(record.get("visible_at_s"))
+        visible_at = _finite_float(record.get(visibility_column))
         if visible_at is None:
             continue
         cutoff = physics.cutoff_s
