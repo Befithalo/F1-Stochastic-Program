@@ -16,8 +16,8 @@ Requirements committed for M2. Every physics model must include a synthetic know
 
 ### Point-Mass Pace
 
-- [ ] **PHY-01**: A user can obtain a deterministic lap-time mean and uncertainty from track distance/curvature, effective drive power, drag, downforce, grip, and declared mass/fuel inputs through the existing `PaceModel` contract.
-- [ ] **PHY-02**: A user can verify the point-mass model's recovered identifiable parameters and physical invariants using synthetic known-parameter trajectories and independent parameter/track sensitivity checks.
+- [x] **PHY-01**: A user can obtain a deterministic lap-time mean and uncertainty from track distance/curvature, effective drive power, drag, downforce, grip, and declared mass/fuel inputs through the existing `PaceModel` contract.
+- [x] **PHY-02**: A user can verify the point-mass model's recovered identifiable parameters and physical invariants using synthetic known-parameter trajectories and independent parameter/track sensitivity checks.
 
 ### Tire Thermal and Wear State
 
@@ -73,8 +73,8 @@ The proposed M2 gate is intentionally stricter than a positive point estimate: r
 | DAT-01 | Phase 9 | Complete |
 | GEO-01 | Phase 9 | Complete |
 | PAR-01 | Phase 9 | Complete |
-| PHY-01 | Phase 10 | Pending |
-| PHY-02 | Phase 10 | Pending |
+| PHY-01 | Phase 10 | Complete |
+| PHY-02 | Phase 10 | Complete |
 | TIR-01 | Phase 11 | Pending |
 | TIR-02 | Phase 11 | Pending |
 | HYB-01 | Phase 12 | Pending |

@@ -64,9 +64,9 @@ Plans:
   1. A user can request lap-time mean and uncertainty from track distance and curvature, effective drive power, drag, downforce, grip, and declared mass/fuel inputs through the current PaceModel contract.
   2. Synthetic known-parameter trajectories recover the model's identifiable parameters within declared tolerances, while physical invariants and independent parameter/track sensitivity checks behave as documented.
 
-**Plans:** 3 plans
+**Plans:** 1/3 plans executed
 Plans:
-- [ ] 10-01-PLAN.md — Build and verify the deterministic cyclic point-mass PaceModel.
+- [x] 10-01-PLAN.md — Build and verify the deterministic cyclic point-mass PaceModel.
 - [ ] 10-02-PLAN.md — Fit the identifiable effective term and validate deterministic uncertainty.
 - [ ] 10-03-PLAN.md — Prove independent synthetic recovery and publish the Phase 10 report.
 
@@ -105,6 +105,6 @@ Plans:
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 9. Data and Geometry Readiness | v2.0 | 4/4 | Complete    | 2026-11-18 |
-| 10. Point-Mass PaceModel | v2.0 | 0/TBD | Not started | - |
+| 10. Point-Mass PaceModel | v2.0 | 1/3 | In Progress | - |
 | 11. Tire Thermal and Energy/Wear State | v2.0 | 0/TBD | Not started | - |
 | 12. Hybrid Pace and Locked Held-Out-Stint Gate | v2.0 | 0/TBD | Not started | - |
