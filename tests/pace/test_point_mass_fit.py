@@ -68,6 +68,7 @@ def _model(
     cutoff_s: float = 4_000.0,
     cutoff_boundary: bool = False,
     post_cutoff_row: bool = False,
+    future_time_delta: float = 0.0,
     out_of_sample: bool = False,
     observed_scale: float | None = None,
 ) -> PointMassPaceModel:
@@ -161,7 +162,8 @@ def _model(
                     if observed_scale is not None
                     else _lap_time_s(model._ds, speed)
                 )
-                + 0.004 * math.sin(lap_no * 0.71 + season),
+                + 0.004 * math.sin(lap_no * 0.71 + season)
+                + (future_time_delta if visible_at > cutoff_s else 0.0),
                 "tyre_life": lap_no,
                 "compound": "MEDIUM",
                 "stint": 1,
@@ -178,6 +180,22 @@ def _model(
         prepared,
         parameters,
         {"SOFT": 1.1, "MEDIUM": 1.0, "HARD": 0.9},
+    )
+
+
+def _with_laps(model: PointMassPaceModel, laps: pd.DataFrame) -> PointMassPaceModel:
+    snapshot = replace(model.physics_input.snapshot, laps=laps)
+    physics = PhysicsInput(
+        snapshot,
+        model.geometry.reference,
+        model.parameters.parameter_ref,
+        model.physics_input.coverage,
+    )
+    return PointMassPaceModel(
+        model.geometry,
+        physics,
+        model.parameters,
+        model.compound_grip,
     )
 
 
@@ -289,6 +307,68 @@ def test_fit_rejects_races_outside_the_training_seasons(tmp_path: Path, season: 
     assert report.status == "unidentifiable"
     assert report.candidate_scale is None
     assert "2023-2025" in (report.unidentifiable_reason or "")
+
+
+def test_cutoff_equality_is_included_and_reported(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    model = _model(
+        profile,
+        season=2023,
+        scale=1.08,
+        lap_numbers=range(2, 42),
+        cutoff_boundary=True,
+    )
+
+    report = fit_effective_power_mass_scale((model,))
+
+    assert report.n_laps == 40
+    assert report.cutoffs == (("2023-01", 4_000.0),)
+    assert report.race_ids == ("2023-01",)
+
+
+def test_post_cutoff_rows_and_values_leave_fit_report_unchanged(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    visible = tuple(
+        _model(profile, season=year, scale=1.08, lap_numbers=range(2, 41))
+        for year in (2023, 2024, 2025)
+    )
+    future = tuple(
+        _model(
+            profile,
+            season=year,
+            scale=1.08,
+            lap_numbers=range(2, 42),
+            post_cutoff_row=True,
+            future_time_delta=10_000.0,
+        )
+        for year in (2023, 2024, 2025)
+    )
+
+    visible_report = fit_effective_power_mass_scale(visible)
+    future_report = fit_effective_power_mass_scale(future)
+
+    assert visible_report.to_dict() == future_report.to_dict()
+
+
+def test_training_row_and_model_permutation_leave_report_unchanged(tmp_path: Path) -> None:
+    profile = _profile(tmp_path)
+    models = tuple(_model(profile, season=year, scale=1.08) for year in (2023, 2024, 2025))
+    permuted = tuple(
+        _with_laps(
+            model,
+            model.physics_input.laps.iloc[
+                np.random.default_rng(42 + model.physics_input.race.season).permutation(
+                    len(model.physics_input.laps)
+                )
+            ].reset_index(drop=True),
+        )
+        for model in reversed(models)
+    )
+
+    expected = fit_effective_power_mass_scale(models)
+    actual = fit_effective_power_mass_scale(permuted)
+
+    assert expected.to_dict() == actual.to_dict()
 
 
 def test_fit_report_keeps_absolute_vehicle_terms_as_assumptions(
