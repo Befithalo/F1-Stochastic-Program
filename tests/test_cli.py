@@ -493,7 +493,11 @@ def test_synthetic_db_holds_complete_races(
 ) -> None:
     assert len(_db.completed_race_ids(synthetic_db)) == len(synthetic_races) == 4
     for name in schema.PER_RACE_TABLES:
-        assert len(_db.read_table(synthetic_db, name)) > 0
+        table = _db.read_table(synthetic_db, name)
+        spec = schema.TABLES[name]
+        assert tuple(table.columns) == spec.column_names
+        if not spec.optional:
+            assert not table.empty
 
 
 def _load_synthetic(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
