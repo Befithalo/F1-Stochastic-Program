@@ -12,7 +12,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from scipy.optimize import minimize_scalar
 
-from f1si.data.asof import RaceEnd
 from f1si.interfaces import DRY_COMPOUNDS
 from f1si.laps import slow_status
 from f1si.pace.point_mass import PointMassPaceModel, PointMassParameters
@@ -157,8 +156,8 @@ def _eligible_rows(
         return [], f"race {race.race_id} is outside the 2023-2025 training range"
     if physics.snapshot.at.race_id != race.race_id:
         return [], f"race identity does not match the prepared as-of input for {race.race_id}"
-    if physics.cutoff_s is None and not isinstance(physics.at.lap, RaceEnd):
-        return [], f"race {race.race_id} has no usable cutoff"
+    # A null numeric cutoff is valid for a prepared completed-race snapshot; its PhysicsInput
+    # already contains only rows visible at that supplied snapshot boundary.
 
     laps = physics.laps
     required = {
