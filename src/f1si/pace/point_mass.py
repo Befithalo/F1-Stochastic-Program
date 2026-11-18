@@ -75,6 +75,9 @@ class PointMassParameters:
 
     parameter_ref: VersionedArtifactRef
     scenarios: tuple[PointMassVehicleScenario, ...]
+    effective_power_mass_scale: float = 1.0
+    power_mass_scale_variance: float | None = None
+    residual_variance_s2: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "scenarios", tuple(self.scenarios))
@@ -83,6 +86,27 @@ class PointMassParameters:
         drivers = [item.driver for item in self.scenarios]
         if not drivers or len(drivers) != len(set(drivers)):
             raise ValueError("scenarios must include unique driver identifiers")
+        scale = float(self.effective_power_mass_scale)
+        if not math.isfinite(scale) or scale <= 0:
+            raise ValueError("effective power-to-mass scale must be finite and positive")
+        for scenario in self.scenarios:
+            effective_power = scenario.power_w * scale
+            lower, upper = _BOUNDS["power_w"]
+            if not lower <= effective_power <= upper:
+                raise ValueError("scaled effective power must remain within registered bounds")
+        for name, value in (
+            ("power_mass_scale_variance", self.power_mass_scale_variance),
+            ("residual_variance_s2", self.residual_variance_s2),
+        ):
+            if value is not None and (not math.isfinite(float(value)) or value < 0):
+                raise ValueError(f"{name} must be finite and nonnegative when present")
+        object.__setattr__(self, "effective_power_mass_scale", scale)
+        if self.power_mass_scale_variance is not None:
+            object.__setattr__(
+                self, "power_mass_scale_variance", float(self.power_mass_scale_variance)
+            )
+        if self.residual_variance_s2 is not None:
+            object.__setattr__(self, "residual_variance_s2", float(self.residual_variance_s2))
 
     def for_driver(self, driver: int) -> PointMassVehicleScenario:
         for scenario in self.scenarios:
@@ -334,20 +358,36 @@ class PointMassPaceModel:
             )
             mass = scenario.mass_kg + fuel
             grip = scenario.grip_mu * self.compound_grip[str(compound_name)]
-            speed, _ = _solve_speed_envelope(
-                ds=self._ds,
-                curvature=self._curvature,
+            mean[index] = self._lap_mean(
+                scenario=scenario,
                 mass_kg=mass,
-                power_w=scenario.power_w,
-                drag_area_m2=scenario.drag_area_m2,
-                downforce_area_m2=scenario.downforce_area_m2,
                 grip_mu=min(3.0, grip),
+                power_mass_scale=self.parameters.effective_power_mass_scale,
             )
-            mean[index] = _lap_time_s(self._ds, speed)
             # Tire age has no fitted wear coefficient until the tire-state phase.
             mean[index] += 0.0 * float(age)
             sd[index] = scenario.time_sd_s
         return mean, sd
+
+    def _lap_mean(
+        self,
+        *,
+        scenario: PointMassVehicleScenario,
+        mass_kg: float,
+        grip_mu: float,
+        power_mass_scale: float,
+    ) -> float:
+        """Evaluate one prepared lap at a candidate effective tractive power scale."""
+        speed, _ = _solve_speed_envelope(
+            ds=self._ds,
+            curvature=self._curvature,
+            mass_kg=mass_kg,
+            power_w=scenario.power_w * power_mass_scale,
+            drag_area_m2=scenario.drag_area_m2,
+            downforce_area_m2=scenario.downforce_area_m2,
+            grip_mu=grip_mu,
+        )
+        return _lap_time_s(self._ds, speed)
 
     def validate_grid_refinement(self, scenario: PointMassVehicleScenario) -> float:
         """Return relative one-bisection lap-time change, enforcing DEC-141's 0.1% limit."""

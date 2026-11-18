@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from f1si.data.asof import AsOf, RaceInfo, RaceSnapshot
 from f1si.data.physics_input import PhysicsInput, VersionedArtifactRef
-from f1si.geometry.profile import load_profile
+from f1si.geometry.profile import GeometryProfile, load_profile
 from f1si.pace.point_mass import (
     PointMassPaceModel,
     PointMassParameters,
@@ -24,8 +27,32 @@ from f1si.pace.point_mass_fit import fit_effective_power_mass_scale
 from tests.geometry.test_profile import _write_profile
 
 
-def _profile(tmp_path: Path):
-    return load_profile(_write_profile(tmp_path), asset_root=tmp_path)
+def _profile(tmp_path: Path) -> GeometryProfile:
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    asset_path = tmp_path / manifest["asset_path"]
+    points: list[tuple[float, float]] = []
+    points.extend((float(x), 100.0) for x in np.linspace(-1_000, 1_000, 80, endpoint=False))
+    points.extend(
+        (
+            1_000.0 + 100.0 * math.cos(float(angle)),
+            100.0 * math.sin(float(angle)),
+        )
+        for angle in np.linspace(math.pi / 2, -math.pi / 2, 13, endpoint=True)
+    )
+    points.extend((float(x), -100.0) for x in np.linspace(1_000, -1_000, 80, endpoint=False)[1:])
+    points.extend(
+        (
+            -1_000.0 + 100.0 * math.cos(float(angle)),
+            100.0 * math.sin(float(angle)),
+        )
+        for angle in np.linspace(-math.pi / 2, -3 * math.pi / 2, 13, endpoint=True)
+    )
+    asset = "x_m,y_m,width_m\n" + "".join(f"{x:.6f},{y:.6f},12.00\n" for x, y in points)
+    asset_path.write_text(asset, encoding="utf-8")
+    manifest["sha256"] = hashlib.sha256(asset_path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return load_profile(manifest_path, asset_root=tmp_path)
 
 
 def _empty_frame() -> pd.DataFrame:
@@ -33,7 +60,7 @@ def _empty_frame() -> pd.DataFrame:
 
 
 def _model(
-    profile,
+    profile: GeometryProfile,
     *,
     season: int,
     scale: float,
@@ -42,6 +69,7 @@ def _model(
     cutoff_boundary: bool = False,
     post_cutoff_row: bool = False,
     out_of_sample: bool = False,
+    observed_scale: float | None = None,
 ) -> PointMassPaceModel:
     race_id = f"{season}-01"
     at = AsOf(race_id, 50)
@@ -60,13 +88,13 @@ def _model(
     )
     scenario = PointMassVehicleScenario(
         driver=1,
-        season="2023",
+        season=str(season) if season in (2023, 2024, 2025) else "2023",
         mass_kg=850.0,
         fuel_kg=50.0,
         fuel_burn_kg_per_lap=1.7,
         power_w=650_000.0,
         drag_area_m2=1.4,
-        downforce_area_m2=10.0,
+        downforce_area_m2=5.3,
         grip_mu=1.7,
         time_sd_s=0.15,
     )
@@ -128,7 +156,11 @@ def _model(
             {
                 "driver_number": 1,
                 "lap_number": lap_no,
-                "lap_time_s": _lap_time_s(model._ds, speed)
+                "lap_time_s": (
+                    100.0 - observed_scale * lap_no
+                    if observed_scale is not None
+                    else _lap_time_s(model._ds, speed)
+                )
                 + 0.004 * math.sin(lap_no * 0.71 + season),
                 "tyre_life": lap_no,
                 "compound": "MEDIUM",
@@ -165,6 +197,7 @@ def test_fit_recovers_effective_scale_from_cutoff_scoped_training_panel(
     assert report.candidate_scale == pytest.approx(1.08, rel=0.05)
     assert report.declared_assumption == 1.0
     assert report.sensitivity_rank > 0
+    assert report.sensitivity_condition is not None
     assert report.sensitivity_condition <= 1e6
     assert report.n_races == 3
     assert report.n_laps >= 30
@@ -192,31 +225,74 @@ def test_empty_panel_is_explicitly_unidentifiable_and_keeps_assumption() -> None
     assert report.unidentifiable_reason
 
 
+@pytest.mark.parametrize(
+    ("observed_scale", "expected_boundary"),
+    [(0.2, 0.8), (2.0, 1.4)],
+)
 def test_bound_optimum_is_boundary_limited_and_does_not_replace_assumption(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    observed_scale: float,
+    expected_boundary: float,
 ) -> None:
+    from f1si.pace import point_mass_fit
+
     profile = _profile(tmp_path)
-    models = tuple(_model(profile, season=year, scale=1.8) for year in (2023, 2024, 2025))
+    models = tuple(
+        _model(profile, season=year, scale=1.0, observed_scale=observed_scale)
+        for year in (2023, 2024, 2025)
+    )
+    monkeypatch.setattr(
+        point_mass_fit,
+        "_lap_prediction",
+        lambda row, scale: 100.0 - scale * row.lap,
+    )
 
     report = fit_effective_power_mass_scale(
         models,
         declared_assumption=1.0,
-        bounds=(0.75, 1.4),
+        bounds=(0.8, 1.4),
     )
 
     assert report.status == "boundary_limited"
     assert report.candidate_scale is None
     assert report.declared_assumption == 1.0
-    assert report.boundary_value == pytest.approx(1.4)
+    assert report.boundary_value == pytest.approx(expected_boundary)
+
+
+def test_rank_deficient_panel_is_unidentifiable_and_keeps_assumption(
+    tmp_path: Path,
+) -> None:
+    profile = _profile(tmp_path)
+    models = tuple(
+        _model(profile, season=year, scale=1.0, lap_numbers=(10,)) for year in (2023, 2024, 2025)
+    )
+
+    report = fit_effective_power_mass_scale(models, declared_assumption=1.0)
+
+    assert report.status == "unidentifiable"
+    assert report.candidate_scale is None
+    assert report.declared_assumption == 1.0
+    assert report.sensitivity_rank < report.n_races + 1
+    assert "rank deficient" in (report.unidentifiable_reason or "")
+
+
+@pytest.mark.parametrize("season", [2022, 2026])
+def test_fit_rejects_races_outside_the_training_seasons(tmp_path: Path, season: int) -> None:
+    profile = _profile(tmp_path)
+    model = _model(profile, season=season, scale=1.0)
+
+    report = fit_effective_power_mass_scale((model,))
+
+    assert report.status == "unidentifiable"
+    assert report.candidate_scale is None
+    assert "2023-2025" in (report.unidentifiable_reason or "")
 
 
 def test_fit_report_keeps_absolute_vehicle_terms_as_assumptions(
     tmp_path: Path,
 ) -> None:
-    profile = _profile(tmp_path)
-    model = _model(profile, season=2023, scale=1.0)
-
-    report = fit_effective_power_mass_scale((model,))
+    report = fit_effective_power_mass_scale([])
     serialized = report.to_dict()
 
     assert report.candidate_term == "effective_tractive_power_to_mass_scale"
