@@ -51,6 +51,7 @@ class ChannelCoverage:
     sampling_gap_status: str
     race_clock_alignment: str
     fallback: str | None
+    reason: str | None
 
 
 def _copy_snapshot(snapshot: RaceSnapshot) -> RaceSnapshot:
@@ -85,7 +86,14 @@ def _coverage(channel: str, frame: pd.DataFrame) -> ChannelCoverage:
     count = len(frame)
     if not count:
         return ChannelCoverage(
-            "unavailable", 0, 0.0, None, "unavailable", "unavailable", "cached_lap_timing"
+            "unavailable",
+            0,
+            0.0,
+            None,
+            "unavailable",
+            "unavailable",
+            "cached_lap_timing",
+            f"No {channel} rows are visible at this cutoff.",
         )
     if "source_utc" not in frame.columns:
         valid_fraction = 0.0
@@ -121,14 +129,24 @@ def _coverage(channel: str, frame: pd.DataFrame) -> ChannelCoverage:
         "insufficient" if p95 is None else "within_limit" if p95 <= max_gap else "exceeds_limit"
     )
     aligned = aligned_fraction >= _MIN_TIMESTAMP_FRACTION
-    status = (
-        "available"
-        if count >= _MIN_CHANNEL_ROWS
-        and valid_fraction >= _MIN_TIMESTAMP_FRACTION
-        and aligned
-        and gap_status == "within_limit"
-        else "sparse"
-    )
+    reasons: list[str] = []
+    if count < _MIN_CHANNEL_ROWS:
+        reasons.append(f"only {count} rows are visible; at least {_MIN_CHANNEL_ROWS} are required")
+    if valid_fraction < _MIN_TIMESTAMP_FRACTION:
+        reasons.append(
+            f"valid source timestamp fraction {valid_fraction:.1%} is below "
+            f"{_MIN_TIMESTAMP_FRACTION:.0%}"
+        )
+    if not aligned:
+        reasons.append(
+            f"race-clock mapping fraction {aligned_fraction:.1%} is below "
+            f"{_MIN_TIMESTAMP_FRACTION:.0%}"
+        )
+    if gap_status == "insufficient":
+        reasons.append("there are too few mapped samples to measure the per-driver sampling gap")
+    elif gap_status == "exceeds_limit":
+        reasons.append(f"p95 sampling gap exceeds the {max_gap:g} second limit")
+    status = "available" if not reasons else "sparse"
     return ChannelCoverage(
         status=status,
         row_count=count,
@@ -137,6 +155,7 @@ def _coverage(channel: str, frame: pd.DataFrame) -> ChannelCoverage:
         sampling_gap_status=gap_status,
         race_clock_alignment="mapped" if aligned else "unavailable",
         fallback=None if status == "available" else "cached_lap_timing",
+        reason="; ".join(reasons) if reasons else None,
     )
 
 

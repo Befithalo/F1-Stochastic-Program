@@ -21,7 +21,7 @@ created: "2026-11-17"
 | **Config file** | pyproject.toml |
 | **Quick run command** | uv run pytest tests/data/test_physics_input.py tests/data/test_coverage_audit.py tests/data/test_asof.py -q |
 | **Full suite command** | uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest --cov=f1si --cov-report=term |
-| **Estimated runtime** | Under 60 minutes in CI; exact local runtime to be recorded by the executor |
+| **Estimated runtime** | Under 60 minutes in CI; observed full-suite runtime: 33m31s on Windows / Python 3.12 |
 
 No new test or runtime dependency is planned. The phase extends the existing normalized source/cache loader and validates DuckDB changes through that loader and tests; it creates no schema-push task.
 
@@ -46,7 +46,7 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 | 09-01-T03 | 09-01-PLAN.md | 0 | PAR-01 | T-09-04 | Specify effective-versus-assumed classification, evidence, bounds, numeric sensitivity, pre-solver status, and closeout coverage/baseline fields | Contract collection | uv run pytest tests/parameters/test_register.py --collect-only -q | Wave 0 creates it | green |
 | 09-02-T01 | 09-02-PLAN.md | 1 | DAT-01 | T-09-05 | Preserve source time and exclude post-cutoff telemetry through the as-of door | Integration | uv run pytest tests/data/test_physics_input.py -k "car_data_cutoff or physics_input_is_immutable" -q | Created by 09-01-T01 | green |
 | 09-02-T02 | 09-02-PLAN.md | 1 | DAT-01 | T-09-06 | Validate timestamped optional payloads and report sparse-channel fallback | Unit + integration | uv run pytest tests/data/test_physics_input.py tests/data/test_asof.py -q | Created by 09-01-T01 | green |
-| 09-02-T03 | 09-02-PLAN.md | 1 | DAT-01 | T-09-17 | Audit every complete local race and perform the single bounded Bahrain 2023 probe through the rate-limited cache | Integration + report generation | uv run f1si physics-coverage-audit --output .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --probe-race 2023-01 | Created by 09-01-T01 | green |
+| 09-02-T03 | 09-02-PLAN.md | 1 | DAT-01 | T-09-17 | Audit every complete local race against persisted channel counts; run one bounded Bahrain probe with exact inclusive local endpoints, explicit per-endpoint outcomes, and retained partial evidence | Integration + report generation | uv run pytest tests/data/test_coverage_audit.py -q; uv run f1si physics-coverage-audit --output .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --probe-race 2023-01 | Created by 09-01-T01 | green |
 | 09-03-T01 | 09-03-PLAN.md | 2 | GEO-01 | T-09-11 | Reject path escapes, missing/altered digest, malformed geometry, units, or quality failures | Unit + integration | uv run pytest tests/geometry/test_profile.py -q | Created by 09-01-T02 | green |
 | 09-03-T02 | 09-03-PLAN.md | 2 | GEO-01 | T-09-11 | Pin source revision and record file-level rights, transform, attribution, and digest | Integration + provenance review | uv run pytest tests/geometry/test_profile.py tests/data/test_physics_input.py -q | Created by 09-01-T02 and 09-01-T01 | green |
 | 09-04-T01 | 09-04-PLAN.md | 3 | PAR-01 | T-09-13 | Keep hidden physical values distinct and require citations, era bounds, and uncertainty | Unit + serialization | uv run pytest tests/parameters/test_register.py -k "register or assumption" -q | Created by 09-01-T03 | green |
@@ -80,7 +80,15 @@ No new test or runtime dependency is planned. The phase extends the existing nor
 - [x] Sampling continuity has no three consecutive tasks without automated verification.
 - [x] Wave 0 covers all three previously missing test suites.
 - [x] No watch-mode flags.
-- [ ] Feedback latency is within the limits above.
+- [x] Feedback latency is within the limits above (focused audit test <2s; full suite 33m31s).
 - [x] Set nyquist_compliant: true only after Wave 0 tests and the phase test map are complete.
 
 **Approval:** autonomous execution authorized; Wave 0 collection complete.
+
+## Nyquist Audit Addendum (2026-11-18)
+
+- The local catalog test now independently compares every complete race's channel row counts and presence flags, plus the aggregate totals, with the corresponding DuckDB tables. Incomplete-race rows are excluded from the report expectation.
+- The bounded-probe tests now prove the strict OpenF1 request is padded by one microsecond at each edge and that the local inclusive mask accepts rows exactly at 0 and 600 seconds; the out-of-window-only case remains unavailable.
+- Optional OpenF1 channel failure/quarantine, partial probe evidence rendering, and required geometry-manifest evidence each have focused behavioral tests tied to the review fixes.
+- Phase full suite: `uv run pytest --cov=f1si --cov-report=term` — 1,315 passed, 33 deselected in 33m31s on Windows / Python 3.12. Repository Ruff check, formatting check, and mypy passed. Ubuntu/Windows CI is the remaining closeout gate.
+- New coverage audit assertion: `uv run pytest tests/data/test_coverage_audit.py::test_local_audit_counts_every_complete_race_and_channel -q` — 1 passed.

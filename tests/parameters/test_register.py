@@ -139,7 +139,56 @@ def test_closeout_contract_carries_coverage_and_exact_m1_baseline(tmp_path: Path
     assert "not_estimable_pre_solver" in rendered
     assert "complete catalog audit covers 1 races" in rendered
     assert "20 rows" in rendered
-    assert "Probe status: unavailable; service returned no rows." in rendered
+    assert "Probe status: unavailable." in rendered
+    assert "Probe reason: service returned no rows." in rendered
+    assert "/car_data: 0 rows, 0 usable, alignment unavailable" in rendered
+
+
+def test_closeout_renders_partial_probe_endpoint_evidence_and_reasons() -> None:
+    from f1si.parameters.report import render_phase_report
+
+    sensitivity = {
+        "evidence_sensitivity": {"eligible_race_count": 1, "sample_count": 50},
+        "predictive_lap_time_sensitivity": "not_estimable_pre_solver",
+    }
+    coverage = {
+        "bahrain_2023_probe": {
+            "status": "unavailable",
+            "reason": "bounded telemetry probe failed at /location: location endpoint unavailable",
+            "endpoints": {
+                "/car_data": {
+                    "status": "available",
+                    "row_count": 4,
+                    "usable_row_count": 4,
+                    "valid_timestamp_fraction": 1.0,
+                    "race_clock_alignment": "aligned",
+                },
+                "/location": {
+                    "status": "unavailable",
+                    "reason": "request failed: location endpoint unavailable",
+                    "row_count": 0,
+                    "usable_row_count": 0,
+                    "valid_timestamp_fraction": 0.0,
+                    "race_clock_alignment": "unavailable",
+                },
+                "/weather": {
+                    "status": "unavailable",
+                    "reason": "not requested after /location failed",
+                    "row_count": 0,
+                    "usable_row_count": 0,
+                    "valid_timestamp_fraction": 0.0,
+                    "race_clock_alignment": "unavailable",
+                },
+            },
+        }
+    }
+
+    rendered = render_phase_report(sensitivity, coverage)
+
+    assert "/car_data: 4 rows, 4 usable, alignment aligned" in rendered
+    assert "/location: 0 rows, 0 usable, alignment unavailable" in rendered
+    assert "reason: request failed: location endpoint unavailable" in rendered
+    assert "reason: not requested after /location failed" in rendered
 
 
 @pytest.mark.parametrize(

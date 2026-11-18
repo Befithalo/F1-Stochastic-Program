@@ -120,18 +120,24 @@ def build_sensitivity_report(
 
 def _endpoint_rows(coverage: dict[str, Any]) -> str:
     endpoints = coverage.get("endpoints", {})
-    if coverage.get("status") != "available":
-        status = coverage.get("status", "unavailable")
-        reason = coverage.get("reason", "no reason recorded")
-        return f"Probe status: {status}; {reason}."
-    rows = []
+    status = coverage.get("status", "unavailable")
+    rows = [f"Probe status: {status}."]
+    top_reason = coverage.get("reason")
+    if top_reason:
+        rows.append(f"Probe reason: {top_reason}.")
     for endpoint in ("/car_data", "/location", "/weather"):
         item = endpoints.get(endpoint, {})
-        rows.append(
+        detail = (
             f"{endpoint}: {item.get('row_count', 0)} rows, "
+            f"{item.get('usable_row_count', 0)} usable, "
             f"alignment {item.get('race_clock_alignment', 'unavailable')}, "
-            f"valid source timestamps {item.get('valid_timestamp_fraction', 0):.1%}."
+            f"valid source timestamps {item.get('valid_timestamp_fraction', 0):.1%}, "
+            f"status {item.get('status', 'unavailable')}"
         )
+        reason = item.get("reason")
+        if reason:
+            detail += f", reason: {reason}"
+        rows.append(detail + ".")
     return " ".join(rows)
 
 

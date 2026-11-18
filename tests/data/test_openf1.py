@@ -769,21 +769,65 @@ def test_weather_columns() -> None:
 # ---------------------------------------------------------------- failures
 
 
-def test_missing_weather_fails_the_race_with_a_clear_reason() -> None:
+def test_missing_weather_keeps_the_race_and_uses_cached_lap_timing() -> None:
     payloads = Payloads()
     payloads.weather = []
-    source, _ = payloads.source()
+    messages: list[str] = []
+    source, _ = payloads.source(echo=messages.append)
     (ref,) = source.list_races(2023, now=NOW)
-    with pytest.raises(SourceError, match="weather"):
-        source.fetch(ref)
+    race = source.fetch(ref)
+
+    assert race.tables["weather"].empty
+    assert not race.tables["laps"].empty
+    assert schema.validate_race(race) == []
+    assert any("optional /weather channel returned no rows" in message for message in messages)
 
 
 def test_no_results_detail_for_weather_is_treated_as_missing() -> None:
     source, fake = Payloads().source()
     (ref,) = source.list_races(2023, now=NOW)
     fake.answers["/weather"] = {"detail": "No results found."}
-    with pytest.raises(SourceError, match="weather"):
-        source.fetch(ref)
+    race = source.fetch(ref)
+    assert race.tables["weather"].empty
+    assert not race.tables["laps"].empty
+
+
+@pytest.mark.parametrize("endpoint", ["/weather", "/car_data", "/location"])
+def test_malformed_optional_channel_is_quarantined_without_losing_race(
+    endpoint: str,
+) -> None:
+    payloads = Payloads()
+    if endpoint == "/weather":
+        payloads.weather[0]["date"] = "not-a-timestamp"
+    elif endpoint == "/car_data":
+        payloads.car_data[0]["date"] = "not-a-timestamp"
+    else:
+        payloads.location[0]["date"] = "not-a-timestamp"
+    messages: list[str] = []
+    source, _ = payloads.source(echo=messages.append)
+    (ref,) = source.list_races(2023, now=NOW)
+
+    race = source.fetch(ref)
+
+    channel = endpoint.removeprefix("/")
+    assert race.tables[channel].empty
+    assert not race.tables["laps"].empty
+    assert schema.validate_race(race) == []
+    assert any(f"optional {endpoint} channel failed validation" in msg for msg in messages)
+
+
+@pytest.mark.parametrize("endpoint", ["/weather", "/car_data", "/location"])
+def test_optional_endpoint_transport_error_does_not_discard_race(endpoint: str) -> None:
+    source, fake = Payloads().source()
+    (ref,) = source.list_races(2023, now=NOW)
+    fake.answers[endpoint] = {"unexpected": "payload"}
+
+    race = source.fetch(ref)
+
+    channel = endpoint.removeprefix("/")
+    assert race.tables[channel].empty
+    assert not race.tables["laps"].empty
+    assert schema.validate_race(race) == []
 
 
 def test_too_few_entrants_fails_the_race() -> None:
@@ -865,7 +909,7 @@ def test_any_race_of_the_current_season_is_cached_briefly() -> None:
 
 def test_an_incomplete_race_discards_its_saved_responses() -> None:
     payloads = Payloads()
-    payloads.weather = []
+    payloads.laps = []
     source, fake = payloads.source()
     (ref,) = source.list_races(2023, now=NOW)
     with pytest.raises(SourceError, match="discarded"):

@@ -16,7 +16,7 @@
 - Weather: 87 races / 13928 rows.
 - Car: 0 races / 0 rows.
 - GPS: 0 races / 0 rows.
-- Single bounded Bahrain 2023 probe: /car_data: 45160 rows, alignment aligned, valid source timestamps 100.0%. /location: 45580 rows, alignment aligned, valid source timestamps 100.0%. /weather: 10 rows, alignment aligned, valid source timestamps 100.0%.
+- Single bounded Bahrain 2023 probe: Probe status: available. /car_data: 45160 rows, 45160 usable, alignment aligned, valid source timestamps 100.0%, status available. /location: 45580 rows, 45580 usable, alignment aligned, valid source timestamps 100.0%, status available. /weather: 10 rows, 10 usable, alignment aligned, valid source timestamps 100.0%, status available.
 - GEO-01: pinned Sakhir profile passed its digest, unit, and geometry checks. The raw CSV remains local pending rights clarity.
 
 ## Fixed M1 baseline

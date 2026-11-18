@@ -120,6 +120,7 @@ def test_sparse_optional_channels_report_cached_lap_fallback(long_synthetic_db: 
 
     assert prepared.coverage["car_data"].status in {"unavailable", "sparse"}
     assert prepared.coverage["car_data"].fallback == "cached_lap_timing"
+    assert prepared.coverage["car_data"].reason
 
 
 def test_large_per_driver_sampling_gaps_select_cached_lap_fallback(long_synthetic_db: Path) -> None:
@@ -154,6 +155,8 @@ def test_large_per_driver_sampling_gaps_select_cached_lap_fallback(long_syntheti
     assert coverage.sampling_gap_status == "exceeds_limit"
     assert coverage.status == "sparse"
     assert coverage.fallback == "cached_lap_timing"
+    assert coverage.reason
+    assert "p95 sampling gap" in coverage.reason
 
 
 def test_malformed_optional_channel_without_race_clock_fails_to_cached_laps(
@@ -176,6 +179,8 @@ def test_malformed_optional_channel_without_race_clock_fails_to_cached_laps(
     assert coverage.race_clock_alignment == "unavailable"
     assert coverage.status == "sparse"
     assert coverage.fallback == "cached_lap_timing"
+    assert coverage.reason
+    assert "valid source timestamp fraction" in coverage.reason
 
 
 def test_physics_input_refuses_history_or_out_of_sample_capabilities() -> None:

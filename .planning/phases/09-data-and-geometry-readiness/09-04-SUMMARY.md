@@ -88,7 +88,7 @@ actuals:
   implementation_commits: 3
   duration: 17 min
   commits: [1d5d4cf, 6584b60, ec7d5a5]
-  phase_level_full_suite_and_ci_matrix: pending
+  phase_level_full_suite_and_ci_matrix: local_full_suite_passed_ci_pending
 completed: 2026-11-17
 ---
 
@@ -127,7 +127,12 @@ PAC-06 remains unmet (Bayesian MAE 0.538745 s versus linear pace 0.364033 s); it
 - `uv run ruff check src/f1si/parameters tests/parameters/test_register.py` — **passed**.
 - `uv run ruff format --check src/f1si/parameters tests/parameters/test_register.py` — **passed**.
 - Report command — **passed**; emitted the numeric JSON and Phase 9 closeout from the local cache and coverage audit.
-- Phase-level full-suite and Ubuntu/Windows CI gates remain pending and must pass before routing Phase 10.
+- Focused review-fix suites — **108 passed** across OpenF1, coverage audit, PhysicsInput, geometry, and parameter report; after the final probe-bound refinement, `tests/data/test_coverage_audit.py` — **10 passed**.
+- Repository checks — `uv run ruff check .`, `uv run ruff format --check .`, and `uv run mypy` — **passed**.
+- Full suite — `uv run pytest --cov=f1si --cov-report=term` — **1,315 passed, 33 deselected** in 33m31s on Windows / Python 3.12. The final probe-bound refinement was separately covered by the 10-test coverage audit run.
+- Final code review — **clean**, with all nine earlier findings resolved.
+- Security audit — **17 high-severity threat instances mitigated**; the planned low-severity package-installation risk remains accepted.
+- Ubuntu/Windows CI and goal-backward phase verification remain pending and must pass before routing Phase 10.
 
 ## Task Commits
 

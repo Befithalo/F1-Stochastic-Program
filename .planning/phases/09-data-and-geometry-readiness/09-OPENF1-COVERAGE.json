@@ -5,7 +5,9 @@
         "first_race_clock_s": 0.111,
         "first_source_utc": "2023-03-05T15:03:38.611000Z",
         "race_clock_alignment": "aligned",
+        "reason": null,
         "row_count": 45160,
+        "status": "available",
         "usable_row_count": 45160,
         "valid_timestamp_fraction": 1.0
       },
@@ -13,7 +15,9 @@
         "first_race_clock_s": 0.185,
         "first_source_utc": "2023-03-05T15:03:38.685000Z",
         "race_clock_alignment": "aligned",
+        "reason": null,
         "row_count": 45580,
+        "status": "available",
         "usable_row_count": 45580,
         "valid_timestamp_fraction": 1.0
       },
@@ -21,7 +25,9 @@
         "first_race_clock_s": 9.078,
         "first_source_utc": "2023-03-05T15:03:47.578000Z",
         "race_clock_alignment": "aligned",
+        "reason": null,
         "row_count": 10,
+        "status": "available",
         "usable_row_count": 10,
         "valid_timestamp_fraction": 1.0
       }

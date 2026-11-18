@@ -24,6 +24,7 @@ def _write_profile(root: Path, *, asset_path: str = "Sakhir.csv") -> Path:
     manifest = {
         "schema_version": 1,
         "profile_id": "bahrain-2023-sakhir",
+        "source_repository": "https://example.test/track-profile",
         "source_revision": "a" * 40,
         "source_asset_path": "tracks/Sakhir.csv",
         "asset_path": asset_path,
@@ -33,6 +34,7 @@ def _write_profile(root: Path, *, asset_path: str = "Sakhir.csv") -> Path:
         "units": {"coordinates": "m", "width": "m"},
         "attribution": "TUMFTM racetrack-database; source data attribution pending review",
         "redistribution_status": "external_local_only",
+        "rights_review": {"conclusion": "Synthetic fixture; redistribution is not permitted."},
         "quality": {
             "validation_version": "1",
             "minimum_width_m": 1.0,
@@ -41,6 +43,10 @@ def _write_profile(root: Path, *, asset_path: str = "Sakhir.csv") -> Path:
             "maximum_distance_m": 6_500.0,
             "closed_loop_tolerance_m": 1.0,
             "maximum_curvature_inv_m": 0.02,
+        },
+        "validation": {
+            "status": "passed",
+            "outcome": "Synthetic circular profile passed geometry checks.",
         },
     }
     manifest_path = root / "manifest.json"
@@ -204,4 +210,104 @@ def test_asset_path_must_remain_inside_geometry_root(tmp_path: Path) -> None:
     manifest_path = _write_profile(tmp_path, asset_path="../outside.csv")
 
     with pytest.raises((ValueError, OSError)):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("field", "nested_field"),
+    [
+        ("source_repository", None),
+        ("rights_review", None),
+        ("validation", None),
+        ("rights_review", "conclusion"),
+        ("quality", "validation_version"),
+        ("validation", "outcome"),
+    ],
+)
+def test_manifest_requires_source_rights_and_validation_evidence(
+    tmp_path: Path, field: str, nested_field: str | None
+) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if nested_field is None:
+        manifest.pop(field)
+    else:
+        manifest[field][nested_field] = " "
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(GeometryProfileError):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+def test_manifest_requires_a_passed_validation_outcome(tmp_path: Path) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["validation"]["status"] = "failed"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(GeometryProfileError, match=r"validation\.status"):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+@pytest.mark.parametrize(
+    "quality_field",
+    [
+        "minimum_segment_m",
+        "maximum_curvature_resample_relative_delta",
+        "maximum_curvature_smoothing_relative_delta",
+        "maximum_smoothing_displacement_fraction",
+    ],
+)
+def test_manifest_rejects_nonnumeric_optional_quality_values(
+    tmp_path: Path, quality_field: str
+) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["quality"][quality_field] = "unknown"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(GeometryProfileError, match=quality_field):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+@pytest.mark.parametrize("attribution", [None, " ", 42])
+def test_manifest_requires_nonblank_string_attribution(tmp_path: Path, attribution: object) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["attribution"] = attribution
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(GeometryProfileError, match="attribution"):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+def test_manifest_rejects_blank_source_repository(tmp_path: Path) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["source_repository"] = " "
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(GeometryProfileError, match="source_repository"):
+        load_profile(manifest_path, asset_root=tmp_path)
+
+
+def test_missing_transform_rotation_uses_public_profile_error(tmp_path: Path) -> None:
+    from f1si.geometry.profile import GeometryProfileError, load_profile
+
+    manifest_path = _write_profile(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["transform"].pop("rotation_deg")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(GeometryProfileError, match="transform requires"):
         load_profile(manifest_path, asset_root=tmp_path)

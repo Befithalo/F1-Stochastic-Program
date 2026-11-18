@@ -289,9 +289,9 @@ class OpenF1Source:
         laps_raw = self._rows("/laps", params, freshness=fresh)
         stints_raw = self._rows("/stints", params, freshness=fresh)
         control_raw = self._rows("/race_control", params, freshness=fresh)
-        weather_raw = self._rows("/weather", params, freshness=fresh)
-        car_data_raw = self._rows("/car_data", params, freshness=fresh)
-        location_raw = self._rows("/location", params, freshness=fresh)
+        weather_raw = self._optional_rows(ref, "/weather", params, freshness=fresh)
+        car_data_raw = self._optional_rows(ref, "/car_data", params, freshness=fresh)
+        location_raw = self._optional_rows(ref, "/location", params, freshness=fresh)
         results = self._jolpica.results(ref.season, ref.round, freshness=fresh)
         pit_stops = self._jolpica.pit_stops(ref.season, ref.round, freshness=fresh)
 
@@ -316,11 +316,11 @@ class OpenF1Source:
             )
         laps = _build_laps(ref, laps_in, stints, results, pit_stops, t0)
         race_control = _build_race_control(ref, control_raw, t0)
-        weather = _build_weather(ref, weather_raw, t0)
-        car_data = _build_car_data(ref, car_data_raw, t0)
-        location = _build_location(ref, location_raw, t0)
+        weather = self._optional_table(ref, "/weather", weather_raw, t0, _build_weather)
+        car_data = self._optional_table(ref, "/car_data", car_data_raw, t0, _build_car_data)
+        location = self._optional_table(ref, "/location", location_raw, t0, _build_location)
         try:
-            self._check_complete(ref, entries, laps, race_control, weather, results)
+            self._check_complete(ref, entries, laps, race_control, results)
         except SourceError:
             self.discard_cached(ref)  # the next run must ask the services again (WR-05)
             raise
@@ -346,6 +346,65 @@ class OpenF1Source:
                 "results": _build_results(ref, results),
             },
         )
+
+    def _optional_rows(
+        self,
+        ref: RaceRef,
+        path: str,
+        params: Mapping[str, str | int],
+        *,
+        freshness: Literal["forever", "short"],
+    ) -> list[dict[str, object]]:
+        """Keep optional endpoint failures from discarding otherwise usable race timing."""
+        try:
+            rows = self._rows(path, params, freshness=freshness)
+        except SourceError as error:
+            self._forget_optional_endpoint(path, ref, params)
+            self._echo(
+                f"  note: {ref.slug}: optional {path} channel unavailable; "
+                f"cached lap timing remains available: {error}"
+            )
+            return []
+        if not rows:
+            self._echo(
+                f"  note: {ref.slug}: optional {path} channel returned no rows; "
+                "cached lap timing remains available"
+            )
+        return rows
+
+    def _optional_table(
+        self,
+        ref: RaceRef,
+        path: str,
+        rows: Sequence[Mapping[str, object]],
+        t0: pd.Timestamp,
+        builder: Callable[[RaceRef, Sequence[Mapping[str, object]], pd.Timestamp], pd.DataFrame],
+    ) -> pd.DataFrame:
+        """Quarantine malformed optional channels and retain their schema-correct empty table."""
+        try:
+            return builder(ref, rows, t0)
+        except SourceError as error:
+            self._forget_optional_endpoint(path, ref, None)
+            self._echo(
+                f"  note: {ref.slug}: optional {path} channel failed validation and was omitted; "
+                f"cached lap timing remains available: {error}"
+            )
+            return builder(ref, (), t0)
+
+    def _forget_optional_endpoint(
+        self,
+        path: str,
+        ref: RaceRef,
+        params: Mapping[str, str | int] | None,
+    ) -> None:
+        """Discard only a bad optional response so a later load can retry that endpoint."""
+        session_key = ref.source_keys.get("session_key")
+        if params is None:
+            params = (
+                {"session_key": int(session_key)} if session_key and session_key.isdigit() else None
+            )
+        if params is not None:
+            self._openf1.forget(path, params)
 
     # ------------------------------------------------------------------ helpers
 
@@ -392,7 +451,6 @@ class OpenF1Source:
         entries: pd.DataFrame,
         laps: pd.DataFrame,
         race_control: pd.DataFrame,
-        weather: pd.DataFrame,
         results: pd.DataFrame,
     ) -> None:
         def incomplete(what: str) -> SourceError:
@@ -414,8 +472,6 @@ class OpenF1Source:
                 f"only {with_lap_one} drivers have a lap 1 (expected at least "
                 f"{MIN_DRIVERS_WITH_LAP_1})"
             )
-        if weather.empty:
-            raise incomplete("no weather rows")
         if race_control.empty:
             raise incomplete("no race control messages")
         unknown = sorted(set(laps["driver_number"]) - set(entries["driver_number"]))

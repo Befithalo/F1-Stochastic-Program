@@ -219,12 +219,12 @@ def _manifest(data: object) -> GeometryProfileManifest:
         coordinate_frame = str(data["coordinate_frame"])
         transform = _mapping(data["transform"], "transform")
         units = _mapping(data["units"], "units")
-        attribution = str(data["attribution"])
+        attribution = data["attribution"]
         redistribution_status = str(data["redistribution_status"])
         quality = _mapping(data["quality"], "quality")
-        source_repository = str(data.get("source_repository", ""))
-        rights_review = _mapping(data.get("rights_review", {}), "rights_review")
-        validation = _mapping(data.get("validation", {}), "validation")
+        source_repository = data["source_repository"]
+        rights_review = _mapping(data["rights_review"], "rights_review")
+        validation = _mapping(data["validation"], "validation")
     except (KeyError, TypeError, ValueError) as error:
         raise GeometryProfileError(
             f"manifest is missing or mistypes a required field: {error}"
@@ -249,12 +249,28 @@ def _manifest(data: object) -> GeometryProfileManifest:
         raise GeometryProfileError("coordinate_frame must be local_cartesian_xy")
     if units.get("coordinates") != "m" or units.get("width") != "m":
         raise GeometryProfileError("profile coordinates and widths must use meters")
-    if not attribution.strip():
+    if not isinstance(attribution, str) or not attribution.strip():
         raise GeometryProfileError("asset attribution must be recorded")
+    if not isinstance(source_repository, str) or not source_repository.strip():
+        raise GeometryProfileError("manifest source_repository must identify the source repository")
     if redistribution_status not in {"external_local_only", "redistribution_verified"}:
         raise GeometryProfileError(
             "redistribution_status must state an explicit rights disposition"
         )
+    if (
+        not isinstance(rights_review.get("conclusion"), str)
+        or not rights_review["conclusion"].strip()
+    ):
+        raise GeometryProfileError("rights_review.conclusion must record the rights disposition")
+    validation_version = quality.get("validation_version")
+    if not isinstance(validation_version, str | int) or not str(validation_version).strip():
+        raise GeometryProfileError("quality.validation_version must be recorded")
+    if validation.get("status") != "passed":
+        raise GeometryProfileError(
+            "validation.status must be passed before the profile can be loaded"
+        )
+    if not isinstance(validation.get("outcome"), str) or not validation["outcome"].strip():
+        raise GeometryProfileError("validation.outcome must record the validation result")
     _validate_transform(transform)
     _validate_quality(quality)
     return GeometryProfileManifest(
@@ -305,7 +321,10 @@ def _validate_quality(quality: Mapping[str, Any]) -> None:
         raise GeometryProfileError("distance thresholds must be positive and ordered")
     if values["closed_loop_tolerance_m"] <= 0 or values["maximum_curvature_inv_m"] <= 0:
         raise GeometryProfileError("loop and curvature thresholds must be positive")
-    minimum_segment = float(quality.get("minimum_segment_m", _DEFAULT_MINIMUM_SEGMENT_M))
+    minimum_segment = _number(
+        {"minimum_segment_m": quality.get("minimum_segment_m", _DEFAULT_MINIMUM_SEGMENT_M)},
+        "minimum_segment_m",
+    )
     if not math.isfinite(minimum_segment) or minimum_segment <= 0:
         raise GeometryProfileError("minimum_segment_m must be finite and positive")
     for name in (
@@ -313,7 +332,7 @@ def _validate_quality(quality: Mapping[str, Any]) -> None:
         "maximum_curvature_smoothing_relative_delta",
         "maximum_smoothing_displacement_fraction",
     ):
-        tolerance = float(quality.get(name, _DEFAULT_CURVATURE_STABILITY_DELTA))
+        tolerance = _number({name: quality.get(name, _DEFAULT_CURVATURE_STABILITY_DELTA)}, name)
         if not math.isfinite(tolerance) or tolerance <= 0 or tolerance > 2:
             raise GeometryProfileError(f"{name} must be finite and between 0 and 2")
 
@@ -325,7 +344,7 @@ def _validate_transform(transform: Mapping[str, Any]) -> None:
     try:
         translation = np.asarray(transform.get("translation_m"), dtype="float64")
         rotation_deg = float(transform["rotation_deg"])
-    except (TypeError, ValueError):
+    except (KeyError, TypeError, ValueError):
         raise GeometryProfileError(
             "transform requires a finite 2D translation and rotation"
         ) from None
