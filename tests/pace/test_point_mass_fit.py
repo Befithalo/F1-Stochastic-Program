@@ -199,6 +199,24 @@ def _with_laps(model: PointMassPaceModel, laps: pd.DataFrame) -> PointMassPaceMo
     )
 
 
+def test_fit_uses_lap_end_time_when_prepared_input_has_no_visible_at_column(
+    tmp_path: Path,
+) -> None:
+    profile = _profile(tmp_path)
+    models = tuple(_model(profile, season=year, scale=1.08) for year in (2023, 2024, 2025))
+    expected = fit_effective_power_mass_scale(models)
+    lap_end_models = []
+    for model in models:
+        laps = model.physics_input.laps
+        laps["lap_end_s"] = laps["visible_at_s"]
+        laps = laps.drop(columns=["visible_at_s"])
+        lap_end_models.append(_with_laps(model, laps))
+
+    actual = fit_effective_power_mass_scale(tuple(lap_end_models))
+
+    assert actual.to_dict() == expected.to_dict()
+
+
 def test_fit_recovers_effective_scale_from_cutoff_scoped_training_panel(
     tmp_path: Path,
 ) -> None:
