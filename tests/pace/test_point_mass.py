@@ -122,8 +122,27 @@ def test_empty_batch_and_unknown_identifiers_fail_closed(
         )
 
 
+def test_profile_counts_closed_seam_once_and_refinement_is_bounded(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    from f1si.pace.point_mass import _geometry_grid
+
+    model = _model(tmp_path, long_synthetic_db)
+    intervals, _curvature = _geometry_grid(model.geometry)
+    assert len(intervals) == model.geometry.validation.segment_count
+    assert float(intervals.sum()) == pytest.approx(model.geometry.total_distance_m)
+    assert model.validate_grid_refinement(model.parameters.scenarios[0]) <= 0.001
+
+
 def test_solver_force_envelope_and_segment_integration() -> None:
-    from f1si.pace.point_mass import _lap_time_s, _solve_speed_envelope
+    from f1si.pace.point_mass import (
+        PointMassConvergenceError,
+        _corner_caps,
+        _lap_time_s,
+        _refined_lap_time_s,
+        _solve_speed_envelope,
+        _terminal_speed,
+    )
 
     ds = np.full(48, 2 * math.pi * 100 / 48, dtype=np.float64)
     curvature = np.full(48, 1 / 100, dtype=np.float64)
@@ -139,9 +158,32 @@ def test_solver_force_envelope_and_segment_integration() -> None:
     cap = math.sqrt(1.7 * 850 * 9.80665 / (850 / 100 - 1.7 * 0.5 * 1.225 * 3.0))
     assert np.max(speed) <= cap + 1e-4
     assert passes <= 1000
+    assert np.all(speed <= _corner_caps(curvature, 850, 3.0, 1.7) + 1e-6)
     assert _lap_time_s(ds, speed) == pytest.approx(
         float(np.sum(ds * (1 / speed + 1 / np.roll(speed, -1)) / 2))
     )
+    base, refined = _refined_lap_time_s(
+        ds=ds,
+        curvature=curvature,
+        mass_kg=850,
+        power_w=650_000,
+        drag_area_m2=1.4,
+        downforce_area_m2=3.0,
+        grip_mu=1.7,
+    )
+    assert abs(refined - base) / base <= 0.001
+    assert math.isfinite(_terminal_speed(650_000, 1.4))
+    with pytest.raises(PointMassConvergenceError, match="did not converge"):
+        _solve_speed_envelope(
+            ds=ds,
+            curvature=np.where(np.arange(48) % 2, 0.01, 0.002),
+            mass_kg=850,
+            power_w=650_000,
+            drag_area_m2=1.4,
+            downforce_area_m2=3.0,
+            grip_mu=1.7,
+            max_passes=1,
+        )
 
 
 def test_point_mass_references_must_match(tmp_path: Path, long_synthetic_db: Path) -> None:

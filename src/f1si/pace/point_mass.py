@@ -214,6 +214,44 @@ def _lap_time_s(ds: NDArray[np.float64], speed: NDArray[np.float64]) -> float:
     return result
 
 
+def _refined_lap_time_s(
+    *,
+    ds: NDArray[np.float64],
+    curvature: NDArray[np.float64],
+    mass_kg: float,
+    power_w: float,
+    drag_area_m2: float,
+    downforce_area_m2: float,
+    grip_mu: float,
+) -> tuple[float, float]:
+    """Compare the prepared grid with a midpoint-bisected grid using linear curvature only."""
+    base_speed, _ = _solve_speed_envelope(
+        ds=ds,
+        curvature=curvature,
+        mass_kg=mass_kg,
+        power_w=power_w,
+        drag_area_m2=drag_area_m2,
+        downforce_area_m2=downforce_area_m2,
+        grip_mu=grip_mu,
+    )
+    half = ds / 2.0
+    midpoint_curvature = (curvature + np.roll(curvature, -1)) / 2.0
+    refined_ds = np.repeat(half, 2).astype(np.float64)
+    refined_curvature = np.empty(2 * len(curvature), dtype=np.float64)
+    refined_curvature[0::2] = curvature
+    refined_curvature[1::2] = midpoint_curvature
+    fine_speed, _ = _solve_speed_envelope(
+        ds=refined_ds,
+        curvature=refined_curvature,
+        mass_kg=mass_kg,
+        power_w=power_w,
+        drag_area_m2=drag_area_m2,
+        downforce_area_m2=downforce_area_m2,
+        grip_mu=grip_mu,
+    )
+    return _lap_time_s(ds, base_speed), _lap_time_s(refined_ds, fine_speed)
+
+
 @dataclass(frozen=True, init=False)
 class PointMassPaceModel:
     """Prepared immutable geometry, cutoff input, scenarios, and compound grip mapping."""
@@ -306,3 +344,21 @@ class PointMassPaceModel:
             mean[index] += 0.0 * float(age)
             sd[index] = scenario.time_sd_s
         return mean, sd
+
+    def validate_grid_refinement(self, scenario: PointMassVehicleScenario) -> float:
+        """Return relative one-bisection lap-time change, enforcing DEC-141's 0.1% limit."""
+        base, refined = _refined_lap_time_s(
+            ds=self._ds,
+            curvature=self._curvature,
+            mass_kg=scenario.mass_kg + scenario.fuel_kg,
+            power_w=scenario.power_w,
+            drag_area_m2=scenario.drag_area_m2,
+            downforce_area_m2=scenario.downforce_area_m2,
+            grip_mu=scenario.grip_mu,
+        )
+        relative = abs(refined - base) / base
+        if relative > 0.001:
+            raise ValueError(
+                f"track grid refinement changes lap time by {relative:.3%}, above DEC-141's 0.1%"
+            )
+        return relative
