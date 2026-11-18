@@ -5,20 +5,21 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 import pytest
 
 
-def _profile(tmp_path: Path):
+def _profile(tmp_path: Path) -> Any:
     from f1si.geometry.profile import load_profile
     from tests.geometry.test_profile import _write_profile
 
     return load_profile(_write_profile(tmp_path), asset_root=tmp_path)
 
 
-def _model(tmp_path: Path, db_path: Path):
+def _model(tmp_path: Path, db_path: Path) -> Any:
     from f1si.data.asof import AsOf, AsOfAccessor
     from f1si.data.physics_input import VersionedArtifactRef, build_physics_input
     from f1si.pace.point_mass import (
@@ -282,8 +283,8 @@ def test_physical_scenario_bounds_are_inclusive_and_next_float_fails(
 
     base = PointMassVehicleScenario(1, "2023", 850, 50, 1.7, 650_000, 1.4, 10, 1.7, 0.15)
     for endpoint in (lower, upper):
-        replace(base, **{field: endpoint})
+        cast(Any, replace)(base, **{field: endpoint})
     with pytest.raises(ValueError, match=field):
-        replace(base, **{field: float(np.nextafter(lower, -math.inf))})
+        cast(Any, replace)(base, **{field: float(np.nextafter(lower, -math.inf))})
     with pytest.raises(ValueError, match=field):
-        replace(base, **{field: float(np.nextafter(upper, math.inf))})
+        cast(Any, replace)(base, **{field: float(np.nextafter(upper, math.inf))})
