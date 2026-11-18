@@ -57,6 +57,31 @@ def _model(tmp_path: Path, db_path: Path) -> Any:
     )
 
 
+def _uncertain_model(
+    tmp_path: Path,
+    db_path: Path,
+    *,
+    scale: float = 1.0,
+    covariance: float = 1e-4,
+    residual_variance_s2: float | None = 0.0025,
+) -> Any:
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _model(tmp_path, db_path)
+    parameters = replace(
+        model.parameters,
+        effective_power_mass_scale=scale,
+        power_mass_scale_variance=covariance,
+        residual_variance_s2=residual_variance_s2,
+    )
+    return PointMassPaceModel(
+        model.geometry,
+        model.physics_input,
+        parameters,
+        model.compound_grip,
+    )
+
+
 @pytest.mark.parametrize("seed", [1])
 def test_analytic_circle_deterministic_mean_sd_and_protocol(
     tmp_path: Path, long_synthetic_db: Path, seed: int
@@ -246,6 +271,116 @@ def test_future_physics_input_rows_do_not_change_prepared_model(
     )
     assert np.array_equal(original_mean, changed_mean)
     assert np.array_equal(original_sd, changed_sd)
+
+
+def test_first_order_uncertainty_reports_separate_deterministic_components(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    model = _uncertain_model(tmp_path, long_synthetic_db)
+    diagnostic = model.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+    values = np.array([1], dtype=np.int64)
+    mean, sd = model.predict(
+        driver=values,
+        compound=np.array(["MEDIUM"]),
+        tire_age=values,
+        lap=np.array([20], dtype=np.int64),
+    )
+    again, again_sd = model.predict(
+        driver=values,
+        compound=np.array(["MEDIUM"]),
+        tire_age=values,
+        lap=np.array([20], dtype=np.int64),
+    )
+
+    assert diagnostic.method == "first_order"
+    assert diagnostic.active_set_stable is True
+    assert diagnostic.parameter_variance_s2 is not None
+    assert diagnostic.parameter_variance_s2 > 0.0
+    assert diagnostic.residual_variance_s2 == pytest.approx(0.0025)
+    assert diagnostic.scenario_variance_s2 == pytest.approx(0.15**2)
+    assert sd[0] ** 2 == pytest.approx(diagnostic.total_variance_s2)
+    assert mean.dtype == sd.dtype == np.float64
+    assert np.array_equal(mean, again)
+    assert np.array_equal(sd, again_sd)
+
+
+def test_active_set_change_selects_bounded_sigma_points(
+    tmp_path: Path,
+    long_synthetic_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import f1si.pace.point_mass as point_mass
+
+    model = _uncertain_model(tmp_path, long_synthetic_db)
+    monkeypatch.setattr(
+        point_mass,
+        "_active_set_signature",
+        lambda **kwargs: (int(kwargs["power_mass_scale"] > 1.0),),
+    )
+
+    diagnostic = model.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+
+    assert diagnostic.method == "sigma_points"
+    assert diagnostic.active_set_stable is False
+    assert diagnostic.sigma_point_variance_s2 is not None
+    assert diagnostic.parameter_variance_s2 == diagnostic.sigma_point_variance_s2
+
+
+def test_nonlinear_first_order_disagreement_selects_sigma_points(
+    tmp_path: Path,
+    long_synthetic_db: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _uncertain_model(tmp_path, long_synthetic_db, covariance=0.04)
+
+    def nonlinear_mean(
+        self: Any,
+        *,
+        scenario: Any,
+        mass_kg: float,
+        grip_mu: float,
+        power_mass_scale: float,
+    ) -> float:
+        del self, scenario, mass_kg, grip_mu
+        delta = power_mass_scale - 1.0
+        return 100.0 + 2.0 * delta + 50.0 * delta**3
+
+    monkeypatch.setattr(PointMassPaceModel, "_lap_mean", nonlinear_mean)
+    diagnostic = model.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+
+    assert diagnostic.active_set_stable is True
+    assert diagnostic.method == "sigma_points"
+    assert diagnostic.relative_variance_error is not None
+    assert diagnostic.relative_variance_error > 0.1
+
+
+def test_bound_shrink_preserves_sigma_point_symmetry_and_fails_at_zero_radius(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    upper = 1_000_000.0 / 650_000.0
+    shrunken = _uncertain_model(
+        tmp_path,
+        long_synthetic_db,
+        scale=upper - 0.001,
+        covariance=0.04,
+        residual_variance_s2=None,
+    )
+    diagnostic = shrunken.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+
+    assert diagnostic.method == "sigma_points"
+    assert diagnostic.feasible_radius_scale is not None
+    assert 0.0 < diagnostic.feasible_radius_scale < 1.0
+    assert diagnostic.residual_variance_s2 is None
+    zero_radius = _uncertain_model(
+        tmp_path,
+        long_synthetic_db,
+        scale=upper,
+        covariance=0.04,
+    )
+    with pytest.raises(ValueError, match="no feasible symmetric"):
+        zero_radius.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
 
 
 def test_out_of_sample_physics_input_is_rejected(tmp_path: Path, long_synthetic_db: Path) -> None:

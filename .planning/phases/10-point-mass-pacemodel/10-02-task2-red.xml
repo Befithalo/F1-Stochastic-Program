@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.410" timestamp="2026-11-18T02:18:10.752854-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.pace.test_point_mass" name="test_first_order_uncertainty_reports_separate_deterministic_components" time="0.263"><failure message="AssertionError: assert 'scenario_only' == 'first_order'&#10;  &#10;  - first_order&#10;  + scenario_only">tmp_path = WindowsPath('C:/Users/befit/AppData/Local/Temp/pytest-of-befit/pytest-715/test_first_order_uncertainty_r0')
+long_synthetic_db = WindowsPath('C:/Users/befit/AppData/Local/Temp/pytest-of-befit/pytest-715/long_synthetic0/f1si.duckdb')
+
+    def test_first_order_uncertainty_reports_separate_deterministic_components(
+        tmp_path: Path, long_synthetic_db: Path
+    ) -&gt; None:
+        model = _uncertain_model(tmp_path, long_synthetic_db)
+        diagnostic = model.uncertainty_for(driver=1, compound="MEDIUM", lap=20)
+        values = np.array([1], dtype=np.int64)
+        mean, sd = model.predict(
+            driver=values,
+            compound=np.array(["MEDIUM"]),
+            tire_age=values,
+            lap=np.array([20], dtype=np.int64),
+        )
+        again, again_sd = model.predict(
+            driver=values,
+            compound=np.array(["MEDIUM"]),
+            tire_age=values,
+            lap=np.array([20], dtype=np.int64),
+        )
+    
+&gt;       assert diagnostic.method == "first_order"
+E       AssertionError: assert 'scenario_only' == 'first_order'
+E         
+E         - first_order
+E         + scenario_only
+
+tests\pace\test_point_mass.py:295: AssertionError</failure></testcase></testsuite></testsuites>
