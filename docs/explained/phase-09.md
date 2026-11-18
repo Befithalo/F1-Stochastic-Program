@@ -21,6 +21,8 @@ The Milestone 1 baseline remains fixed: podium Brier 0.055456, top-10 Brier 0.14
 - `src/f1si/parameters/sensitivity.py` measures coefficient evidence and leave-one-race-out stability without claiming physical recovery.
 - `src/f1si/parameters/report.py` turns supplied race snapshots and coverage evidence into reproducible JSON and a phase closeout report.
 - `src/f1si/cli.py` is the boundary that selects OpenF1, opens as-of snapshots, and invokes the Phase 9 report functions.
+- `src/f1si/pace/point_mass.py` computes deterministic lap times from the validated track profile and explicit vehicle scenarios.
+- `src/f1si/pace/point_mass_fit.py` fits the identifiable effective power-to-mass scale from cutoff-safe prepared snapshots and reports uncertainty and identifiability limits.
 - `.planning/phases/09-data-and-geometry-readiness/09-PHASE-REPORT.md` records the coverage outcome and fixed M1 baseline.
 - `.planning/phases/09-data-and-geometry-readiness/09-VALIDATION.md` records phase verification, including the Ubuntu and Windows CI gate.
 - `DECISIONS.md` records the input coverage thresholds, geometry provenance and parameter-classification method.
