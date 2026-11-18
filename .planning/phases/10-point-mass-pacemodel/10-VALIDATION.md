@@ -1,9 +1,9 @@
 ---
 phase: "10"
 slug: "point-mass-pacemodel"
-status: planned
+status: validated
 nyquist_compliant: true
-wave_0_complete: false
+wave_0_complete: true
 created: "2026-11-17"
 ---
 
@@ -32,15 +32,15 @@ created: "2026-11-17"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 10-01-T01 | 10-01 | 1 | PHY-01 | T-10-01 | Model construction validates geometry/parameter refs and explicit SI scenarios; invalid inputs fail closed. | end-to-end | `uv run pytest tests/pace/test_point_mass.py -k "analytic_circle or deterministic_mean_sd or invalid_scenario" -q` | No - Wave 0 | pending |
-| 10-01-T02 | 10-01 | 1 | PHY-01 | T-10-03 | Closed-lap passes have a fixed iteration ceiling and enforce physical speed/force bounds. | physical invariant | `uv run pytest tests/pace/test_point_mass.py -k "cyclic or curvature_cap or force_envelope or interval_refinement" -q` | No - Wave 0 | pending |
-| 10-01-T03 | 10-01 | 1 | PHY-01, PHY-02 | T-10-02 | The unchanged PaceModel contract uses prepared immutable inputs; adjacent geometry closes once and degenerate intervals fail validation. | conformance/adjacency | `uv run pytest tests/pace/test_point_mass.py tests/conformance/test_protocols.py tests/geometry/test_profile.py -q` | No - Wave 0 (test_protocols.py, test_profile.py exist) | pending |
-| 10-02-T01 | 10-02 | 2 | PHY-01, PHY-02 | T-10-05 | Only the declared effective composite can be fit; empty panels and bound optima remain explicitly unidentifiable/boundary-limited. | fit/identifiability/boundary | `uv run pytest tests/pace/test_point_mass_fit.py -k "fit or identifiability or assumption" -q` | No - Wave 0 | pending |
-| 10-02-T02 | 10-02 | 2 | PHY-01 | T-10-06 | Parameter and residual variance remain separate and uncertainty method follows active-set plus 10% regime checks. | uncertainty | `uv run pytest tests/pace/test_point_mass.py tests/pace/test_point_mass_fit.py -k "uncertainty or active_set or residual_support" -q` | No - Wave 0 | pending |
-| 10-02-T03 | 10-02 | 2 | PHY-02 | T-10-04 | Exact-cutoff rows are allowed, future rows are inert, out-of-sample races are rejected, and fit output is row-order invariant. | cutoff/order property | `uv run pytest tests/pace/test_point_mass_fit.py -k "cutoff or future_rows or out_of_sample or row_order" -q` | No - Wave 0 | pending |
-| 10-03-T01 | 10-03 | 3 | PHY-02 | T-10-07 | Independent fixed-seed truth generation accepts recovery error at or below 5% and rejects unidentifiable recovery. | synthetic recovery/boundary | `uv run pytest tests/pace/test_point_mass_recovery.py -q` | No - Wave 0 | pending |
-| 10-03-T02 | 10-03 | 3 | PHY-02 | T-10-08 | One-at-a-time track/parameter sensitivity and physical invariants have documented directions; adjacent intervals close once. | metamorphic/adjacency | `uv run pytest tests/pace/test_point_mass.py tests/pace/test_point_mass_recovery.py -k "sensitivity or track_shape or recovery or invariant or adjacency" -q` | No - Wave 0 | pending |
-| 10-03-T03 | 10-03 | 3 | PHY-01, PHY-02 | T-10-09 | The report copies the locked M1 baseline, preserves PAC-06, confirms the budget, and records final two-platform CI evidence. | report contract | `uv run pytest tests/pace/test_point_mass_report.py -q` | No - Wave 0 | pending |
+| 10-01-T01 | 10-01 | 1 | PHY-01 | T-10-01 | Model construction validates geometry/parameter refs and explicit SI scenarios; invalid inputs fail closed. | end-to-end | `uv run pytest tests/pace/test_point_mass.py -k "analytic_circle or deterministic_mean_sd or invalid_scenario" -q` | Yes | pass |
+| 10-01-T02 | 10-01 | 1 | PHY-01 | T-10-03 | Closed-lap passes have a fixed iteration ceiling and enforce physical speed/force bounds. | physical invariant | `uv run pytest tests/pace/test_point_mass.py -k "cyclic or curvature_cap or force_envelope or interval_refinement" -q` | Yes | pass |
+| 10-01-T03 | 10-01 | 1 | PHY-01, PHY-02 | T-10-02 | The unchanged PaceModel contract uses prepared immutable inputs; adjacent geometry closes once and degenerate intervals fail validation. | conformance/adjacency | `uv run pytest tests/pace/test_point_mass.py tests/conformance/test_protocols.py tests/geometry/test_profile.py -q` | Yes | pass |
+| 10-02-T01 | 10-02 | 2 | PHY-01, PHY-02 | T-10-05 | Only the declared effective composite can be fit; empty panels and bound optima remain explicitly unidentifiable/boundary-limited. | fit/identifiability/boundary | `uv run pytest tests/pace/test_point_mass_fit.py -k "fit or identifiability or assumption" -q` | Yes | pass |
+| 10-02-T02 | 10-02 | 2 | PHY-01 | T-10-06 | Parameter and residual variance remain separate and uncertainty method follows active-set plus 10% regime checks. | uncertainty | `uv run pytest tests/pace/test_point_mass.py tests/pace/test_point_mass_fit.py -k "uncertainty or active_set or residual_support" -q` | Yes | pass |
+| 10-02-T03 | 10-02 | 2 | PHY-02 | T-10-04 | Exact-cutoff rows are allowed, future rows are inert, out-of-sample races are rejected, and fit output is row-order invariant. | cutoff/order property | `uv run pytest tests/pace/test_point_mass_fit.py -k "cutoff or future_rows or out_of_sample or row_order" -q` | Yes | pass |
+| 10-03-T01 | 10-03 | 3 | PHY-02 | T-10-07 | Independent fixed-seed truth generation accepts recovery error at or below 5% and rejects unidentifiable recovery. | synthetic recovery/boundary | `uv run pytest tests/pace/test_point_mass_recovery.py -q` | Yes | pass |
+| 10-03-T02 | 10-03 | 3 | PHY-02 | T-10-08 | One-at-a-time track/parameter sensitivity and physical invariants have documented directions; adjacent intervals close once. | metamorphic/adjacency | `uv run pytest tests/pace/test_point_mass.py tests/pace/test_point_mass_recovery.py -k "sensitivity or track_shape or recovery or invariant or adjacency" -q` | Yes | pass |
+| 10-03-T03 | 10-03 | 3 | PHY-01, PHY-02 | T-10-09 | The report copies the locked M1 baseline, preserves PAC-06, confirms the budget, and records final two-platform CI evidence. | report contract | `uv run pytest tests/pace/test_point_mass_report.py -q` | Yes | pass |
 
 ## Requirement Edge Coverage
 
@@ -58,10 +58,10 @@ Shape overrides in DEC-142: PHY-01 is `numeric-range` (the existing PaceModel co
 
 ## Wave 0 Requirements
 
-- [ ] `tests/pace/test_point_mass.py` - end-to-end, convergence, physical bounds, uncertainty, and PaceModel conformance for PHY-01.
-- [ ] `tests/pace/test_point_mass_fit.py` - effective-term identifiability, cutoff-boundary, future-row, and uncertainty-support tests for PHY-01/PHY-02.
-- [ ] `tests/pace/point_mass_truth.py` and `tests/pace/test_point_mass_recovery.py` - independent test-side generator and identifiable-term recovery/sensitivity coverage for PHY-02.
-- [ ] `tests/pace/test_point_mass_report.py` - exact M1 baseline and closeout disclosure contract.
+- [x] `tests/pace/test_point_mass.py` - end-to-end, convergence, physical bounds, uncertainty, and PaceModel conformance for PHY-01.
+- [x] `tests/pace/test_point_mass_fit.py` - effective-term identifiability, cutoff-boundary, future-row, and uncertainty-support tests for PHY-01/PHY-02.
+- [x] `tests/pace/point_mass_truth.py` and `tests/pace/test_point_mass_recovery.py` - independent test-side generator and identifiable-term recovery/sensitivity coverage for PHY-02.
+- [x] `tests/pace/test_point_mass_report.py` - exact M1 baseline and closeout disclosure contract.
 - [x] Existing `tests/conformance/test_protocols.py` - shared PaceModel protocol suite is available for reuse.
 
 ## Manual-Only Verifications
@@ -72,10 +72,18 @@ None. Ubuntu and Windows CI status is machine-reported by the repository workflo
 
 - [x] All final plan tasks have an automated command and a concrete failure condition.
 - [x] All nine plan/task IDs and waves are represented in this map.
-- [ ] Wave 0 covers all new point-mass test files.
+- [x] Wave 0 covers all new point-mass test files.
 - [x] No watch-mode flags.
 - [x] Focused feedback latency target is under 60 seconds.
 - [x] `nyquist_compliant: true` is set after the final task/test map was validated.
-- [ ] Ubuntu and Windows CI are green for the final implementation commit.
+- [x] Ubuntu and Windows CI are green for the final implementation commit.
 
-**Approval:** planning complete; execution pending.
+**Approval:** validation complete; all task checks pass and both CI platforms are green.
+
+## Validation Audit 2026-11-18
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
