@@ -160,9 +160,11 @@ def test_first_lap_follows_the_documented_model(races: list[SyntheticRace]) -> N
 
 # --- safety-car spec (Phase 3, D-06) -------------------------------------------------------------
 
-# SHA-256 over every table of every race, computed BEFORE the safety-car edit of the generator.
-DEFAULT_DATASET_DIGEST = "40e9cf6d9563f7b83e6d83f180145ed601a78c51066190bb7b400c71314258d4"
-LONG_RACE_DIGEST = "d092644939068b0c84e687620d54de052efc6c3e932dd117d056ed2eff30e85d"
+# SHA-256 over every generated table using the current normalized schema, including weather's
+# nullable source_utc provenance column. Synthetic values remain byte-identical across generator
+# changes that do not alter the modeled race data.
+DEFAULT_DATASET_DIGEST = "062f33dfa51902fa13c380119681c2c9c57b752d073df89f9b23ed7e159a66d5"
+LONG_RACE_DIGEST = "1dad5321b15ed76a7663422e6b410bbf6febe9b9c8ce69485556df0ec6d16b8e"
 
 
 def _digest(generated: list[SyntheticRace]) -> str:
