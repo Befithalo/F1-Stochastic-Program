@@ -83,6 +83,8 @@ _FRIENDLY_VALUE_ERRORS = frozenset(
         "replay",
         "backtest",
         "backfill-scheduled-laps",
+        "physics-coverage-audit",
+        "parameter-evidence-report",
     }
 )
 _DRIVER_CODE = re.compile(r"[A-Z]{3}")
@@ -345,12 +347,82 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         help="write lap-count source provenance to this CSV",
     )
+    coverage = sub.add_parser(
+        "physics-coverage-audit", help="audit cached physics channels and optionally probe OpenF1"
+    )
+    coverage.add_argument("--output", type=Path, required=True, help="coverage JSON output path")
+    coverage.add_argument(
+        "--probe-race",
+        choices=("2023-01",),
+        help="probe only the bounded Bahrain 2023 OpenF1 window",
+    )
+    parameter_report = sub.add_parser(
+        "parameter-evidence-report", help="write the cutoff-safe Phase 9 parameter report"
+    )
+    parameter_report.add_argument("--coverage-report", type=Path, required=True)
+    parameter_report.add_argument("--output", type=Path, required=True)
+    parameter_report.add_argument("--phase-report", type=Path, required=True)
     return parser
 
 
 def _make_asof_accessor(db_path: Path) -> asof.AsOfAccessor:
     """Create the cache-reading capability for CLI and backtest replay drivers."""
     return asof.AsOfAccessor(db_path)
+
+
+def _cmd_physics_coverage_audit(data_dir: Path, output: Path, *, probe: bool) -> int:
+    from f1si.data.coverage_audit import build_coverage_report, write_coverage_report
+
+    rows = None
+    if probe:
+        source = OpenF1Source(http_cache_dir=paths.http_cache_dir(data_dir))
+        rows = source._rows
+    report = build_coverage_report(paths.db_path(data_dir), probe=probe, probe_rows=rows)
+    write_coverage_report(report, output)
+    probe_status = report.get("bahrain_2023_probe", {}).get("status", "not requested")
+    print(
+        f"Wrote {output}: {report['local_cache']['catalog_complete_races']} complete races; "
+        f"Bahrain probe {probe_status}"
+    )
+    return 0
+
+
+def _cmd_parameter_evidence_report(
+    data_dir: Path, coverage_path: Path, output: Path, phase_report_path: Path
+) -> int:
+    from f1si.parameters.report import build_sensitivity_report, render_phase_report
+
+    db_path = paths.db_path(data_dir)
+    races = asof.catalog(db_path)
+    eligible = races.loc[
+        races["season"].astype(int).between(2023, 2025)
+        & races["load_status"].eq("complete")
+        & ~races["out_of_sample"].astype(bool)
+    ].sort_values(["season", "round"])
+    accessor = _make_asof_accessor(db_path)
+    snapshots = [
+        (str(race_id), accessor.snapshot(asof.AsOf(str(race_id), asof.RACE_END)))
+        for race_id in eligible["race_id"].astype(str)
+    ]
+    coverage = json.loads(coverage_path.read_text(encoding="utf-8"))
+    report = build_sensitivity_report(snapshots, cache_file_name=db_path.name)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
+    )
+    phase_report_path.parent.mkdir(parents=True, exist_ok=True)
+    phase_report_path.write_text(render_phase_report(report, coverage), encoding="utf-8")
+    print(
+        json.dumps(
+            {
+                "race_count": report["evidence_set"]["race_count"],
+                "sample_count": report["evidence_sensitivity"]["sample_count"],
+                "output": str(output),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
 
 
 def _cmd_load(
@@ -1460,6 +1532,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             parser.error("single-cutoff mode requires --race, --driver, and --lap")
     data_dir: Path = args.data_dir if args.data_dir is not None else paths.data_dir()
     try:
+        if args.command == "physics-coverage-audit":
+            return _cmd_physics_coverage_audit(
+                data_dir, args.output, probe=args.probe_race == "2023-01"
+            )
+        if args.command == "parameter-evidence-report":
+            return _cmd_parameter_evidence_report(
+                data_dir, args.coverage_report, args.output, args.phase_report
+            )
         if args.command == "backfill-scheduled-laps":
             return _cmd_backfill_scheduled_laps(data_dir, args.output)
         if args.command == "holdout":

@@ -26,36 +26,40 @@ key_files:
 decisions: [DEC-139]
 requirements-completed: [PAR-01]
 coverage:
-  - deliverable: Effective-versus-hidden parameter register
+  - id: parameter_register
+    description: Effective pace coefficients are distinct from cited hidden assumptions.
     verification:
-      - kind: test
+      - kind: unit
         ref: tests/parameters/test_register.py#test_register_classifies_effective_terms_and_hidden_assumptions
         status: pass
-      - kind: test
+      - kind: unit
         ref: tests/parameters/test_register.py#test_hidden_physical_parameter_requires_evidence_bounds_and_uncertainty
         status: pass
     human_judgment: false
-  - deliverable: Solver-independent numeric sensitivity report
+  - id: parameter_sensitivity
+    description: Numeric sensitivity uses cutoff-safe 2023-2025 snapshots only.
     verification:
-      - kind: command
-        ref: uv run python -m f1si.parameters.report --database data/f1si.duckdb --coverage-report .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json --phase-report .planning/phases/09-data-and-geometry-readiness/09-PHASE-REPORT.md
+      - kind: integration
+        ref: uv run f1si parameter-evidence-report --coverage-report .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json --phase-report .planning/phases/09-data-and-geometry-readiness/09-PHASE-REPORT.md
         status: pass
-      - kind: test
+      - kind: unit
         ref: tests/parameters/test_register.py#test_evidence_sensitivity_is_numeric_and_predictive_sensitivity_is_pre_solver
         status: pass
     human_judgment: false
-  - deliverable: Phase 9 report and fixed-baseline disclosures
+  - id: phase_closeout_report
+    description: Closeout records coverage, the Bahrain probe, and the fixed M1 baseline.
     verification:
-      - kind: test
+      - kind: unit
         ref: tests/parameters/test_register.py#test_closeout_contract_carries_coverage_and_exact_m1_baseline
         status: pass
-      - kind: command
-        ref: uv run python -m f1si.parameters.report --database data/f1si.duckdb --coverage-report .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json --phase-report .planning/phases/09-data-and-geometry-readiness/09-PHASE-REPORT.md
+      - kind: integration
+        ref: uv run f1si parameter-evidence-report --coverage-report .planning/phases/09-data-and-geometry-readiness/09-OPENF1-COVERAGE.json --output .planning/phases/09-data-and-geometry-readiness/09-PARAMETER-SENSITIVITY.json --phase-report .planning/phases/09-data-and-geometry-readiness/09-PHASE-REPORT.md
         status: pass
     human_judgment: false
-  - deliverable: Physical assumptions and method choices documented
+  - id: parameter_method_decision
+    description: Parameter assumptions and the solver-independent evidence method are recorded.
     verification:
-      - kind: file
+      - kind: manual_procedural
         ref: DECISIONS.md#DEC-139
         status: pass
     human_judgment: true

@@ -1564,3 +1564,14 @@ Every method choice in this project, and why we made it (FND-04). One entry per 
 **Alternatives rejected:** Leaving either requirement unclassified, treating physical ranges as unconstrained, silently dropping empty panels, or allowing collection order to affect fitted diagnostics.
 **Consequences:** `10-01-PLAN.md`, `10-02-PLAN.md`, `10-03-PLAN.md`, and `10-VALIDATION.md` carry the shape classification, exact predicates, coverage and evidence. The resolved edge probe reports seven explicit edges and zero unresolved edges.
 **Refs:** `.planning/REQUIREMENTS.md` PHY-01/PHY-02; `.planning/ROADMAP.md` Phase 10 success criteria; `.planning/phases/10-point-mass-pacemodel/10-CONTEXT.md` D-01 through D-05; DEC-140, DEC-141; `src/f1si/interfaces.py`; `src/f1si/geometry/profile.py`; `tests/conformance/suites.py`
+
+## DEC-143 — Keep Phase 9 report helpers behind public data doors
+
+**Date:** 2026-11-17
+**Status:** Accepted
+**Context:** The Phase 9 coverage and parameter-report helpers crossed the repository's import boundary by reading private storage, constructing a source, and holding an as-of accessor. The CI import guard correctly rejected these paths.
+**Decision:** Keep coverage and parameter report modules as report logic. Expose only aggregate optional-channel row counts through `f1si.data.asof`; pass source row access from the CLI into the bounded OpenF1 probe; and have the CLI select cutoff-safe race snapshots before passing them to the parameter report. The report module accepts only unique, in-sample 2023-2025 `RACE_END` snapshots.
+**Why:** The CLI owns source selection and cache capabilities, while report helpers consume prepared evidence. This preserves the existing cutoff/result boundary and makes utility functions testable without adding a data-access back door.
+**Alternatives rejected:** Allowing reporting modules to import private storage or OpenF1 adapters; moving the import-guard policy to permit new capability holders; or passing a database accessor into the model/report layer.
+**Consequences:** The Phase 9 report commands are `f1si physics-coverage-audit` and `f1si parameter-evidence-report`. The coverage report can still be generated without a probe; requesting the bounded external probe requires the CLI-injected cached OpenF1 source.
+**Refs:** `src/f1si/data/asof.py`; `src/f1si/data/coverage_audit.py`; `src/f1si/data/physics_input.py`; `src/f1si/parameters/report.py`; `src/f1si/cli.py`; `tests/guards/test_import_ban.py`; DEC-001, DEC-002, DEC-137

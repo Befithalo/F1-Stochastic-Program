@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 from collections.abc import Callable, Mapping
 from datetime import UTC, timedelta
@@ -11,9 +10,8 @@ from typing import Any
 
 import pandas as pd
 
-from f1si.data import _db
+from f1si.data import asof
 from f1si.data.sources import RateLimitedError, SourceError
-from f1si.data.sources.openf1 import OpenF1Source
 
 CHANNELS = ("weather", "car_data", "location")
 EXPECTED_COMPLETE_RACES = 87
@@ -22,29 +20,20 @@ _DATE_COLUMN = "date"
 Rows = Callable[..., list[dict[str, object]]]
 
 
-def _local_cache_report(db_path: Path) -> dict[str, Any]:
+def _local_cache_report(
+    catalog: pd.DataFrame, channel_counts: Mapping[str, Mapping[str, int]]
+) -> dict[str, Any]:
     """Count each optional channel for every complete race, without reading outcomes."""
-    with _db.connect_reader(db_path) as con:
-        catalog_rows = con.execute(
-            "SELECT race_id FROM races WHERE load_status = 'complete' ORDER BY season, round"
-        ).fetchall()
-        race_ids = [str(row[0]) for row in catalog_rows]
-        counts: dict[str, dict[str, int]] = {channel: {} for channel in CHANNELS}
-        for channel in CHANNELS:
-            if not _db.table_exists(con, channel):
-                continue
-            grouped = con.execute(
-                f"SELECT race_id, COUNT(*) FROM {channel} GROUP BY race_id"
-            ).fetchall()
-            counts[channel] = {str(race_id): int(count) for race_id, count in grouped}
+    complete = catalog[catalog["load_status"] == "complete"].sort_values(["season", "round"])
+    race_ids = complete["race_id"].astype(str).tolist()
 
     races: list[dict[str, Any]] = [
         {
             "race_id": race_id,
             "channels": {
                 channel: {
-                    "present": counts[channel].get(race_id, 0) > 0,
-                    "row_count": counts[channel].get(race_id, 0),
+                    "present": channel_counts.get(channel, {}).get(race_id, 0) > 0,
+                    "row_count": channel_counts.get(channel, {}).get(race_id, 0),
                 }
                 for channel in CHANNELS
             },
@@ -96,15 +85,12 @@ def _utc_iso(value: pd.Timestamp) -> str:
 
 def probe_bahrain_2023(
     *,
-    http_cache_dir: Path = Path("data/http-cache"),
     rows: Rows | None = None,
 ) -> dict[str, Any]:
     """Request at most three 10-minute Bahrain 2023 channels through OpenF1's cached seam."""
     if rows is None:
-        source = OpenF1Source(http_cache_dir=http_cache_dir)
-        fetch_rows: Rows = source._rows
-    else:
-        fetch_rows = rows
+        return _unavailable_probe("OpenF1 source callback was not supplied by the CLI")
+    fetch_rows = rows
 
     try:
         sessions = fetch_rows(
@@ -215,16 +201,18 @@ def build_coverage_report(
     db_path: Path,
     *,
     probe: bool = False,
-    http_cache_dir: Path = Path("data/http-cache"),
+    probe_rows: Rows | None = None,
 ) -> dict[str, Any]:
-    """Build the local catalog report, optionally running the single bounded Bahrain probe."""
+    """Build an audit through public data doors, with source access injected by the CLI."""
+    catalog = asof.catalog(db_path)
+    channel_counts = asof.optional_channel_row_counts(db_path)
     report: dict[str, Any] = {
         "schema_version": 1,
-        "local_cache": _local_cache_report(db_path),
+        "local_cache": _local_cache_report(catalog, channel_counts),
     }
     report["complete_catalog_race_ids"] = [row["race_id"] for row in report["local_cache"]["races"]]
     if probe:
-        report["bahrain_2023_probe"] = probe_bahrain_2023(http_cache_dir=http_cache_dir)
+        report["bahrain_2023_probe"] = probe_bahrain_2023(rows=probe_rows)
     return report
 
 
@@ -235,27 +223,3 @@ def write_coverage_report(report: Mapping[str, Any], destination: Path) -> None:
         json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", type=Path, required=True)
-    parser.add_argument("--http-cache-dir", type=Path, default=Path("data/http-cache"))
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--probe-race", choices=("2023-01",))
-    args = parser.parse_args(argv)
-    report = build_coverage_report(
-        args.database,
-        probe=args.probe_race == "2023-01",
-        http_cache_dir=args.http_cache_dir,
-    )
-    write_coverage_report(report, args.output)
-    print(
-        f"Wrote {args.output}: {report['local_cache']['catalog_complete_races']} complete races; "
-        f"Bahrain probe {report.get('bahrain_2023_probe', {}).get('status', 'not requested')}"
-    )
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

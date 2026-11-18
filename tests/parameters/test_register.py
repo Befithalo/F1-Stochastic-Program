@@ -63,9 +63,21 @@ def test_register_does_not_label_unidentified_terms_as_recovered(long_synthetic_
 def test_evidence_sensitivity_is_numeric_and_predictive_sensitivity_is_pre_solver(
     long_synthetic_db: Path,
 ) -> None:
+    from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, catalog
     from f1si.parameters.report import build_sensitivity_report
 
-    report = build_sensitivity_report(long_synthetic_db)
+    races = catalog(long_synthetic_db)
+    eligible = races.loc[
+        races["season"].astype(int).between(2023, 2025)
+        & races["load_status"].eq("complete")
+        & ~races["out_of_sample"].astype(bool)
+    ].sort_values(["season", "round"])
+    accessor = AsOfAccessor(long_synthetic_db)
+    snapshots = [
+        (str(race_id), accessor.snapshot(AsOf(str(race_id), RACE_END)))
+        for race_id in eligible["race_id"].astype(str)
+    ]
+    report = build_sensitivity_report(snapshots, cache_file_name=long_synthetic_db.name)
 
     assert report["evidence_sensitivity"]["eligible_race_count"] > 0
     assert report["evidence_sensitivity"]["sample_count"] > 0
@@ -75,6 +87,16 @@ def test_evidence_sensitivity_is_numeric_and_predictive_sensitivity_is_pre_solve
     assert report["predictive_lap_time_sensitivity"] == "not_estimable_pre_solver"
     assert all(race_id.startswith(("2023-", "2024-", "2025-")) for race_id in report["race_ids"])
     assert "results" not in json.dumps(report).lower()
+
+
+def test_parameter_report_refuses_mid_race_snapshots(long_synthetic_db: Path) -> None:
+    from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.parameters.report import build_sensitivity_report
+
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 40))
+
+    with pytest.raises(ValueError, match="RACE_END snapshots"):
+        build_sensitivity_report([("2023-01", snapshot)], cache_file_name=long_synthetic_db.name)
 
 
 def test_closeout_contract_carries_coverage_and_exact_m1_baseline(tmp_path: Path) -> None:

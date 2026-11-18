@@ -10,7 +10,7 @@ from types import MappingProxyType
 
 import pandas as pd
 
-from f1si.data._snapshot import AsOf, RaceInfo, RaceSnapshot
+from f1si.data.asof import AsOf, RaceInfo, RaceSnapshot
 
 _TIME_COLUMNS = ("weather", "car_data", "location")
 _MIN_CHANNEL_ROWS = 3
@@ -144,7 +144,7 @@ def _coverage(channel: str, frame: pd.DataFrame) -> ChannelCoverage:
 class PhysicsInput:
     """Copy-owning prepared race data; it contains no accessor, database path, or results door."""
 
-    _snapshot: RaceSnapshot
+    _race_snapshot: RaceSnapshot
     geometry_ref: VersionedArtifactRef
     parameter_ref: VersionedArtifactRef
     coverage: Mapping[str, ChannelCoverage]
@@ -156,7 +156,7 @@ class PhysicsInput:
         parameter_ref: VersionedArtifactRef,
         coverage: Mapping[str, ChannelCoverage],
     ) -> None:
-        object.__setattr__(self, "_snapshot", _copy_snapshot(snapshot))
+        object.__setattr__(self, "_race_snapshot", _copy_snapshot(snapshot))
         object.__setattr__(self, "geometry_ref", geometry_ref)
         object.__setattr__(self, "parameter_ref", parameter_ref)
         object.__setattr__(self, "coverage", MappingProxyType(dict(coverage)))
@@ -164,59 +164,59 @@ class PhysicsInput:
     @property
     def snapshot(self) -> RaceSnapshot:
         """A defensive copy of the public as-of snapshot."""
-        return _copy_snapshot(self._snapshot)
+        return _copy_snapshot(self._race_snapshot)
 
     @property
     def race(self) -> RaceInfo:
-        return self._snapshot.race
+        return self._race_snapshot.race
 
     @property
     def at(self) -> AsOf:
-        return self._snapshot.at
+        return self._race_snapshot.at
 
     @property
     def cutoff_s(self) -> float | None:
-        return self._snapshot.cutoff_s
+        return self._race_snapshot.cutoff_s
 
     @property
     def entries(self) -> pd.DataFrame:
-        return self._snapshot.entries.copy(deep=True)
+        return self._race_snapshot.entries.copy(deep=True)
 
     @property
     def laps(self) -> pd.DataFrame:
-        return self._snapshot.laps.copy(deep=True)
+        return self._race_snapshot.laps.copy(deep=True)
 
     @property
     def track_status(self) -> pd.DataFrame:
-        return self._snapshot.track_status.copy(deep=True)
+        return self._race_snapshot.track_status.copy(deep=True)
 
     @property
     def race_control(self) -> pd.DataFrame:
-        return self._snapshot.race_control.copy(deep=True)
+        return self._race_snapshot.race_control.copy(deep=True)
 
     @property
     def weather(self) -> pd.DataFrame:
-        return self._snapshot.weather.copy(deep=True)
+        return self._race_snapshot.weather.copy(deep=True)
 
     @property
     def car_data(self) -> pd.DataFrame:
-        return self._snapshot.car_data.copy(deep=True)
+        return self._race_snapshot.car_data.copy(deep=True)
 
     @property
     def location(self) -> pd.DataFrame:
-        return self._snapshot.location.copy(deep=True)
+        return self._race_snapshot.location.copy(deep=True)
 
     @property
     def stints(self) -> pd.DataFrame:
-        return self._snapshot.stints.copy(deep=True)
+        return self._race_snapshot.stints.copy(deep=True)
 
     @property
     def pit_events(self) -> pd.DataFrame:
-        return self._snapshot.pit_events.copy(deep=True)
+        return self._race_snapshot.pit_events.copy(deep=True)
 
     @property
     def cars(self) -> pd.DataFrame:
-        return self._snapshot.cars.copy(deep=True)
+        return self._race_snapshot.cars.copy(deep=True)
 
 
 def build_physics_input(

@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
-from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 from f1si.data import schema
-from f1si.data.asof import RACE_END, AsOf, AsOfAccessor, catalog
+from f1si.data.asof import RaceSnapshot
 from f1si.pace.linear import fit_linear_pace
 from f1si.parameters import REGISTER_VERSION, build_register
 from f1si.parameters.sensitivity import METHOD_VERSION, evidence_digest, summarize_evidence
@@ -34,25 +33,35 @@ def _schema_digest() -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def build_sensitivity_report(database: Path | str) -> dict[str, Any]:
-    """Fit only complete 2023-2025 in-sample end snapshots from the public as-of door."""
-    db_path = Path(database)
-    races = catalog(db_path)
-    eligible = races.loc[
-        races["season"].astype(int).between(2023, 2025)
-        & races["load_status"].eq("complete")
-        & ~races["out_of_sample"].astype(bool)
-    ].sort_values(["season", "round"])
-    if eligible.empty:
+def build_sensitivity_report(
+    snapshots: Sequence[tuple[str, RaceSnapshot]], *, cache_file_name: str
+) -> dict[str, Any]:
+    """Fit provided in-sample end snapshots; callers own cache and cutoff access."""
+    if not snapshots:
         raise ValueError("catalog precondition failed: no complete in-sample races from 2023-2025")
+    race_ids_in = [race_id for race_id, _snapshot in snapshots]
+    if len(set(race_ids_in)) != len(race_ids_in):
+        raise ValueError("sensitivity snapshots must have unique race IDs")
+    invalid = [
+        race_id
+        for race_id, snapshot in snapshots
+        if snapshot.race.race_id != race_id
+        or snapshot.at.race_id != race_id
+        or not 2023 <= snapshot.race.season <= 2025
+        or snapshot.race.out_of_sample
+        or snapshot.cutoff_s is not None
+    ]
+    if invalid:
+        raise ValueError(
+            "sensitivity report accepts only in-sample 2023-2025 RACE_END snapshots; "
+            f"invalid races: {', '.join(invalid)}"
+        )
 
-    accessor = AsOfAccessor(db_path)
     fits: list[tuple[str, Any]] = []
     fit_evidence: list[dict[str, Any]] = []
     race_ids: list[str] = []
     sample_count = 0
-    for race_id in eligible["race_id"].astype(str):
-        snapshot = accessor.snapshot(AsOf(race_id, RACE_END))
+    for race_id, snapshot in snapshots:
         fit = fit_linear_pace(snapshot)
         fits.append((race_id, fit))
         race_ids.append(race_id)
@@ -78,7 +87,7 @@ def build_sensitivity_report(database: Path | str) -> dict[str, Any]:
         )
 
     evidence = summarize_evidence(
-        fits, eligible_race_count=len(eligible), sample_count=sample_count
+        fits, eligible_race_count=len(snapshots), sample_count=sample_count
     )
     register = build_register(
         fits=[fit for _, fit in fits],
@@ -90,7 +99,7 @@ def build_sensitivity_report(database: Path | str) -> dict[str, Any]:
         "method_version": METHOD_VERSION,
         "register_version": REGISTER_VERSION,
         "cache": {
-            "file_name": db_path.name,
+            "file_name": cache_file_name,
             "schema_contract_sha256": _schema_digest(),
             "race_evidence_sha256": evidence_digest(fit_evidence),
         },
@@ -215,33 +224,3 @@ def render_phase_report(sensitivity: dict[str, Any], coverage: dict[str, Any]) -
         "",
     ]
     return "\n".join(lines)
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--database", type=Path, required=True)
-    parser.add_argument("--coverage-report", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--phase-report", type=Path, required=True)
-    args = parser.parse_args()
-    coverage = json.loads(args.coverage_report.read_text(encoding="utf-8"))
-    report = build_sensitivity_report(args.database)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8"
-    )
-    args.phase_report.write_text(render_phase_report(report, coverage), encoding="utf-8")
-    print(
-        json.dumps(
-            {
-                "race_count": report["evidence_set"]["race_count"],
-                "sample_count": report["evidence_sensitivity"]["sample_count"],
-                "output": str(args.output),
-            },
-            sort_keys=True,
-        )
-    )
-
-
-if __name__ == "__main__":
-    main()

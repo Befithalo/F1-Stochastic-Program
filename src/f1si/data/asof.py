@@ -68,6 +68,27 @@ def catalog(db_path: Path) -> pd.DataFrame:
     return _db.read_df(db_path, _CATALOG_SQL)
 
 
+def optional_channel_row_counts(db_path: Path) -> dict[str, dict[str, int]]:
+    """Return row counts for the supported optional telemetry channels by race.
+
+    This is a read-only cache coverage view. It deliberately returns counts rather than table
+    frames so callers cannot use this audit helper to bypass the as-of snapshot boundary.
+    """
+    from f1si.data import _db  # local import: storage remains private to the data doors
+
+    channels = ("weather", "car_data", "location")
+    counts: dict[str, dict[str, int]] = {channel: {} for channel in channels}
+    with _db.connect_reader(db_path) as con:
+        for channel in channels:
+            if not _db.table_exists(con, channel):
+                continue
+            rows = con.execute(
+                f"SELECT race_id, COUNT(*) FROM {channel} GROUP BY race_id"
+            ).fetchall()
+            counts[channel] = {str(race_id): int(count) for race_id, count in rows}
+    return counts
+
+
 def resolve_slug(db_path: Path, slug_or_race_id: str) -> str:
     """Return the race_id for a slug (such as `bahrain-2023`) or a race_id (`2023-01`).
 
