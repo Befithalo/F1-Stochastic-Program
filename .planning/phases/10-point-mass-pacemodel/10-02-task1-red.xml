@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="1" time="0.224" timestamp="2026-11-18T02:04:06.380716-05:00" hostname="LAPTOP-OAMU4RG3"><testcase classname="tests.pace.test_point_mass_fit" name="test_fit_recovers_effective_scale_from_cutoff_scoped_training_panel" time="0.035"><failure message="AssertionError: assert 'unidentifiable' == 'identified'&#10;  &#10;  - identified&#10;  ?          -&#10;  + unidentifiable&#10;  ? ++        +++">tmp_path = WindowsPath('C:/Users/befit/AppData/Local/Temp/pytest-of-befit/pytest-698/test_fit_recovers_effective_sc0')
+
+    def test_fit_recovers_effective_scale_from_cutoff_scoped_training_panel(
+        tmp_path: Path,
+    ) -&gt; None:
+        profile = _profile(tmp_path)
+        models = tuple(_model(profile, season=year, scale=1.08) for year in (2023, 2024, 2025))
+    
+        report = fit_effective_power_mass_scale(
+            models,
+            declared_assumption=1.0,
+            bounds=(0.75, 1.4),
+        )
+    
+&gt;       assert report.status == "identified"
+E       AssertionError: assert 'unidentifiable' == 'identified'
+E         
+E         - identified
+E         ?          -
+E         + unidentifiable
+E         ? ++        +++
+
+tests\pace\test_point_mass_fit.py:165: AssertionError</failure></testcase></testsuite></testsuites>
