@@ -53,10 +53,10 @@ class PointMassVehicleScenario:
     drag_area_m2: float
     downforce_area_m2: float
     grip_mu: float
-    time_sd_s: float = 0.15
+    time_sd_s: float
 
     def __post_init__(self) -> None:
-        if isinstance(self.driver, bool) or self.driver < 1:
+        if isinstance(self.driver, bool) or not isinstance(self.driver, int) or self.driver < 1:
             raise ValueError("driver must be a positive integer")
         if not self.season.isdigit() or self.season not in {"2023", "2024", "2025"}:
             raise ValueError("season must be one of the declared 2023-2025 seasons")
@@ -78,6 +78,8 @@ class PointMassParameters:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "scenarios", tuple(self.scenarios))
+        if not all(isinstance(item, PointMassVehicleScenario) for item in self.scenarios):
+            raise TypeError("scenarios must contain PointMassVehicleScenario values")
         drivers = [item.driver for item in self.scenarios]
         if not drivers or len(drivers) != len(set(drivers)):
             raise ValueError("scenarios must include unique driver identifiers")
@@ -268,7 +270,7 @@ class PointMassPaceModel:
         geometry: GeometryProfile,
         physics_input: PhysicsInput,
         parameters: PointMassParameters,
-        compound_grip: dict[str, float],
+        compound_grip: Mapping[str, float],
     ) -> None:
         if not isinstance(geometry, GeometryProfile) or not isinstance(physics_input, PhysicsInput):
             raise TypeError("model requires validated GeometryProfile and PhysicsInput artifacts")
@@ -291,8 +293,8 @@ class PointMassPaceModel:
         object.__setattr__(self, "physics_input", physics_input)
         object.__setattr__(self, "parameters", parameters)
         object.__setattr__(self, "compound_grip", MappingProxyType(grips))
-        ds.setflags(write=False)
-        curvature.setflags(write=False)
+        ds = np.frombuffer(ds.tobytes(), dtype="<f8")
+        curvature = np.frombuffer(curvature.tobytes(), dtype="<f8")
         object.__setattr__(self, "_ds", ds)
         object.__setattr__(self, "_curvature", curvature)
 
@@ -312,6 +314,8 @@ class PointMassPaceModel:
             raise ValueError("predict inputs must have identical shapes")
         if driver.dtype != np.int64 or tire_age.dtype != np.int64 or lap.dtype != np.int64:
             raise ValueError("driver, tire_age, and lap must use int64")
+        if compound.dtype.kind not in "US":
+            raise ValueError("compound must use a fixed-width string dtype")
         if len(driver) == 0:
             empty = np.empty(0, dtype=np.float64)
             return empty, empty.copy()

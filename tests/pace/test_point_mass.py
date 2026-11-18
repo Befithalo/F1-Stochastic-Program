@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 
@@ -41,6 +43,7 @@ def _model(tmp_path: Path, db_path: Path):
             drag_area_m2=1.4,
             downforce_area_m2=10.0,
             grip_mu=1.7,
+            time_sd_s=0.15,
         )
         for driver in (1, 2, 3, 4, 5, 6, 7, 8)
     )
@@ -200,7 +203,7 @@ def test_point_mass_references_must_match(tmp_path: Path, long_synthetic_db: Pat
     prepared = build_physics_input(
         AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10)), profile.reference, wrong
     )
-    scenario = PointMassVehicleScenario(1, "2023", 850, 50, 1.7, 650000, 1.4, 10, 1.7)
+    scenario = PointMassVehicleScenario(1, "2023", 850, 50, 1.7, 650000, 1.4, 10, 1.7, 0.15)
     with pytest.raises(ValueError, match="parameter reference"):
         PointMassPaceModel(
             profile,
@@ -208,6 +211,53 @@ def test_point_mass_references_must_match(tmp_path: Path, long_synthetic_db: Pat
             PointMassParameters(VersionedArtifactRef("other", "1", "c" * 64), (scenario,)),
             {"SOFT": 1, "MEDIUM": 1, "HARD": 1},
         )
+
+
+def test_future_physics_input_rows_do_not_change_prepared_model(
+    tmp_path: Path, long_synthetic_db: Path
+) -> None:
+    from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import build_physics_input
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _model(tmp_path, long_synthetic_db)
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
+    weather = snapshot.weather
+    future = (
+        weather.iloc[[0]].copy() if not weather.empty else pd.DataFrame(columns=weather.columns)
+    )
+    if future.empty:
+        future = pd.DataFrame({"visible_at_s": [float(snapshot.cutoff_s or 0) + 1]})
+    else:
+        future["visible_at_s"] = float(snapshot.cutoff_s or 0) + 1
+    replaced = replace(snapshot, weather=pd.concat([weather, future], ignore_index=True))
+    prepared = build_physics_input(
+        replaced, model.geometry.reference, model.parameters.parameter_ref
+    )
+    changed = PointMassPaceModel(model.geometry, prepared, model.parameters, model.compound_grip)
+    values = np.arange(1, 9, dtype=np.int64)
+    compounds = np.array(["SOFT", "MEDIUM", "HARD", "SOFT", "MEDIUM", "HARD", "SOFT", "MEDIUM"])
+    original_mean, original_sd = model.predict(
+        driver=values, compound=compounds, tire_age=values, lap=values
+    )
+    changed_mean, changed_sd = changed.predict(
+        driver=values, compound=compounds, tire_age=values, lap=values
+    )
+    assert np.array_equal(original_mean, changed_mean)
+    assert np.array_equal(original_sd, changed_sd)
+
+
+def test_out_of_sample_physics_input_is_rejected(tmp_path: Path, long_synthetic_db: Path) -> None:
+    from f1si.data.asof import AsOf, AsOfAccessor
+    from f1si.data.physics_input import PhysicsInput
+    from f1si.pace.point_mass import PointMassPaceModel
+
+    model = _model(tmp_path, long_synthetic_db)
+    snapshot = AsOfAccessor(long_synthetic_db).snapshot(AsOf("2023-01", 10))
+    locked = replace(snapshot, race=replace(snapshot.race, out_of_sample=True))
+    prepared = PhysicsInput(locked, model.geometry.reference, model.parameters.parameter_ref, {})
+    with pytest.raises(ValueError, match="out-of-sample"):
+        PointMassPaceModel(model.geometry, prepared, model.parameters, model.compound_grip)
 
 
 @pytest.mark.parametrize(
@@ -230,7 +280,7 @@ def test_physical_scenario_bounds_are_inclusive_and_next_float_fails(
 
     from f1si.pace.point_mass import PointMassVehicleScenario
 
-    base = PointMassVehicleScenario(1, "2023", 850, 50, 1.7, 650_000, 1.4, 10, 1.7)
+    base = PointMassVehicleScenario(1, "2023", 850, 50, 1.7, 650_000, 1.4, 10, 1.7, 0.15)
     for endpoint in (lower, upper):
         replace(base, **{field: endpoint})
     with pytest.raises(ValueError, match=field):
